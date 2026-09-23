@@ -269,6 +269,8 @@ function buildDecor(root, roadDist, plotPositions, basePos, theme, rand, paths) 
     ? new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false })
     : new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.9 });
   const rockM = new THREE.MeshStandardMaterial({ color: theme.rock, flatShading: true, roughness: 1 });
+  const sway = { pine: 0.05, snowpine: 0.035, shrub: 0.07, deadtree: 0.03, cactus: 0.008 }[theme.decor] || 0;
+  if (sway) { addWind(aM, sway); if (!geos.glow) addWind(bM, sway); }
   const aI = new THREE.InstancedMesh(geos.a, aM, Math.max(1, trees.length));
   const bI = new THREE.InstancedMesh(geos.b, bM, Math.max(1, trees.length));
   const rockI = new THREE.InstancedMesh(rockG, rockM, Math.max(1, rocks.length));
@@ -416,6 +418,8 @@ export function buildWorld(map, theme) {
 
   buildDecor(root, roadDist, plotPositions, base.position, theme, rand, paths);
   const poolAnim = theme.pools ? buildPools(root, roadDist, plotPositions, base.position, rand, theme.pools) : null;
+  // Own RNG so the birds don't shift the seeded layout of landmarks and flowers.
+  const birds = BIRDS[theme.decor] ? buildBirds(root, mulberry(4242 + map.id.length * 7), BIRDS[theme.decor]) : null;
   const landmarkAnim = theme.landmark ? buildLandmark(root, theme.landmark, rand, theme) : [];
   if (theme.flowers) buildFlowers(root, roadDist, plotPositions, rand);
 
@@ -441,7 +445,9 @@ export function buildWorld(map, theme) {
       portal.userData.ring.rotation.z += dt * 1.5;
       portal.userData.disc.material.opacity = 0.4 + 0.2 * Math.sin(t * 4);
     }
-    if (poolAnim) poolAnim(t);
+    WIND.uTime.value = t;
+    if (poolAnim) poolAnim(t, dt);
+    if (birds) birds.update(dt, t);
     for (const a of landmarkAnim) a(dt, t);
     const cr = base.userData.crystal;
     cr.rotation.y += dt * 1.2;
@@ -455,7 +461,10 @@ export function buildWorld(map, theme) {
     });
   }
 
-  return { root, paths, plots, portals, base, update, dispose };
+  /** Explosions and gunfire near birds make them scatter (pos: world Vector3, r: radius). */
+  function disturb(pos, r = 14) { if (birds) birds.scare(pos, r); }
+
+  return { root, paths, plots, portals, base, update, dispose, disturb };
 }
 
 /* ------------------------------------------------------ Sky, pools, landmarks */
@@ -520,8 +529,37 @@ function buildPools(root, roadDist, plotPositions, basePos, rand, spec) {
     rim.receiveShadow = true;
     root.add(rim);
   }
+  // Expanding ripple rings, as if fish or drips touch the surface.
+  const ripples = [];
+  if (!spec.glow) {
+    const rg = new THREE.RingGeometry(0.9, 1, 32);
+    rg.rotateX(-Math.PI / 2);
+    for (const p of pools) {
+      for (let k = 0; k < 2; k++) {
+        const m = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false });
+        const ring = new THREE.Mesh(rg, m);
+        ring.position.set(p.x, 0.06, p.z);
+        root.add(ring);
+        ripples.push({ ring, m, p, age: Math.random() * 3, life: 2.2 + Math.random() * 1.5 });
+      }
+    }
+  }
   const a = new THREE.Color(spec.color), b = new THREE.Color(spec.color2);
-  return (t) => mats.forEach((m, i) => m.color.copy(a).lerp(b, 0.5 + 0.5 * Math.sin(t * 1.3 + i)));
+  return (t, dt = 0.016) => {
+    mats.forEach((m, i) => m.color.copy(a).lerp(b, 0.5 + 0.5 * Math.sin(t * 1.3 + i)));
+    for (const r of ripples) {
+      r.age += dt;
+      if (r.age > r.life) {
+        r.age = 0;
+        const ang = Math.random() * Math.PI * 2, d = Math.random() * r.p.r * 0.6;
+        r.ring.position.set(r.p.x + Math.cos(ang) * d, 0.06, r.p.z + Math.sin(ang) * d);
+      }
+      const k = r.age / r.life;
+      const sc = 0.15 + k * Math.min(1.6, r.p.r * 0.5);
+      r.ring.scale.set(sc, 1, sc);
+      r.m.opacity = 0.35 * (1 - k);
+    }
+  };
 }
 
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.8, ...o });
@@ -648,7 +686,9 @@ function buildFlowers(root, roadDist, plotPositions, rand) {
   const n = 380;
   const geo = new THREE.IcosahedronGeometry(0.1, 0);
   geo.scale(1, 0.5, 1);
-  const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.8 }), n);
+  const fm = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.8 });
+  addWind(fm, 1.2, true);
+  const im = new THREE.InstancedMesh(geo, fm, n);
   const cols = ['#ffd24a', '#ff7ab0', '#ffffff', '#b58aff', '#ff6a4a'].map((c) => new THREE.Color(c));
   const m = new THREE.Matrix4();
   let k = 0, guard = 0;
@@ -663,4 +703,94 @@ function buildFlowers(root, roadDist, plotPositions, rand) {
   }
   im.count = k;
   root.add(im);
+}
+
+/* ------------------------------------------------------------- Living map */
+
+// Shared clock for wind; world.update() advances it.
+const WIND = { uTime: { value: 0 } };
+
+/** Sways instanced vegetation: the higher the vertex above the ground, the more it moves. */
+function addWind(material, amount, flat = false) {
+  material.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = WIND.uTime;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        vec3 wOrigin = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+      #else
+        vec3 wOrigin = vec3(0.0);
+      #endif
+      float wH = ${flat ? '0.1' : 'max(position.y, 0.0)'};
+      float wPhase = uTime * 1.7 + wOrigin.x * 0.31 + wOrigin.z * 0.23;
+      float wGust = 0.6 + 0.4 * sin(uTime * 0.37 + wOrigin.x * 0.05);
+      transformed.x += sin(wPhase) * ${amount.toFixed(3)} * wH * wH * wGust;
+      transformed.z += cos(wPhase * 0.8) * ${(amount * 0.5).toFixed(3)} * wH * wH * wGust;`);
+  };
+  material.customProgramCacheKey = () => 'wind' + amount + flat;
+}
+
+// Birds per decor: colour, count, size.
+const BIRDS = {
+  pine: { color: '#2b2f36', n: 11, size: 0.65 },
+  snowpine: { color: '#3a3f48', n: 7, size: 0.6 },
+  cactus: { color: '#2a2220', n: 4, size: 0.9 }, // vultures
+  shrub: { color: '#2a2220', n: 5, size: 0.8 },
+  deadtree: { color: '#15161a', n: 9, size: 0.7 }, // crows
+};
+
+function buildBirds(root, rand, spec) {
+  // One flock = 3 instanced meshes (bodies, left wings, right wings) → 3 draw calls in total.
+  const wingGeo = new THREE.BufferGeometry();
+  // One wing: a thin triangle from the body outwards (x > 0); the right wing is the mirror.
+  wingGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.25, 0, 0, -0.25, 1, 0, -0.05], 3));
+  wingGeo.computeVertexNormals();
+  const m = new THREE.MeshBasicMaterial({ color: spec.color, side: THREE.DoubleSide });
+  const bodyGeo = new THREE.ConeGeometry(0.12, 0.7, 4);
+  bodyGeo.rotateX(Math.PI / 2);
+  const bodies = new THREE.InstancedMesh(bodyGeo, m, spec.n);
+  const lefts = new THREE.InstancedMesh(wingGeo, m, spec.n);
+  const rights = new THREE.InstancedMesh(wingGeo, m, spec.n);
+  for (const im of [bodies, lefts, rights]) { im.frustumCulled = false; root.add(im); }
+  // Scratch hierarchy used only to compute matrices (never added to the scene).
+  const g = new THREE.Object3D(), l = new THREE.Object3D(), r = new THREE.Object3D();
+  g.add(l, r);
+  g.scale.setScalar(spec.size);
+  const cx = (rand() - 0.5) * 30, cz = (rand() - 0.5) * 20;
+  const birds = [];
+  for (let i = 0; i < spec.n; i++) {
+    birds.push({
+      rad: 10 + rand() * 18, h: 11 + rand() * 7, sp: (0.25 + rand() * 0.2) * (rand() < 0.5 ? -1 : 1),
+      a: rand() * Math.PI * 2, flap: rand() * 6, scared: 0, lift: 0, x: 0, z: 0,
+    });
+  }
+  return {
+    update(dt, t) {
+      birds.forEach((b, i) => {
+        const boost = 1 + b.scared * 2.2;
+        b.a += b.sp * dt * boost * (12 / b.rad);
+        b.scared = Math.max(0, b.scared - dt * 0.25);
+        b.lift += ((b.scared > 0 ? 9 : 0) - b.lift) * Math.min(1, dt * 1.5);
+        b.x = cx + Math.cos(b.a) * b.rad;
+        b.z = cz + Math.sin(b.a) * b.rad * 0.7;
+        const y = b.h + b.lift + Math.sin(t * 0.7 + b.rad) * 0.8;
+        g.position.set(b.x, y, b.z);
+        const ahead = b.a + Math.sign(b.sp) * 0.1;
+        g.lookAt(cx + Math.cos(ahead) * b.rad, y, cz + Math.sin(ahead) * b.rad * 0.7);
+        // Glide most of the time, flap in bursts (all the time while scared).
+        const flapping = b.scared > 0.05 || Math.sin(t * 0.5 + b.rad) > 0.3;
+        b.flap += dt * (flapping ? 14 * boost : 2);
+        const w = flapping ? Math.sin(b.flap) * 0.9 : 0.12;
+        l.rotation.z = w;
+        r.rotation.set(0, Math.PI, -w); // mirrored wing
+        g.updateMatrixWorld(true);
+        bodies.setMatrixAt(i, g.matrixWorld);
+        lefts.setMatrixAt(i, l.matrixWorld);
+        rights.setMatrixAt(i, r.matrixWorld);
+      });
+      bodies.instanceMatrix.needsUpdate = lefts.instanceMatrix.needsUpdate = rights.instanceMatrix.needsUpdate = true;
+    },
+    scare(pos, rr) {
+      for (const b of birds) if (Math.hypot(b.x - pos.x, b.z - pos.z) < rr + 10) b.scared = 1;
+    },
+  };
 }
