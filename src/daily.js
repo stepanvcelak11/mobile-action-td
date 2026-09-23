@@ -10,7 +10,7 @@
 //   await daily.submit(score, wave) // records the attempt, returns { official, best, rank? }
 //   daily.renderCard(el, onPlay)   // menu card: today's map, mutators, your best, top 10
 
-export const LEADERBOARD_URL = ''; // e.g. 'https://serpentline-api.<account>.workers.dev'
+export const LEADERBOARD_URL = 'https://serpentline-api.ar-geodet.workers.dev';
 
 const KEY = 'serpentline.daily.v1';
 const MAPS = ['valley', 'dunes', 'frost', 'canyon', 'swamp', 'magma', 'neon'];
