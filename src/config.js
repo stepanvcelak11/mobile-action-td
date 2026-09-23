@@ -68,8 +68,92 @@ export const TURRETS = {
     range: 22, interval: 3.0, damage: 130, shots: 1, kind: 'rail', target: 'strong',
     manual: { interval: 2.0, damage: 160, heat: 34 }, fov: 42, scope: true,
   },
+  scatter: {
+    name: 'Scatter Cannon', cost: 140, unlockTP: 3, color: '#ffa05a',
+    desc: 'A shotgun: 7 pellets per blast. Devastating up close, weak far away.',
+    range: 7.5, interval: 1.1, damage: 6, shots: 7, speed: 60, kind: 'bullet', spread: 0.12,
+    manual: { interval: 0.55, damage: 8, heat: 14, speed: 110, pellets: 7 }, fov: 80,
+  },
+  venom: {
+    name: 'Venom Sprayer', cost: 160, unlockTP: 4, color: '#7fe04a',
+    desc: 'Toxic globs: poison damage over time plus a slow. Stack it on tough enemies.',
+    range: 10, interval: 0.9, damage: 5, shots: 1, speed: 40, kind: 'venom', burn: 8, slow: 0.25,
+    manual: { interval: 0.3, damage: 7, heat: 7, speed: 70 }, fov: 78,
+  },
+  bouncer: {
+    name: 'Grenadier', cost: 170, unlockTP: 5, color: '#c8a040',
+    desc: 'Fast lobbed grenades with a small blast. Ground only — lead the target.',
+    range: 13, minRange: 3, interval: 1.4, damage: 24, shots: 1, kind: 'mortar', splash: 2.2, groundOnly: true, lob: 0.6,
+    manual: { interval: 0.7, damage: 34, heat: 12, splash: 2.4 }, fov: 75,
+  },
+  harpoon: {
+    name: 'Harpoon', cost: 200, unlockTP: 6, color: '#5aa0c8',
+    desc: 'A heavy spear that pierces enemies and pins them (big slow).',
+    range: 16, interval: 2.2, damage: 60, shots: 1, speed: 70, kind: 'harpoon', pierce: 2, slow: 0.6, target: 'strong',
+    manual: { interval: 1.2, damage: 90, heat: 20, speed: 90 }, fov: 70,
+  },
+  sonic: {
+    name: 'Sonic Emitter', cost: 210, unlockTP: 7, color: '#ff66cc',
+    desc: 'Shockwave pulses hit every enemy around it and stagger them. Manual: aimed sonic blast.',
+    range: 7.5, interval: 1.6, damage: 16, shots: 1, kind: 'pulse', slow: 0.3, stun: 0.1,
+    manual: { interval: 0.8, damage: 30, heat: 14 }, fov: 80,
+  },
+  plasma: {
+    name: 'Plasma Orb', cost: 230, unlockTP: 8, color: '#6af0ff',
+    desc: 'Slow plasma orbs that burn through everything in their path.',
+    range: 14, interval: 2.0, damage: 28, shots: 1, speed: 14, kind: 'orb', pierce: 99,
+    manual: { interval: 1.0, damage: 40, heat: 18, speed: 22 }, fov: 75,
+  },
+  storm: {
+    name: 'Storm Spire', cost: 240, unlockTP: 9, color: '#9ab0ff',
+    desc: 'Calls lightning from the sky onto enemies anywhere in range.',
+    range: 18, interval: 1.8, damage: 45, shots: 1, kind: 'zap', sky: true, chain: 2,
+    manual: { interval: 0.9, damage: 55, heat: 18, chain: 2 }, fov: 75,
+  },
+  silo: {
+    name: 'Hellfire Silo', cost: 260, unlockTP: 10, color: '#ff5a3a',
+    desc: 'Vertical missile salvos that hunt the toughest enemy on the field.',
+    range: 24, interval: 3.2, damage: 70, shots: 3, speed: 20, kind: 'rocket', splash: 2.6, homing: 6, silo: true, target: 'strong',
+    manual: { interval: 1.4, damage: 80, heat: 24, speed: 34, splash: 2.8 }, fov: 75,
+  },
+  prism: {
+    name: 'Prism Tower', cost: 260, unlockTP: 10, color: '#ffe066',
+    desc: 'Refracted beams hit three enemies at once and ramp up.',
+    range: 11, interval: 0.1, damage: 1.6, shots: 1, kind: 'laser', ramp: 1.0, beams: 2,
+    manual: { interval: 0.1, damage: 2.8, heat: 1.8 }, fov: 75,
+  },
+  howitzer: {
+    name: 'Howitzer', cost: 280, unlockTP: 11, color: '#8a9a6a',
+    desc: 'Extreme-range artillery with a huge blast. Ground only — shells take a while to land.',
+    range: 32, minRange: 8, interval: 4.2, damage: 120, shots: 1, kind: 'mortar', splash: 4.6, groundOnly: true, lob: 1.4,
+    manual: { interval: 2.2, damage: 170, heat: 30, splash: 5 }, fov: 65,
+  },
 };
-export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'cryo', 'flame', 'rocket', 'mortar', 'tesla', 'laser', 'rail'];
+export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer'];
+
+// How to play each turret yourself (shown in the Armory).
+export const TURRET_TIPS = {
+  cannon: 'Alternating barrels. Aim at heads for ×2 damage and at tank tracks to slow them.',
+  gatling: 'Hold FIRE and sweep across swarms; watch the heat bar.',
+  sniper: 'Real bullet drop and travel time: aim slightly above and ahead. Hold still to steady the scope.',
+  scatter: 'Let enemies come close — every pellet that lands counts.',
+  cryo: 'Freeze the lead enemy of a group so the rest pile up behind it.',
+  venom: 'Poison stacks up. Spray the tanks and bosses, the slow does the rest.',
+  flame: 'Sweep the cone over the road; burning enemies keep taking damage.',
+  bouncer: 'Grenades arc — fire where the enemy will be when the grenade lands.',
+  rocket: 'Rockets fly straight when you aim them; lead fast targets.',
+  harpoon: 'Line enemies up: the spear pierces and pins everything it hits.',
+  mortar: 'Watch the landing ring and lead the group.',
+  sonic: 'Point the blast at the thickest crowd — everything in the cone is staggered.',
+  tesla: 'Aim at the middle of a group so the chain reaches everyone.',
+  plasma: 'Orbs are slow but pierce everything — fire along the road.',
+  laser: 'Keep the beam on one target: damage ramps up the longer you hold it.',
+  storm: 'Lightning strikes where you aim on the ground — great for shielded groups.',
+  rail: 'Scope in and line enemies up; the slug pierces the whole line.',
+  silo: 'Your missiles launch straight at the crosshair and explode on impact.',
+  prism: 'Hold the beam; two refracted beams hit nearby enemies automatically.',
+  howitzer: 'Shells take a long time to land — aim well ahead of the group.',
+};
 
 export const WEAK_MULT = 1.75;
 export const MAX_UPGRADES = 10;
@@ -90,6 +174,11 @@ export const ENEMIES = {
   cloak: { name: 'Phantom', hp: 85, speed: 3.6, reward: 35, damage: 10, radius: 0.85, centerY: 0.75, barY: 1.9, barW: 1.3, wpR: 0.3, lateral: 0.7, cloak: true, cost: 3 },
   splitter: { name: 'Splitter', hp: 150, speed: 2.5, reward: 25, damage: 10, radius: 1.15, centerY: 0.85, barY: 2.2, barW: 1.6, wpR: 0.36, lateral: 0.5, split: 3, cost: 3.5 },
   boss: { name: 'Behemoth', hp: 2200, speed: 1.1, reward: 300, damage: 50, radius: 2.9, centerY: 2.0, barY: 6.2, barW: 4.2, wpR: 0.95, lateral: 0, armor: 0.15, cost: 0 },
+  runner: { name: 'Runner', hp: 26, speed: 7.2, reward: 10, damage: 4, radius: 0.6, centerY: 0.6, barY: 1.4, barW: 1.0, wpR: 0.25, lateral: 1.0, cost: 0.8, minMap: 1 },
+  medic: { name: 'Medic', hp: 110, speed: 2.8, reward: 35, damage: 8, radius: 0.9, centerY: 0.9, barY: 2.2, barW: 1.4, wpR: 0.3, lateral: 0.6, heal: 18, cost: 3.2, minMap: 2 },
+  burrower: { name: 'Burrower', hp: 120, speed: 3.2, reward: 30, damage: 9, radius: 0.9, centerY: 0.5, barY: 1.6, barW: 1.4, wpR: 0.3, lateral: 0.5, burrow: true, cost: 3, minMap: 3 },
+  juggernaut: { name: 'Juggernaut', hp: 620, speed: 1.35, reward: 80, damage: 22, radius: 1.7, centerY: 1.2, barY: 3.3, barW: 2.4, wpR: 0.45, lateral: 0.3, armor: 0.5, cost: 8, minMap: 4 },
+  bomber: { name: 'Bomber', hp: 190, speed: 2.6, reward: 40, damage: 14, radius: 1.3, centerY: 4.2, barY: 5.5, barW: 1.8, wpR: 0.4, lateral: 1.0, air: true, cost: 4, minMap: 5 },
 };
 
 export const ENEMY_TIPS = {
@@ -97,7 +186,30 @@ export const ENEMY_TIPS = {
   shield: 'GUARDIANS carry an energy shield. Hit the glowing generator on their back to pop it instantly.',
   cloak: 'PHANTOMS are cloaked — auto turrets ignore them without Detection. Shoot them yourself or reveal them with splash.',
   splitter: 'SPLITTERS burst into three minis when destroyed.',
-  heavy: 'TANKS are armored (−25% damage). Shred upgrades strip armor.',
+  heavy: 'TANKS are armored (−25% damage). Shoot their TRACKS to slow them down, or strip armor with Shred upgrades.',
+  runner: 'RUNNERS are fragile but extremely fast. Gatling and Scatter handle them best.',
+  medic: 'MEDICS heal every enemy around them. Kill them first — aim for the head!',
+  burrower: 'BURROWERS dig underground every few seconds and can\'t be hit while buried.',
+  juggernaut: 'JUGGERNAUTS have 50% armor. Crippling their legs and Shred upgrades are your friends.',
+  bomber: 'BOMBERS are armored flyers. Ground-only weapons can\'t touch them.',
+};
+
+// Hit zones for manual shots (local coordinates): head = ×2 damage, limbs (legs, tracks, rotors) = crippled (slowed).
+export const HEADSHOT_MULT = 2;
+export const HITZONES = {
+  scout: { head: [0, 0.6, 0.72, 0.28], limbs: [[-0.75, 0.3, 0, 0.35], [0.75, 0.3, 0, 0.35]] },
+  mini: { head: [0, 0.6, 0.72, 0.28], limbs: [[-0.75, 0.3, 0, 0.35], [0.75, 0.3, 0, 0.35]] },
+  heavy: { head: [0, 1.35, 0.2, 0.55], limbs: [[-1.05, 0.34, 0, 0.55], [1.05, 0.34, 0, 0.55], [-1.05, 0.34, 1.0, 0.45], [1.05, 0.34, 1.0, 0.45]] },
+  drone: { head: [0, 3.4, 0.4, 0.3], limbs: [[0.64, 3.55, 0.64, 0.35], [-0.64, 3.55, 0.64, 0.35], [0.64, 3.55, -0.64, 0.35], [-0.64, 3.55, -0.64, 0.35]] },
+  shield: { head: [0, 1.62, 0.35, 0.36], limbs: [[-0.45, 0.35, 0, 0.3], [0.45, 0.35, 0, 0.3]] },
+  cloak: { head: [0, 1.55, 0.05, 0.32], limbs: [] },
+  splitter: { head: [0, 1.55, 0, 0.3], limbs: [] },
+  boss: { head: [0, 2.45, 2.1, 0.7], limbs: [[-2.4, 0.3, -1.4, 0.55], [2.4, 0.3, -1.4, 0.55], [-2.4, 0.3, 1.4, 0.55], [2.4, 0.3, 1.4, 0.55]] },
+  runner: { head: [0, 0.95, 0.5, 0.24], limbs: [[-0.25, 0.3, 0, 0.25], [0.25, 0.3, 0, 0.25]] },
+  medic: { head: [0, 1.55, 0.1, 0.3], limbs: [[-0.3, 0.35, 0, 0.28], [0.3, 0.35, 0, 0.28]] },
+  burrower: { head: [0, 0.55, 0.9, 0.35], limbs: [] },
+  juggernaut: { head: [0, 2.2, 0.4, 0.45], limbs: [[-0.75, 0.55, 0, 0.45], [0.75, 0.55, 0, 0.45]] },
+  bomber: { head: [0, 4.2, 1.2, 0.45], limbs: [[-1.4, 4.3, 0, 0.45], [1.4, 4.3, 0, 0.45]] },
 };
 
 export const PERKS = [
@@ -108,6 +220,9 @@ export const PERKS = [
   { id: 'servo', name: 'Servo Motors', desc: '+8% auto fire rate', max: 3 },
   { id: 'bounty', name: 'Bounty Hunter', desc: '+10% kill gold', max: 3 },
   { id: 'support', name: 'Air Support', desc: '−15% ability cooldowns', max: 3 },
+  { id: 'headhunter', name: 'Headhunter', desc: '+15% headshot damage', max: 3 },
+  { id: 'logistics', name: 'Logistics', desc: '−5% turret build cost', max: 3 },
+  { id: 'overcharge', name: 'Overcharge', desc: '+15% Hypercharge fill speed', max: 3 },
 ];
 
 // Abilities are collectible charges (from chests, the pass, the road and the shop); each use costs one charge.
@@ -116,20 +231,30 @@ export const ABILITIES = {
   emp: { name: 'EMP', cooldown: 30, stun: 2.5, color: '#8fa8ff', desc: 'Stuns every enemy for 2.5 s and pops all shields.' },
   repair: { name: 'Repair', cooldown: 30, heal: 30, color: '#3ee07a', desc: 'Restores 30 base HP.' },
   freeze: { name: 'Cryo Bomb', cooldown: 25, radius: 6, color: '#8fe3ff', desc: 'Freezes everything in a 6 m circle for 3 s.' },
+  nuke: { name: 'Orbital Lance', cooldown: 45, damage: 900, color: '#ff4ad8', desc: 'A space laser hits the spot 2 s later for huge damage. Perfect for bosses.' },
+  goldrush: { name: 'Gold Rush', cooldown: 40, color: '#ffc62e', desc: 'Kills give double gold for 15 s.' },
+  overclock: { name: 'Overclock', cooldown: 40, color: '#ff7a1a', desc: 'All turrets fire 50% faster for 10 s.' },
+  shieldwall: { name: 'Shield Wall', cooldown: 50, color: '#5fd8ff', desc: 'The base takes no damage for 8 s.' },
+  tarpit: { name: 'Tar Pit', cooldown: 30, radius: 5, color: '#8a6a3a', desc: 'Sticky tar on the road slows enemies by 60% for 8 s.' },
+  blackhole: { name: 'Black Hole', cooldown: 45, radius: 5, color: '#9a5aff', desc: 'Pulls enemies in the area back along the road.' },
 };
-export const ABILITY_ORDER = ['strike', 'emp', 'repair', 'freeze'];
+export const ABILITY_ORDER = ['strike', 'emp', 'repair', 'freeze', 'nuke', 'goldrush', 'overclock', 'shieldwall', 'tarpit', 'blackhole'];
+export const TARGETED_ABILITIES = ['strike', 'freeze', 'nuke', 'tarpit', 'blackhole'];
 
-// Turret skins: material palettes applied to every turret of the chosen type.
+// Turret skins: palette + a unique accessory model + an attack style (tracer, trail and impact colours).
 export const SKINS = {
-  factory: { name: 'Factory', rarity: 'common', price: 0, steel: '#5d6773', dark: '#2e343c', light: '#9aa6b2' },
-  desert: { name: 'Desert Camo', rarity: 'rare', price: 80, steel: '#a88a5a', dark: '#6a5238', light: '#d0b88a' },
-  arctic: { name: 'Arctic', rarity: 'rare', price: 80, steel: '#dfe8f0', dark: '#8a9aac', light: '#ffffff', band: '#4fc3ff' },
-  toxic: { name: 'Toxic', rarity: 'epic', price: 160, steel: '#55703a', dark: '#2a3a1e', light: '#8fb84a', band: '#8fe04a', glow: '#8fe04a' },
-  obsidian: { name: 'Obsidian', rarity: 'epic', price: 160, steel: '#3e2a30', dark: '#1c1014', light: '#6a3a40', band: '#ff5a1a', glow: '#ff5a1a' },
-  neon: { name: 'Neon Night', rarity: 'legendary', price: 300, steel: '#2a2a3c', dark: '#14141e', light: '#44446a', band: '#ff3d9f', glow: '#ff3d9f' },
-  gold: { name: 'Solid Gold', rarity: 'legendary', price: 300, steel: '#ffc93a', dark: '#c08a1a', light: '#fff0a8', band: '#ffffff', metal: 0.55, glow: '#ffb020' },
+  factory: { name: 'Factory', rarity: 'common', price: 0, steel: '#5d6773', dark: '#2e343c', light: '#9aa6b2', acc: null, fx: null, desc: 'Standard issue.' },
+  desert: { name: 'Desert Raider', rarity: 'rare', price: 80, steel: '#b89868', dark: '#6a5238', light: '#e0c898', acc: 'sandbags', fx: { tracer: '#ffd08a', trail: '#ff9a3a', spark: '#ffcc66' }, desc: 'Sandbag fort and dusty amber tracers.' },
+  arctic: { name: 'Arctic Ops', rarity: 'rare', price: 80, steel: '#e6eef6', dark: '#8a9aac', light: '#ffffff', band: '#4fc3ff', acc: 'icicles', fx: { tracer: '#dff8ff', trail: '#6fd8ff', spark: '#bff0ff' }, desc: 'Snow cap, icicles and ice-blue shots.' },
+  toxic: { name: 'Biohazard', rarity: 'epic', price: 160, steel: '#55703a', dark: '#2a3a1e', light: '#8fb84a', band: '#8fe04a', glow: '#8fe04a', acc: 'canisters', fx: { tracer: '#d8ff9a', trail: '#6ae04a', spark: '#8fe04a' }, desc: 'Glowing canisters, green acid shots.' },
+  obsidian: { name: 'Magma Forge', rarity: 'epic', price: 160, steel: '#3e2a30', dark: '#1c1014', light: '#6a3a40', band: '#ff5a1a', glow: '#ff5a1a', acc: 'spikes', fx: { tracer: '#ffd07a', trail: '#ff4a1a', spark: '#ff7a2a' }, desc: 'Obsidian spikes and molten tracers.' },
+  crystal: { name: 'Crystal', rarity: 'epic', price: 180, steel: '#7ab8d8', dark: '#2a4a6a', light: '#c8f0ff', band: '#8ff8ff', glow: '#6af0ff', acc: 'crystals', fx: { tracer: '#ffffff', trail: '#6af0ff', spark: '#bff8ff' }, desc: 'Floating crystal shards and prismatic shots.' },
+  royal: { name: 'Royal Guard', rarity: 'legendary', price: 260, steel: '#a8203a', dark: '#4a0a18', light: '#e8c070', band: '#ffd24a', acc: 'banners', fx: { tracer: '#ffe08a', trail: '#ff3a4a', spark: '#ffd24a' }, desc: 'Crimson armour, gold trim and royal banners.' },
+  neon: { name: 'Neon Night', rarity: 'legendary', price: 300, steel: '#2a2a3c', dark: '#14141e', light: '#44446a', band: '#ff3d9f', glow: '#ff3d9f', acc: 'neon', fx: { tracer: '#ffffff', trail: '#ff3d9f', spark: '#3af0ff' }, desc: 'Neon tubes and hot-pink laser tracers.' },
+  gold: { name: 'Solid Gold', rarity: 'legendary', price: 300, steel: '#ffc93a', dark: '#c08a1a', light: '#fff0a8', band: '#ffffff', metal: 0.55, glow: '#ffb020', acc: 'crown', fx: { tracer: '#fff4c0', trail: '#ffb020', spark: '#ffe066' }, desc: 'Gold plating and a crown. Shoots gold.' },
+  void: { name: 'Void Walker', rarity: 'legendary', price: 340, steel: '#2a1a3a', dark: '#0a0612', light: '#5a3a8a', band: '#b46bff', glow: '#9a4aff', acc: 'halo', fx: { tracer: '#f0d8ff', trail: '#9a4aff', spark: '#c48bff' }, desc: 'A floating void halo and purple rift shots.' },
 };
-export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'neon', 'gold'];
+export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'crystal', 'royal', 'neon', 'gold', 'void'];
 export const RARITY_COLORS = { common: '#9aa7b4', rare: '#4fa8ff', epic: '#b46bff', legendary: '#ffb020' };
 
 export const THEMES = {
@@ -203,7 +328,7 @@ export const MAPS = [
   },
   {
     id: 'swamp', name: 'Toxic Swamp', sub: 'Two long roads through the bog. Phantoms lurk.', theme: 'swamp',
-    waves: 14, bosses: [8, 14], hpScale: 1.25, intro: 4,
+    waves: 14, bosses: [8, 14], hpScale: 1.15, intro: 4, budget: 0.88, startBonus: 60,
     roads: [
       [[-28, -17], [-14, -10], [-22, -2], [-8, 2], [-4, -10], [8, -14], [10, -4], [20, -4], [24, 4]],
       [[-28, 17], [-12, 16], [-18, 8], [-4, 10], [6, 16], [12, 8], [8, 2], [18, 2], [24, 4]],

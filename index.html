@@ -15,6 +15,22 @@
   </script>
 </head>
 <body data-theme="dark">
+  <div id="loader">
+    <div class="ld-sky"></div>
+    <div class="ld-grid"></div>
+    <div class="ld-center">
+      <svg class="ld-logo" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><linearGradient id="ldg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ff7a1a"/></linearGradient></defs>
+        <path d="M60 6l48 27v54l-48 27-48-27V33z" fill="#131a24" stroke="url(#ldg)" stroke-width="5"/>
+        <path d="M34 78c10 8 22-2 26-14s16-22 26-14" fill="none" stroke="url(#ldg)" stroke-width="9" stroke-linecap="round"/>
+        <circle cx="86" cy="50" r="6" fill="#ffe27a"/>
+      </svg>
+      <h1 class="ld-title">SERPENT<span>LINE</span></h1>
+      <div class="ld-sub">ACTION TOWER DEFENSE</div>
+      <div class="ld-bar"><div id="ld-fill"></div></div>
+      <div class="ld-tip" id="ld-tip">Loading the armory…</div>
+    </div>
+  </div>
   <canvas id="game"></canvas>
 
   <!-- In-game HUD -->
@@ -65,6 +81,7 @@
         </div>
         <button class="x-btn" data-close aria-label="Close"></button>
       </div>
+      <div id="tc-powers" class="tc-powers"></div>
       <div class="sheet-row actions three">
         <button id="tc-sell" class="btn ghost">SELL</button>
         <button id="tc-target" class="btn ghost">TARGET</button>
@@ -76,6 +93,28 @@
 
   <!-- FPV HUD -->
   <div id="fpv-ui">
+    <div id="cockpit" aria-hidden="true">
+      <svg class="ck-frame" viewBox="0 0 1000 600" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="ckm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4452"/><stop offset="1" stop-color="#151a22"/></linearGradient>
+          <linearGradient id="ckd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a323e"/><stop offset="1" stop-color="#0c1016"/></linearGradient>
+        </defs>
+        <path d="M0 0H1000V46Q800 70 640 58H360Q200 70 0 46Z" fill="url(#ckm)"/>
+        <path d="M0 0V600H70L120 360Q96 150 60 46H0Z" fill="url(#ckm)"/>
+        <path d="M1000 0V600H930L880 360Q904 150 940 46H1000Z" fill="url(#ckm)"/>
+        <path d="M0 600V520Q250 470 360 478H640Q750 470 1000 520V600Z" fill="url(#ckd)"/>
+        <path d="M60 46Q96 150 120 360L70 600" fill="none" stroke="#5a6676" stroke-width="3"/>
+        <path d="M940 46Q904 150 880 360L930 600" fill="none" stroke="#5a6676" stroke-width="3"/>
+        <path d="M360 58H640" stroke="#ffb020" stroke-width="3" opacity="0.8"/>
+        <g fill="#9aa6b2"><circle cx="24" cy="20" r="5"/><circle cx="976" cy="20" r="5"/><circle cx="30" cy="580" r="5"/><circle cx="970" cy="580" r="5"/></g>
+      </svg>
+      <div class="ck-dash">
+        <div class="ck-gauge" id="ck-heat"><i></i><span>HEAT</span></div>
+        <div class="ck-screen"><b id="ck-name">TURRET</b><small id="ck-info">AUTO-TRACK OFF</small></div>
+        <div class="ck-gauge" id="ck-hp"><i></i><span>BASE</span></div>
+      </div>
+      <div class="ck-lights"><i></i><i></i><i></i></div>
+    </div>
     <div id="aim-zone"></div>
     <div id="markers"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><em></em></div>
@@ -90,6 +129,10 @@
       <button id="next-turret" class="icon-btn" aria-label="Next turret"></button>
       <button id="fpv-wave" class="icon-btn up" aria-label="Start next wave"></button>
       <button id="fpv-upgrade" class="icon-btn up" aria-label="Upgrade turret"></button>
+    </div>
+    <div id="fpv-powers">
+      <button id="fpv-gadget" class="icon-btn gadget" aria-label="Use tactic" style="display:none"></button>
+      <button id="fpv-hyper" class="icon-btn hyper" aria-label="Overload" style="display:none"></button>
     </div>
     <button id="fire-btn">FIRE</button>
     <div id="lock-hint">Click to lock mouse · Click to fire · Tab next · U upgrades · Q/R/T/G abilities · E exit</div>
@@ -112,16 +155,16 @@
         <span class="cur-pill" id="m-coins"></span>
         <span class="cur-pill" id="m-gems"></span>
         <span class="cur-pill tp" id="m-tp"></span>
-        <button id="m-settings" class="icon-btn sm" aria-label="Settings">⚙</button>
+        <button id="m-settings" class="icon-btn sm" aria-label="Settings"></button>
       </div>
     </div>
     <div id="m-content" class="m-content"></div>
     <nav class="bottomnav">
-      <button data-tab="shop"><span class="nav-ico">🛒</span>SHOP<i class="badge"></i></button>
-      <button data-tab="armory"><span class="nav-ico">🛠</span>ARMORY<i class="badge"></i></button>
-      <button data-tab="battle" class="center"><span class="nav-ico">⚔</span>BATTLE<i class="badge"></i></button>
-      <button data-tab="pass"><span class="nav-ico">🎖</span>PASS<i class="badge"></i></button>
-      <button data-tab="road"><span class="nav-ico">🏆</span>ROAD<i class="badge"></i></button>
+      <button data-tab="shop"><span class="nav-ico" data-ico="shop"></span>SHOP<i class="badge"></i></button>
+      <button data-tab="armory"><span class="nav-ico" data-ico="armory"></span>ARMORY<i class="badge"></i></button>
+      <button data-tab="battle" class="center"><span class="nav-ico" data-ico="battle"></span>BATTLE<i class="badge"></i></button>
+      <button data-tab="pass"><span class="nav-ico" data-ico="pass"></span>PASS<i class="badge"></i></button>
+      <button data-tab="road"><span class="nav-ico" data-ico="road"></span>ROAD<i class="badge"></i></button>
     </nav>
   </div>
 
@@ -146,8 +189,9 @@
       <h1 id="r-title">VICTORY</h1>
       <div id="r-stars" class="stars big"></div>
       <div id="r-lines" class="r-lines"></div>
+      <div id="r-chestnote" class="r-chestnote"></div>
       <div class="r-actions">
-        <button id="r-chest" class="btn primary chest-open">OPEN CHEST</button>
+        <button id="r-chest" class="btn primary chest-open" style="display:none">OPEN CHEST</button>
       </div>
       <div class="r-actions">
         <button id="r-menu" class="btn ghost">MENU</button>

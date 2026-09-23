@@ -165,7 +165,212 @@ function headLaser(pitch, M) {
   return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.35)], cam: [0, 0.82, -0.35], lens };
 }
 
-const HEADS = { cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
+
+function headScatter(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.2, 0.6, 0.9), M.steelDark, 0, 0, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.26, 0.3, 1.1, 10), M.steel, 0, 0.02, 0.85);
+  part(holder, cyl(0.42, 0.28, 0.35, 10), M.steelLight, 0, 0.02, 1.5);
+  for (let i = 0; i < 5; i++) part(holder, cyl(0.07, 0.07, 0.16, 6, false), M.band, 0.66, -0.12 + i * 0.07, -0.2 + i * 0.1);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.02, 1.7)], cam: [0, 0.7, -0.05] };
+}
+function headVenom(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.9, 0.5, 0.9), M.steelDark, 0, 0, 0);
+  part(pitch, new THREE.SphereGeometry(0.38, 12, 10), glow('#7fe04a'), 0, 0.42, -0.25, false);
+  part(pitch, new THREE.TorusGeometry(0.38, 0.05, 6, 16), M.steel, 0, 0.42, -0.25).rotation.x = Math.PI / 2;
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.1, 0.16, 1.1, 8), M.steelLight, 0, 0, 0.8);
+  part(holder, cyl(0.18, 0.1, 0.2, 8), M.band, 0, 0, 1.4);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.55)], cam: [0, 0.95, -0.55] };
+}
+function headBouncer(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.9, 0.55, 0.9), M.steelDark, 0, 0, -0.1);
+  const drum = part(pitch, new THREE.CylinderGeometry(0.42, 0.42, 0.5, 12), M.band, 0, 0.1, 0.1);
+  drum.rotation.z = Math.PI / 2;
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.24, 0.24, 1.0, 10), M.steel, 0, 0.1, 0.8);
+  part(holder, cyl(0.28, 0.28, 0.12, 10), M.steelDark, 0, 0.1, 1.28);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.1, 1.4)], cam: [0, 1.0, -0.75] };
+}
+function headHarpoon(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.8, 0.45, 1.1), M.steelDark, 0, 0, -0.1);
+  const reel = part(pitch, new THREE.CylinderGeometry(0.3, 0.3, 0.7, 12), M.steelLight, 0, 0.1, -0.55);
+  reel.rotation.z = Math.PI / 2;
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, new THREE.BoxGeometry(0.2, 0.1, 2.2), M.steel, 0, -0.05, 1.0);
+  part(holder, cyl(0.05, 0.05, 2.3, 6), mat('#8a6a4a'), 0, 0.1, 1.1);
+  const tip = new THREE.ConeGeometry(0.14, 0.45, 6);
+  tip.rotateX(Math.PI / 2);
+  part(holder, tip, M.band, 0, 0.1, 2.4);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.1, 2.6)], cam: [0, 0.55, -0.1] };
+}
+function headSonic(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.8, 0.5, 0.7), M.steelDark, 0, 0, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const dish = new THREE.ConeGeometry(0.75, 0.6, 20, 1, true);
+  dish.rotateX(-Math.PI / 2);
+  const d = part(holder, dish, M.steelLight, 0, 0, 0.6);
+  d.material = d.material.clone();
+  d.material.side = THREE.DoubleSide;
+  part(holder, new THREE.SphereGeometry(0.16, 10, 8), glow('#ff66cc'), 0, 0, 0.45, false);
+  for (let i = 0; i < 2; i++) part(holder, new THREE.TorusGeometry(0.4 + i * 0.25, 0.03, 6, 20), glow('#ff9ae0'), 0, 0, 0.75 + i * 0.12, false);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.0)], cam: [0, 0.75, -0.3] };
+}
+function headPlasma(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.95, 0.5, 0.95), M.steelDark, 0, -0.05, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const orb = part(holder, new THREE.IcosahedronGeometry(0.34, 1), glow('#6af0ff'), 0, 0.15, 0.5, false);
+  const r1 = part(holder, new THREE.TorusGeometry(0.5, 0.05, 6, 20), M.steelLight, 0, 0.15, 0.5);
+  const r2 = part(holder, new THREE.TorusGeometry(0.5, 0.05, 6, 20), M.band, 0, 0.15, 0.5);
+  r2.rotation.y = Math.PI / 2;
+  part(holder, cyl(0.16, 0.2, 0.6, 8), M.steel, 0, 0.15, 1.0);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.15, 1.35)], cam: [0, 0.95, -0.4], orb, coils: [r1, r2] };
+}
+function headStorm(pitch, M) {
+  part(pitch, new THREE.CylinderGeometry(0.45, 0.55, 0.4, 8), M.steelDark, 0, 0, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, new THREE.CylinderGeometry(0.06, 0.1, 1.6, 6), M.steelLight, 0, 0.95, 0);
+  const coils = [];
+  for (let i = 0; i < 3; i++) coils.push(part(holder, new THREE.TorusGeometry(0.28 - i * 0.06, 0.04, 6, 14), M.band, 0, 0.5 + i * 0.35, 0));
+  coils.forEach((c) => { c.rotation.x = Math.PI / 2; });
+  const orb = part(holder, new THREE.IcosahedronGeometry(0.22, 1), glow('#bcd0ff'), 0, 1.85, 0, false);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 1.85, 0)], cam: [0, 0.6, -0.5], orb };
+}
+function headSilo(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.2, 0.8, 1.1), M.steel, 0, 0.1, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const muzzles = [];
+  for (const x of [-0.33, 0, 0.33]) {
+    for (const z of [-0.22, 0.22]) {
+      part(holder, new THREE.CylinderGeometry(0.13, 0.13, 0.3, 8), M.steelDark, x, 0.62, z);
+      part(holder, new THREE.CircleGeometry(0.1, 8), glow('#ff5a3a'), x, 0.78, z, false).rotation.x = -Math.PI / 2;
+      muzzles.push(new THREE.Vector3(x, 0.85, z));
+    }
+  }
+  part(pitch, new THREE.BoxGeometry(1.26, 0.1, 1.16), M.band, 0, 0.45, 0);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles, cam: [0, 1.25, -0.9] };
+}
+function headPrism(pitch, M) {
+  part(pitch, new THREE.CylinderGeometry(0.45, 0.55, 0.4, 6), M.steelDark, 0, 0, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const crystal = new THREE.OctahedronGeometry(0.4, 0);
+  crystal.scale(0.8, 0.8, 1.6);
+  const c = part(holder, crystal, glow('#ffe066'), 0, 0.2, 0.55, false);
+  for (const a of [0, 2.1, 4.2]) part(holder, new THREE.BoxGeometry(0.06, 0.4, 0.06), M.steelLight, Math.cos(a) * 0.4, 0.2 + Math.sin(a) * 0.4, 0.55);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.2, 1.2)], cam: [0, 0.85, -0.4], orb: c };
+}
+function headHowitzer(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.1, 0.7, 1.2), M.steelDark, 0, 0, -0.2);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.24, 0.3, 3.2, 12), M.steel, 0, 0.05, 1.7);
+  part(holder, cyl(0.34, 0.34, 0.45, 12), M.steelDark, 0, 0.05, 3.35);
+  for (const x of [-0.32, 0.32]) part(holder, cyl(0.08, 0.08, 1.4, 6), M.steelLight, x, -0.12, 0.8);
+  part(holder, new THREE.BoxGeometry(0.72, 0.12, 0.9), M.band, 0, 0.32, 0.1);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.05, 3.6)], cam: [0, 0.75, -0.55] };
+}
+
+
+/* ------------------------------------------------------ Skin accessories */
+// Each skin adds its own props on top of the recoloured turret; returns per-frame animators.
+function addAccessory(root, yaw, acc, sk) {
+  const anim = [];
+  if (!acc) return anim;
+  const glowC = sk.glow || sk.band || '#ffffff';
+  if (acc === 'sandbags') {
+    const bag = mat('#b8986a', { roughness: 0.95, metalness: 0 });
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const b = part(root, new THREE.CapsuleGeometry(0.16, 0.34, 3, 6), bag, Math.cos(a) * 1.75, 0.18, Math.sin(a) * 1.75);
+      b.rotation.set(Math.PI / 2, 0, a);
+    }
+    part(yaw, new THREE.BoxGeometry(1.2, 0.06, 0.9), mat('#6a7a3a'), 0, 1.12, -0.2).rotation.x = -0.05;
+  } else if (acc === 'icicles') {
+    part(yaw, new THREE.SphereGeometry(0.85, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat('#ffffff', { roughness: 0.6, metalness: 0 }), 0, 1.08, -0.1).scale.set(1.05, 0.35, 0.85);
+    const ice = new THREE.MeshStandardMaterial({ color: '#cff4ff', roughness: 0.1, metalness: 0.1, transparent: true, opacity: 0.85, flatShading: true });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const c = part(root, new THREE.ConeGeometry(0.06, 0.28 + (i % 3) * 0.1, 5), ice, Math.cos(a) * 1.22, 0.78, Math.sin(a) * 1.22);
+      c.rotation.x = Math.PI;
+    }
+  } else if (acc === 'canisters') {
+    for (const sx of [-0.95, 0.95]) {
+      part(yaw, new THREE.CylinderGeometry(0.2, 0.2, 0.7, 10), glow('#8fe04a'), sx, 0.75, -0.3, false);
+      part(yaw, new THREE.CylinderGeometry(0.22, 0.22, 0.08, 10), mat('#2a3a1e'), sx, 1.12, -0.3);
+      part(yaw, new THREE.CylinderGeometry(0.22, 0.22, 0.08, 10), mat('#2a3a1e'), sx, 0.38, -0.3);
+    }
+    const bubbles = part(yaw, new THREE.SphereGeometry(0.08, 6, 4), glow('#d8ff9a'), 0.95, 0.9, -0.3, false);
+    anim.push((t) => { bubbles.position.y = 0.5 + ((t * 0.6) % 0.6); });
+  } else if (acc === 'spikes') {
+    const obs = mat('#1a1014', { roughness: 0.3, metalness: 0.6 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.2;
+      const c = part(root, new THREE.ConeGeometry(0.14, 0.7, 5), obs, Math.cos(a) * 1.45, 0.55, Math.sin(a) * 1.45);
+      c.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      part(root, new THREE.BoxGeometry(0.05, 0.5, 0.05), glow(glowC), Math.cos(a) * 1.26, 0.6, Math.sin(a) * 1.26, false);
+    }
+    for (const sx of [-0.55, 0.55]) part(yaw, new THREE.ConeGeometry(0.12, 0.5, 5), obs, sx, 1.3, -0.4);
+  } else if (acc === 'crystals') {
+    const cm = new THREE.MeshStandardMaterial({ color: '#bff8ff', emissive: '#3ac8e8', emissiveIntensity: 1.2, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.9, flatShading: true });
+    const orbit = new THREE.Group();
+    orbit.position.y = 2.1;
+    root.add(orbit);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const c = part(orbit, new THREE.OctahedronGeometry(0.2, 0), cm, Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1, false);
+      c.scale.set(0.7, 1.4, 0.7);
+    }
+    anim.push((t) => { orbit.rotation.y = t * 1.2; orbit.position.y = 2.1 + Math.sin(t * 2) * 0.12; });
+  } else if (acc === 'banners') {
+    const gold = mat('#e8c070', { metalness: 0.8, roughness: 0.3 });
+    part(root, new THREE.TorusGeometry(1.35, 0.06, 6, 24), gold, 0, 0.96, 0).rotation.x = Math.PI / 2;
+    for (const sx of [-0.8, 0.8]) {
+      part(yaw, new THREE.CylinderGeometry(0.03, 0.03, 1.4, 5), gold, sx, 1.6, -0.75);
+      const flag = part(yaw, new THREE.PlaneGeometry(0.5, 0.35), mat('#c8203a', { roughness: 0.8, metalness: 0 }), sx + 0.26, 2.05, -0.75, false);
+      flag.material = flag.material.clone();
+      flag.material.side = THREE.DoubleSide;
+      anim.push((t) => { flag.rotation.y = Math.sin(t * 3 + sx) * 0.3; });
+    }
+  } else if (acc === 'neon') {
+    for (const [y, r, c] of [[0.3, 1.52, '#ff3d9f'], [0.96, 1.28, '#3af0ff']]) {
+      part(root, new THREE.TorusGeometry(r, 0.035, 6, 32), glow(c), 0, y, 0, false).rotation.x = Math.PI / 2;
+    }
+    part(yaw, new THREE.BoxGeometry(1.74, 0.04, 0.04), glow('#ff3d9f'), 0, 1.1, 0.57, false);
+    part(yaw, new THREE.BoxGeometry(1.74, 0.04, 0.04), glow('#3af0ff'), 0, 0.36, 0.57, false);
+  } else if (acc === 'crown') {
+    const gold = mat('#ffd24a', { metalness: 0.9, roughness: 0.25 });
+    const crown = new THREE.Group();
+    crown.position.set(0, 1.18, -0.45);
+    yaw.add(crown);
+    part(crown, new THREE.CylinderGeometry(0.34, 0.34, 0.14, 12, 1, true), gold, 0, 0, 0);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      part(crown, new THREE.ConeGeometry(0.07, 0.22, 4), gold, Math.cos(a) * 0.32, 0.17, Math.sin(a) * 0.32);
+      part(crown, new THREE.SphereGeometry(0.04, 6, 4), glow(i % 2 ? '#ff3b3b' : '#3af0ff'), Math.cos(a) * 0.34, 0.02, Math.sin(a) * 0.34, false);
+    }
+  } else if (acc === 'halo') {
+    const halo = part(root, new THREE.TorusGeometry(0.7, 0.06, 8, 32), glow(glowC), 0, 2.6, 0, false);
+    halo.rotation.x = Math.PI / 2;
+    const inner = part(root, new THREE.TorusGeometry(0.5, 0.025, 6, 32), glow('#f0d8ff'), 0, 2.6, 0, false);
+    inner.rotation.x = Math.PI / 2;
+    anim.push((t) => { halo.position.y = 2.6 + Math.sin(t * 2) * 0.1; inner.rotation.z = t * 2; halo.rotation.z = -t; });
+  }
+  return anim;
+}
+
+const HEADS = { scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
 export function createTurret(type, color, skinId = 'factory') {
   const root = new THREE.Group();
@@ -222,8 +427,9 @@ export function createTurret(type, color, skinId = 'factory') {
   camAnchor.rotation.y = Math.PI;
   pitch.add(camAnchor);
 
+  const accAnim = addAccessory(root, yaw, sk.acc, sk);
   return {
-    type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor,
+    type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor, accAnim, skinFx: sk.fx,
     spinner: head.spinner, orb: head.orb, coils: head.coils, lens: head.lens, spin: 0, pips,
     yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null, picks: [0, 0, 0], invested: 0, beamT: 0, beamTarget: null,
   };
@@ -419,7 +625,128 @@ function buildBoss() {
   return { g, body, legs, wp, gait: 'stomp' };
 }
 
+
+function buildRunner() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const skin = mat('#e0703a', { metalness: 0.1, roughness: 0.5 });
+  const dark = mat('#3a2014', { metalness: 0.2 });
+  const torso = part(body, new THREE.CapsuleGeometry(0.22, 0.6, 4, 8), skin, 0, 0.75, 0);
+  torso.rotation.x = Math.PI / 2 - 0.35;
+  part(body, new THREE.IcosahedronGeometry(0.22, 0), skin, 0, 0.95, 0.5);
+  part(body, new THREE.SphereGeometry(0.05, 6, 4), glow('#ffea00'), -0.09, 1.0, 0.68, false);
+  part(body, new THREE.SphereGeometry(0.05, 6, 4), glow('#ffea00'), 0.09, 1.0, 0.68, false);
+  const tail = part(body, new THREE.ConeGeometry(0.1, 0.7, 5), dark, 0, 0.8, -0.6);
+  tail.rotation.x = -Math.PI / 2 - 0.3;
+  const legs = [];
+  for (const sx of [-0.18, 0.18]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 0.62, 0);
+    body.add(pivot);
+    part(pivot, new THREE.BoxGeometry(0.1, 0.6, 0.12), dark, 0, -0.3, 0);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  const wp = part(body, new THREE.SphereGeometry(0.12, 8, 6), glow('#ff4a2a'), 0, 0.95, -0.2, false);
+  return { g, body, legs, wp, gait: 'run' };
+}
+function buildMedic() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const white = mat('#e8ecef', { metalness: 0.2, roughness: 0.5 });
+  const dark = mat('#2a3440', { metalness: 0.3 });
+  part(body, new THREE.BoxGeometry(0.7, 0.8, 0.5), white, 0, 1.05, 0);
+  part(body, new THREE.BoxGeometry(0.3, 0.1, 0.02), glow('#ff3b3b'), 0, 1.1, 0.26, false);
+  part(body, new THREE.BoxGeometry(0.1, 0.3, 0.02), glow('#ff3b3b'), 0, 1.1, 0.26, false);
+  part(body, new THREE.SphereGeometry(0.24, 10, 8), white, 0, 1.62, 0.05);
+  part(body, new THREE.BoxGeometry(0.34, 0.1, 0.05), glow('#8fe3ff'), 0, 1.66, 0.27, false);
+  const legs = [];
+  for (const sx of [-0.2, 0.2]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 0.65, 0);
+    body.add(pivot);
+    part(pivot, new THREE.BoxGeometry(0.18, 0.65, 0.2), dark, 0, -0.32, 0);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  part(body, new THREE.BoxGeometry(0.5, 0.55, 0.3), dark, 0, 1.1, -0.38);
+  const wp = part(body, new THREE.SphereGeometry(0.2, 10, 8), glow('#3ee07a'), 0, 1.2, -0.58, false);
+  const auraM = new THREE.MeshBasicMaterial({ color: '#3ee07a', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const aura = new THREE.Mesh(new THREE.RingGeometry(3.6, 4, 40), auraM);
+  aura.rotation.x = -Math.PI / 2;
+  aura.position.y = 0.08;
+  g.add(aura);
+  return { g, body, legs, wp, gait: 'walk', aura };
+}
+function buildBurrower() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const shell = mat('#8a6a4a', { metalness: 0.2, roughness: 0.7 });
+  const plate = mat('#4a3a2a', { metalness: 0.4 });
+  const legs = [];
+  for (let i = 0; i < 4; i++) {
+    const seg = part(body, new THREE.IcosahedronGeometry(0.42 - i * 0.05, 0), i % 2 ? plate : shell, 0, 0.45, 0.3 - i * 0.55);
+    legs.push({ pivot: seg, phase: i * 0.9 });
+  }
+  const drill = new THREE.ConeGeometry(0.35, 0.8, 8);
+  drill.rotateX(Math.PI / 2);
+  const d = part(body, drill, mat('#c0c8d0', { metalness: 0.8, roughness: 0.3 }), 0, 0.5, 0.95);
+  const wp = part(body, new THREE.SphereGeometry(0.16, 8, 6), glow('#ffb03a'), 0, 0.78, -0.4, false);
+  return { g, body, legs, wp, gait: 'burrow', drill: d };
+}
+function buildJuggernaut() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const armor = mat('#5a5f6a', { metalness: 0.6, roughness: 0.35 });
+  const dark = mat('#23262c', { metalness: 0.5 });
+  const accent = mat('#d0a030', { metalness: 0.4 });
+  part(body, new THREE.BoxGeometry(1.6, 1.1, 1.2), armor, 0, 1.5, 0);
+  for (const sx of [-1, 1]) {
+    part(body, new THREE.BoxGeometry(0.6, 0.5, 0.9), accent, sx * 1.05, 1.9, 0);
+    part(body, cyl(0.16, 0.18, 1.2, 8), dark, sx * 1.05, 1.4, 0.6);
+  }
+  part(body, new THREE.BoxGeometry(0.5, 0.35, 0.45), dark, 0, 2.2, 0.35);
+  part(body, new THREE.BoxGeometry(0.36, 0.08, 0.05), glow('#ff3b3b'), 0, 2.22, 0.58, false);
+  const legs = [];
+  for (const sx of [-0.45, 0.45]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 1.0, 0);
+    body.add(pivot);
+    part(pivot, new THREE.BoxGeometry(0.45, 1.0, 0.55), dark, 0, -0.5, 0);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  const wp = part(body, new THREE.SphereGeometry(0.26, 8, 6), glow('#ff8a1a'), 0, 1.6, -0.7, false);
+  return { g, body, legs, wp, gait: 'stomp2' };
+}
+function buildBomber() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const hull = mat('#4a5a6a', { metalness: 0.6, roughness: 0.4 });
+  const dark = mat('#20262e', { metalness: 0.5 });
+  const fus = part(body, new THREE.CapsuleGeometry(0.45, 1.8, 4, 10), hull, 0, 4.2, 0);
+  fus.rotation.x = Math.PI / 2;
+  part(body, new THREE.BoxGeometry(3.0, 0.1, 0.8), dark, 0, 4.25, 0);
+  part(body, new THREE.BoxGeometry(1.2, 0.08, 0.5), dark, 0, 4.3, -1.1);
+  const legs = [];
+  for (const sx of [-1.35, 1.35]) {
+    part(body, cyl(0.22, 0.22, 0.8, 8), hull, sx, 4.15, 0.1);
+    const fan = new THREE.Group();
+    fan.position.set(sx, 4.15, 0.52);
+    body.add(fan);
+    part(fan, new THREE.BoxGeometry(0.5, 0.05, 0.05), mat('#c9d3dd'), 0, 0, 0, false);
+    legs.push({ pivot: fan, phase: 0 });
+    part(body, new THREE.CircleGeometry(0.16, 10), glow('#ff9a3a'), sx, 4.15, -0.31, false).rotation.y = Math.PI;
+  }
+  part(body, new THREE.SphereGeometry(0.2, 8, 6), glow('#8fe3ff'), 0, 4.45, 0.9, false);
+  const wp = part(body, new THREE.BoxGeometry(0.4, 0.2, 0.5), glow('#ffd24a'), 0, 3.85, 0, false);
+  return { g, body, legs, wp, gait: 'flyspin' };
+}
+
 const BUILDERS = {
+  runner: buildRunner, medic: buildMedic, burrower: buildBurrower, juggernaut: buildJuggernaut, bomber: buildBomber,
   scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
   shield: buildShield, cloak: buildCloak, splitter: buildSplitter, boss: buildBoss,
 };
@@ -469,7 +796,8 @@ export function createEnemy(type, hpMult = 1) {
   const shield = def.shield ? Math.round(def.shield * hpMult) : 0;
   return {
     type, def, group: parts.g, body: parts.body, legs: parts.legs, wp: parts.wp, tur: parts.tur, gait: parts.gait,
-    bubble: parts.bubble || null, cloth: parts.cloth || null, ice,
+    bubble: parts.bubble || null, cloth: parts.cloth || null, ice, aura: parts.aura || null, drill: parts.drill || null,
+    cripple: 0, burrowT: 2 + Math.random() * 2, buried: false, healT: 1.5, markT: 0,
     bar, fill, fillM: fill.material, shieldFill, hp: maxHp, maxHp, shield, maxShield: shield, shieldIdle: 0,
     s: 0, lateral: (Math.random() * 2 - 1) * def.lateral,
     alive: true, anim: Math.random() * 10, flash: 0, speedMult: 1, path: null,

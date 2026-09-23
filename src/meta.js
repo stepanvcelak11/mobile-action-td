@@ -1,10 +1,11 @@
 // Meta game: currencies, turret cards & levels, chests, trophy road, battle pass, daily quests, shop, skins, settings.
 import { P, save } from './progress.js';
 import { TURRETS, TURRET_ORDER, ABILITIES, ABILITY_ORDER, SKINS, SKIN_ORDER } from './config.js';
+import { TURRET_POWERS, POWER_UNLOCK, POWER_PRICE, GEARS } from './powers.js';
 
 /* ----------------------------------------------------------------- defaults */
 export const DEFAULT_SETTINGS = {
-  theme: 'dark', uiScale: 1, sens: 1, volume: 0.8, leftHanded: false, layout: {},
+  theme: 'dark', uiScale: 1, sens: 1.3, volume: 0.8, leftHanded: false, layout: {}, cockpit: true,
 };
 
 export function ensureMeta() {
@@ -14,6 +15,10 @@ export function ensureMeta() {
   P.cards ??= {};
   P.tlevel ??= {};
   P.abilities ??= { strike: 5, emp: 3, repair: 2, freeze: 2 };
+  for (const [k, n] of Object.entries({ nuke: 1, goldrush: 2, overclock: 2, shieldwall: 1, tarpit: 2, blackhole: 1 })) P.abilities[k] ??= n;
+  P.loadout ??= ['strike', 'emp', 'repair', 'freeze'];
+  P.powers ??= {};
+  P.slots ??= [null, null, null, null];
   P.skins ??= { factory: true };
   P.skinSel ??= {};
   P.pass ??= { season: 1, xp: 0, premium: false, free: [], prem: [] };
@@ -62,6 +67,101 @@ export function levelUp(type) {
   save();
   return true;
 }
+
+/* ------------------------------------------------------------ turret powers */
+export function powerState(type) {
+  P.powers[type] ??= { gadgets: [false, false], gadget: 0, stars: [false, false], star: 0, gears: [null, null], hyper: false };
+  return P.powers[type];
+}
+const spend = (coins) => { if (P.coins < coins) return false; P.coins -= coins; return true; };
+export function buyGadget(type, i) {
+  const ps = powerState(type);
+  if (tlevel(type) < POWER_UNLOCK.gadget || ps.gadgets[i] || !spend(POWER_PRICE.gadget)) return false;
+  ps.gadgets[i] = true; ps.gadget = i; save(); return true;
+}
+export function buyStar(type, i) {
+  const ps = powerState(type);
+  if (tlevel(type) < POWER_UNLOCK.star || ps.stars[i] || !spend(POWER_PRICE.star)) return false;
+  ps.stars[i] = true; ps.star = i; save(); return true;
+}
+export function selectPower(type, what, i) {
+  const ps = powerState(type);
+  if (what === 'gadget' && ps.gadgets[i]) ps.gadget = i;
+  if (what === 'star' && ps.stars[i]) ps.star = i;
+  save();
+}
+export function buyGear(type, slot, gear) {
+  const ps = powerState(type);
+  const need = slot === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2;
+  if (tlevel(type) < need || !GEARS[gear] || ps.gears.includes(gear) || !spend(POWER_PRICE.gear)) return false;
+  ps.gears[slot] = gear; save(); return true;
+}
+export function buyHyper(type) {
+  const ps = powerState(type);
+  if (tlevel(type) < POWER_UNLOCK.hyper || ps.hyper || !spend(POWER_PRICE.hyper)) return false;
+  ps.hyper = true; save(); return true;
+}
+/** What a turret brings into a match: selected gadget/star power ids, gear fx and hypercharge. */
+export function equippedPowers(type) {
+  const ps = powerState(type);
+  const tp = TURRET_POWERS[type];
+  return {
+    gadget: ps.gadgets[ps.gadget] ? tp.gadgets[ps.gadget] : null,
+    star: ps.stars[ps.star] ? tp.stars[ps.star] : null,
+    gears: ps.gears.filter(Boolean),
+    hyper: ps.hyper ? tp.hyper : null,
+  };
+}
+export function setLoadout(slot, id) {
+  if (!ABILITIES[id]) return;
+  const cur = P.loadout.indexOf(id);
+  if (cur >= 0) P.loadout[cur] = P.loadout[slot];
+  P.loadout[slot] = id;
+  save();
+}
+
+/* ------------------------------------------------------------ chest slots */
+export const CHEST_TIME = { wood: 30, iron: 180, gold: 900, epic: 2700 }; // seconds
+export function addToSlot(kind) {
+  const i = P.slots.findIndex((x) => !x);
+  if (i < 0) return -1;
+  P.slots[i] = { kind, start: null };
+  if (!P.slots.some((x) => x && x.start)) P.slots[i].start = Date.now();
+  save();
+  return i;
+}
+export function slotInfo(i) {
+  const sl = P.slots[i];
+  if (!sl) return null;
+  const dur = CHEST_TIME[sl.kind] * 1000;
+  if (!sl.start) return { ...sl, state: 'locked', left: dur };
+  const left = sl.start + dur - Date.now();
+  return { ...sl, state: left <= 0 ? 'ready' : 'unlocking', left: Math.max(0, left) };
+}
+export function startUnlock(i) {
+  if (!P.slots[i] || P.slots[i].start || P.slots.some((x) => x && x.start && slotInfo(P.slots.indexOf(x)).state === 'unlocking')) return false;
+  P.slots[i].start = Date.now();
+  save();
+  return true;
+}
+export const skipCost = (i) => Math.max(1, Math.ceil(slotInfo(i).left / 60000 * 2));
+export function takeSlot(i, pay = false) {
+  const info = slotInfo(i);
+  if (!info) return null;
+  if (info.state !== 'ready') {
+    if (!pay) return null;
+    const c = skipCost(i);
+    if (P.gems < c) return null;
+    P.gems -= c;
+  }
+  P.slots[i] = null;
+  // the next locked chest starts unlocking automatically
+  const next = P.slots.findIndex((x) => x && !x.start);
+  if (next >= 0 && !P.slots.some((x) => x && x.start)) P.slots[next].start = Date.now();
+  save();
+  return info.kind;
+}
+export const slotsReady = () => P.slots.filter((_, i) => slotInfo(i)?.state === 'ready').length;
 
 /* ------------------------------------------------------------------- chests */
 export const CHESTS = {
@@ -122,14 +222,14 @@ export function grant(rw) {
 /* -------------------------------------------------------------- trophy road */
 function buildRoad() {
   const rewards = [];
-  const skinAt = { 5: 'desert', 12: 'arctic', 20: 'toxic', 28: 'obsidian', 36: 'gold' };
+  const skinAt = { 5: 'desert', 12: 'arctic', 20: 'toxic', 28: 'obsidian', 33: 'crystal', 38: 'gold' };
   for (let i = 0; i < 40; i++) {
     const t = (i + 1) * 40;
     let rw;
     if (skinAt[i]) rw = { skin: skinAt[i] };
     else if (i % 5 === 4) rw = { chest: i > 20 ? 'epic' : 'gold' };
     else if (i % 5 === 2) rw = { gems: 15 + i };
-    else if (i % 5 === 1) rw = { abilities: { [ABILITY_ORDER[i % 4]]: 2 } };
+    else if (i % 5 === 1) rw = { abilities: { [ABILITY_ORDER[i % ABILITY_ORDER.length]]: 2 } };
     else if (i % 5 === 3) rw = { chest: 'iron' };
     else rw = { coins: 150 + i * 25 };
     rewards.push({ trophies: t, reward: rw });
@@ -150,10 +250,10 @@ export const PASS_TIER_XP = 120;
 export const PASS_PRICE = 450;
 function buildPass() {
   const tiers = [];
-  const premSkins = { 9: 'neon', 19: 'obsidian', 29: 'gold' };
+  const premSkins = { 9: 'neon', 19: 'royal', 29: 'void' };
   for (let i = 0; i < 30; i++) {
-    const free = i % 5 === 4 ? { chest: 'iron' } : i % 5 === 2 ? { abilities: { [ABILITY_ORDER[i % 4]]: 1 } } : i % 7 === 6 ? { gems: 10 } : { coins: 80 + i * 10 };
-    const prem = premSkins[i] ? { skin: premSkins[i] } : i % 5 === 4 ? { chest: 'gold' } : i % 3 === 0 ? { gems: 25 } : i % 3 === 1 ? { coins: 250 + i * 20 } : { abilities: { [ABILITY_ORDER[(i + 1) % 4]]: 2 } };
+    const free = i % 5 === 4 ? { chest: 'iron' } : i % 5 === 2 ? { abilities: { [ABILITY_ORDER[i % ABILITY_ORDER.length]]: 1 } } : i % 7 === 6 ? { gems: 10 } : { coins: 80 + i * 10 };
+    const prem = premSkins[i] ? { skin: premSkins[i] } : i % 5 === 4 ? { chest: 'gold' } : i % 3 === 0 ? { gems: 25 } : i % 3 === 1 ? { coins: 250 + i * 20 } : { abilities: { [ABILITY_ORDER[(i + 3) % ABILITY_ORDER.length]]: 2 } };
     tiers.push({ free, prem });
   }
   return tiers;
@@ -296,6 +396,11 @@ export function matchRewards({ won, stars, waves, mapIndex, kills, mode }) {
   P.trophies = Math.max(0, P.trophies + trophies);
   P.coins += coins;
   addPassXp(passXp);
+  let slot = -1, overflow = 0;
+  if (chest) {
+    slot = addToSlot(chest);
+    if (slot < 0) { overflow = CHESTS[chest].coins[0]; P.coins += overflow; }
+  }
   save();
-  return { trophies, coins, passXp, chest };
+  return { trophies, coins, passXp, chest, slot, overflow };
 }

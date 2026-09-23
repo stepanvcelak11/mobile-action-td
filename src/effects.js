@@ -119,6 +119,23 @@ flameGeo.rotateX(-Math.PI / 2);
 flameGeo.translate(0, 0, -0.5);
 
 const add = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+const orbGeo = new THREE.IcosahedronGeometry(0.28, 1);
+const haloGeo = new THREE.IcosahedronGeometry(0.5, 1);
+const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.6, 5);
+shaftGeo.rotateX(Math.PI / 2);
+const spearGeo = new THREE.ConeGeometry(0.1, 0.4, 5);
+spearGeo.rotateX(Math.PI / 2);
+spearGeo.translate(0, 0, 0.95);
+const tintCache = new Map();
+function tinted(color, opacity) {
+  const key = `${color}|${opacity}`;
+  if (!tintCache.has(key)) {
+    tintCache.set(key, opacity === 1
+      ? new THREE.MeshBasicMaterial({ color, toneMapped: false })
+      : add(color, opacity));
+  }
+  return tintCache.get(key);
+}
 const MATS = {
   shell: { core: new THREE.MeshBasicMaterial({ color: '#ffe38a', toneMapped: false }), trail: add('#ff9a2e', 0.55) },
   shellM: { core: new THREE.MeshBasicMaterial({ color: '#fff2f0', toneMapped: false }), trail: add('#ff4a2a', 0.7) },
@@ -128,6 +145,13 @@ const MATS = {
   mortar: {
     body: new THREE.MeshStandardMaterial({ color: '#3a3f2a', metalness: 0.4, roughness: 0.5, flatShading: true }),
     trail: add('#ffcf6a', 0.35),
+  },
+  venom: { core: new THREE.MeshBasicMaterial({ color: '#b8ff6a', toneMapped: false }), trail: add('#4fa02a', 0.6) },
+  orb: { core: new THREE.MeshBasicMaterial({ color: '#dffcff', toneMapped: false }), trail: add('#3ad8ff', 0.5), halo: add('#6af0ff', 0.45) },
+  harpoon: {
+    body: new THREE.MeshStandardMaterial({ color: '#8a6a4a', metalness: 0.3, roughness: 0.6, flatShading: true }),
+    tip: new THREE.MeshStandardMaterial({ color: '#c9d3dd', metalness: 0.8, roughness: 0.3, flatShading: true }),
+    trail: add('#bfe8ff', 0.35),
   },
   rocket: {
     body: new THREE.MeshStandardMaterial({ color: '#d8dde2', metalness: 0.5, roughness: 0.4, flatShading: true }),
@@ -155,9 +179,22 @@ export class Projectiles {
       trail.position.z = -0.2;
       g.add(trail);
       g.children[0].castShadow = true;
-    } else if (kind === 'shard') {
-      g.add(new THREE.Mesh(shardGeo, MATS.shard.core));
-      trail = new THREE.Mesh(trailGeo, MATS.shard.trail);
+    } else if (kind === 'orb') {
+      g.add(new THREE.Mesh(orbGeo, MATS.orb.core), new THREE.Mesh(haloGeo, MATS.orb.halo));
+      trail = new THREE.Mesh(trailGeo, MATS.orb.trail);
+      trail.scale.set(4, 4, 1);
+      trail.position.z = -0.2;
+      g.add(trail);
+    } else if (kind === 'harpoon') {
+      const m = MATS.harpoon;
+      g.add(new THREE.Mesh(shaftGeo, m.body), new THREE.Mesh(spearGeo, m.tip));
+      trail = new THREE.Mesh(trailGeo, m.trail);
+      trail.position.z = -0.8;
+      g.add(trail);
+      g.children[0].castShadow = true;
+    } else if (kind === 'shard' || kind === 'venom') {
+      g.add(new THREE.Mesh(shardGeo, MATS[kind].core));
+      trail = new THREE.Mesh(trailGeo, MATS[kind].trail);
       trail.position.z = -0.25;
       g.add(trail);
     } else if (kind === 'rocket') {
@@ -174,7 +211,7 @@ export class Projectiles {
       trail.position.z = -0.3;
       g.add(trail);
     }
-    g.userData = { kind, trail };
+    g.userData = { kind, trail, core: g.children[0] };
     this.scene.add(g);
     return g;
   }
@@ -188,10 +225,20 @@ export class Projectiles {
     mesh.position.copy(origin);
     this._look.copy(origin).add(dir);
     mesh.lookAt(this._look);
-    if (mesh.userData.trail) mesh.userData.trail.scale.set(1, 1, 0.01);
+    const trailW = kind === 'orb' ? 4 : 1;
+    if (mesh.userData.trail) mesh.userData.trail.scale.set(trailW, trailW, 0.01);
+    // skins recolour tracers and trails
+    const base = MATS[kind];
+    if (o.tint && base.core && mesh.userData.core) {
+      mesh.userData.core.material = tinted(o.tint.tracer, 1);
+      if (mesh.userData.trail) mesh.userData.trail.material = tinted(o.tint.trail, kind === 'bullet' ? 0.5 : 0.65);
+    } else if (base.core && mesh.userData.core) {
+      mesh.userData.core.material = base.core;
+      if (mesh.userData.trail && base.trail) mesh.userData.trail.material = base.trail;
+    }
     this.active.push({
       ...o, mesh, pos: origin.clone(), vel: dir.clone().multiplyScalar(o.speed),
-      life: kind === 'rocket' || kind === 'mortar' ? 4 : 1.6, travelled: 0,
+      life: kind === 'rocket' || kind === 'mortar' ? 4 : kind === 'orb' ? 3 : 1.6, travelled: 0,
       maxTrail: kind === 'shellM' || kind === 'sniper' ? 4.5 : kind === 'bullet' ? 2 : 3, smokeT: 0,
       hits: null, speed: o.speed,
     });
@@ -369,5 +416,48 @@ export class AmbientFx {
     scene.remove(this.points);
     this.geo.dispose();
     this.mat.dispose();
+  }
+}
+
+/* ------------------------------------------------ Expanding pulse rings */
+const ringGeoFx = new THREE.TorusGeometry(1, 0.08, 6, 48);
+ringGeoFx.rotateX(Math.PI / 2);
+export class Rings {
+  constructor(scene) {
+    this.scene = scene;
+    this.pool = [];
+    this.active = [];
+  }
+  pulse(pos, radius, color, life = 0.45) {
+    let m = this.pool.pop();
+    if (!m) {
+      m = new THREE.Mesh(ringGeoFx, add('#ffffff', 1));
+      this.scene.add(m);
+    }
+    m.visible = true;
+    m.material.color.set(color);
+    m.position.copy(pos);
+    m.scale.setScalar(0.3);
+    this.active.push({ m, t: 0, life, radius });
+  }
+  update(dt) {
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      const r = this.active[i];
+      r.t += dt;
+      const k = r.t / r.life;
+      if (k >= 1) {
+        r.m.visible = false;
+        this.pool.push(r.m);
+        this.active[i] = this.active[this.active.length - 1];
+        this.active.pop();
+        continue;
+      }
+      r.m.scale.setScalar(0.3 + r.radius * k);
+      r.m.material.opacity = 1 - k;
+    }
+  }
+  clear() {
+    for (const r of this.active) { r.m.visible = false; this.pool.push(r.m); }
+    this.active.length = 0;
   }
 }

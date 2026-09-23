@@ -77,6 +77,11 @@ export function enemyIcon(type) {
     shield: `<circle cx="24" cy="25" r="16" fill="rgba(79,195,255,0.25)" stroke="#4fc3ff" stroke-width="2"/><rect x="15" y="20" width="18" height="12" rx="3" fill="#3a6a8a"/><circle cx="24" cy="18" r="3" fill="#8fe3ff"/>`,
     cloak: `<path d="M12 36c0-14 5-24 12-24s12 10 12 24l-4-3-4 3-4-3-4 3-4-3z" fill="rgba(200,220,255,0.45)" stroke="#c8dcff" stroke-width="2" stroke-dasharray="3 2"/><circle cx="20" cy="22" r="2" fill="#fff"/><circle cx="28" cy="22" r="2" fill="#fff"/>`,
     splitter: `<circle cx="24" cy="26" r="11" fill="#d46a3a"/><circle cx="13" cy="17" r="5" fill="#c7d43a"/><circle cx="35" cy="17" r="5" fill="#c7d43a"/><circle cx="24" cy="40" r="4" fill="#c7d43a"/><path d="M18 22l12 8M30 22l-12 8" stroke="#6a2a14" stroke-width="2"/>`,
+    runner: `<ellipse cx="22" cy="24" rx="10" ry="5" fill="#e0703a" transform="rotate(-15 22 24)"/><circle cx="33" cy="19" r="4" fill="#e0703a"/><path d="M18 28l-3 10M24 28l3 10" stroke="#3a2014" stroke-width="2.5"/><path d="M12 24l-8 4" stroke="#3a2014" stroke-width="3"/>`,
+    medic: `<rect x="15" y="16" width="18" height="18" rx="3" fill="#e8ecef"/><path d="M24 19v12M18 25h12" stroke="#ff3b3b" stroke-width="3"/><circle cx="24" cy="11" r="5" fill="#e8ecef"/><circle cx="24" cy="25" r="17" fill="none" stroke="#3ee07a" stroke-width="1.5" stroke-dasharray="3 3"/>`,
+    burrower: `<path d="M6 34q9-10 18 0t18 0" fill="none" stroke="#8a6a4a" stroke-width="7" stroke-linecap="round"/><path d="M40 32l6-3-5-3z" fill="#c0c8d0"/><path d="M4 40h40" stroke="#5a4028" stroke-width="3"/>`,
+    juggernaut: `<rect x="12" y="12" width="24" height="18" rx="3" fill="#5a5f6a"/><rect x="6" y="12" width="7" height="9" rx="2" fill="#d0a030"/><rect x="35" y="12" width="7" height="9" rx="2" fill="#d0a030"/><rect x="16" y="30" width="6" height="10" fill="#23262c"/><rect x="26" y="30" width="6" height="10" fill="#23262c"/><rect x="20" y="15" width="8" height="3" fill="#ff3b3b"/>`,
+    bomber: `<ellipse cx="24" cy="24" rx="6" ry="14" fill="#4a5a6a"/><rect x="4" y="21" width="40" height="5" rx="2" fill="#20262e"/><circle cx="10" cy="23" r="3" fill="#ff9a3a"/><circle cx="38" cy="23" r="3" fill="#ff9a3a"/>`,
     boss: `<ellipse cx="24" cy="28" rx="18" ry="11" fill="#6b1d2a"/><path d="M12 20l3-8 4 7 5-9 5 9 4-7 3 8" fill="#d9cdb8"/><circle cx="24" cy="24" r="5" fill="#c64dff"/>`,
   };
   return svg(bodies[type] || '');
@@ -97,6 +102,16 @@ export function turretIcon(type) {
     mortar: `<rect x="15" y="22" width="18" height="8" rx="2" fill="#9aa6b2"/><rect x="19" y="4" width="10" height="20" rx="2" fill="${steel}" transform="rotate(-18 24 22)"/><path d="M8 10q8-10 18-3" fill="none" stroke="#ffd24a" stroke-width="2" stroke-dasharray="2 3"/>`,
     tesla: `<rect x="22" y="10" width="4" height="19" fill="${steel}"/><ellipse cx="24" cy="22" rx="8" ry="2.5" fill="none" stroke="#c08a3a" stroke-width="2.5"/><ellipse cx="24" cy="16" rx="6.5" ry="2" fill="none" stroke="#c08a3a" stroke-width="2.5"/><circle cx="24" cy="8" r="5" fill="${c}"/><path d="M33 2l-4 6h4l-4 6" stroke="#fff" stroke-width="1.6" fill="none"/>`,
     laser: `<rect x="16" y="20" width="16" height="10" rx="3" fill="#9aa6b2"/><rect x="21" y="8" width="6" height="14" rx="2" fill="${steel}"/><path d="M24 0v9" stroke="${c}" stroke-width="3"/><circle cx="24" cy="9" r="3" fill="#fff"/><circle cx="24" cy="9" r="5" fill="none" stroke="${c}" stroke-width="1.5"/>`,
+    scatter: `<rect x="14" y="19" width="20" height="11" rx="3" fill="#9aa6b2"/><path d="M18 20V9h12v11z" fill="${steel}"/><path d="M15 9h18l-2-6H17z" fill="${dark}"/><circle cx="36" cy="24" r="2" fill="${c}"/><circle cx="36" cy="28" r="2" fill="${c}"/>`,
+    venom: `<rect x="15" y="21" width="18" height="9" rx="2" fill="#9aa6b2"/><circle cx="24" cy="16" r="7" fill="${c}"/><circle cx="21" cy="14" r="2" fill="#e8ffc8"/><rect x="22" y="2" width="4" height="9" fill="${steel}"/><path d="M24 1c3 3 3 5 0 5s-3-2 0-5z" fill="${c}"/>`,
+    bouncer: `<rect x="14" y="20" width="20" height="10" rx="2" fill="#9aa6b2"/><circle cx="24" cy="17" r="7" fill="${c}"/><rect x="20" y="4" width="8" height="13" rx="2" fill="${steel}"/><circle cx="24" cy="17" r="3" fill="${dark}"/>`,
+    harpoon: `<rect x="16" y="21" width="16" height="9" rx="2" fill="#9aa6b2"/><rect x="23" y="6" width="2" height="16" fill="#8a6a4a"/><path d="M24 0l4 7h-8z" fill="${c}"/><circle cx="17" cy="25" r="4" fill="${steel}"/>`,
+    sonic: `<rect x="16" y="22" width="16" height="8" rx="2" fill="#9aa6b2"/><path d="M12 4l24 0-6 16H18z" fill="${steel}"/><circle cx="24" cy="11" r="3" fill="${c}"/><path d="M8 8q-3 5 0 10M40 8q3 5 0 10" stroke="${c}" stroke-width="2" fill="none"/>`,
+    plasma: `<rect x="15" y="21" width="18" height="9" rx="2" fill="#9aa6b2"/><circle cx="24" cy="12" r="7" fill="${c}"/><ellipse cx="24" cy="12" rx="10" ry="3" fill="none" stroke="${steel}" stroke-width="2"/><circle cx="24" cy="12" r="3" fill="#fff"/>`,
+    storm: `<rect x="17" y="22" width="14" height="8" rx="2" fill="#9aa6b2"/><rect x="23" y="6" width="2" height="17" fill="${steel}"/><circle cx="24" cy="5" r="4" fill="${c}"/><path d="M34 2l-4 7h4l-5 8" stroke="#ffe066" stroke-width="2" fill="none"/>`,
+    silo: `<rect x="10" y="12" width="28" height="18" rx="2" fill="#9aa6b2"/>${[15, 24, 33].map((x) => `<rect x="${x - 3}" y="8" width="6" height="6" rx="1" fill="${dark}"/><rect x="${x - 1.5}" y="3" width="3" height="6" fill="${c}"/>`).join('')}`,
+    prism: `<rect x="16" y="22" width="16" height="8" rx="2" fill="#9aa6b2"/><path d="M24 2l8 10-8 10-8-10z" fill="${c}"/><path d="M24 2v20M16 12h16" stroke="#fff" stroke-width="1" opacity="0.7"/>`,
+    howitzer: `<rect x="13" y="20" width="22" height="10" rx="2" fill="#9aa6b2"/><rect x="21" y="0" width="6" height="22" rx="1" fill="${steel}"/><rect x="19" y="0" width="10" height="4" fill="${dark}"/><rect x="14" y="17" width="20" height="3" fill="${c}"/>`,
     rail: `<rect x="17" y="21" width="14" height="9" rx="2" fill="#9aa6b2"/><rect x="20" y="1" width="2.4" height="22" fill="${steel}"/><rect x="25.6" y="1" width="2.4" height="22" fill="${steel}"/>${[5, 10, 15].map((y) => `<rect x="18" y="${y}" width="12" height="2.4" rx="1.2" fill="${c}"/>`).join('')}`,
   };
   return svg(heads[type] + base, g.def);
@@ -138,6 +153,7 @@ export function fxIcon(key) {
 }
 
 export function abilityIcon(id) {
+  if (ICO6[id]) return `<svg viewBox="0 0 48 48" aria-hidden="true">${ICO6[id]}</svg>`;
   if (id === 'repair') {
     return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="8" width="32" height="32" rx="9" fill="#1f6a3a" stroke="#3ee07a" stroke-width="2.5"/><path d="M24 14v20M14 24h20" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>`;
   }
@@ -161,4 +177,60 @@ export function chestIcon(kind, color) {
     <path d="M6 24c0-12 8-18 26-18s26 6 26 18z" fill="${color}" stroke="#1b1208" stroke-width="3" class="chest-lid"/>
     <path d="M6 24h52" stroke="#1b1208" stroke-width="3"/><rect x="27" y="20" width="10" height="13" rx="2" fill="#ffe28a" stroke="#1b1208" stroke-width="2.5"/>
     <path d="M14 8v46M50 8v46" stroke="rgba(0,0,0,0.25)" stroke-width="5"/></svg>`;
+}
+
+const ICO6 = {
+  nuke: '<circle cx="24" cy="30" r="12" fill="#3a0a30"/><path d="M24 2v26" stroke="#ff4ad8" stroke-width="5" stroke-linecap="round"/><path d="M24 2v26" stroke="#fff" stroke-width="2"/><circle cx="24" cy="30" r="7" fill="#ff9aff"/><circle cx="24" cy="30" r="3" fill="#fff"/>',
+  goldrush: '<circle cx="18" cy="28" r="10" fill="#ffc62e" stroke="#b87800" stroke-width="2"/><circle cx="30" cy="20" r="10" fill="#ffd966" stroke="#b87800" stroke-width="2"/><text x="30" y="25" font-size="13" font-weight="900" text-anchor="middle" fill="#8a5a00">2×</text>',
+  overclock: '<circle cx="24" cy="26" r="16" fill="#3a1a0a" stroke="#ff7a1a" stroke-width="3"/><path d="M24 26l8-9" stroke="#ffcf5a" stroke-width="3.5" stroke-linecap="round"/><circle cx="24" cy="26" r="3" fill="#ffcf5a"/><path d="M12 12l-4-4M36 12l4-4" stroke="#ff7a1a" stroke-width="3"/>',
+  shieldwall: '<path d="M24 4l17 6v11c0 11-8 19-17 23-9-4-17-12-17-23V10z" fill="#1a4a6a" stroke="#5fd8ff" stroke-width="3"/><path d="M16 24l6 6 11-12" stroke="#bff0ff" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  tarpit: '<ellipse cx="24" cy="32" rx="19" ry="9" fill="#241a10" stroke="#8a6a3a" stroke-width="2.5"/><circle cx="17" cy="30" r="3" fill="#4a3a20"/><circle cx="30" cy="33" r="2.5" fill="#4a3a20"/><path d="M24 8v14M18 16l6 6 6-6" stroke="#c9a56a" stroke-width="3" fill="none" stroke-linecap="round"/>',
+  blackhole: '<circle cx="24" cy="24" r="18" fill="#1a0a2a"/><path d="M24 6a18 18 0 0118 18M42 24a18 18 0 01-18 18M24 42A18 18 0 016 24M6 24A18 18 0 0124 6" stroke="#9a5aff" stroke-width="3" fill="none" stroke-dasharray="10 8"/><circle cx="24" cy="24" r="6" fill="#000" stroke="#c48bff" stroke-width="2"/>',
+};
+
+export function gadgetIcon(id, color = '#ffcf5a') {
+  const inner = {
+    overdrive: '<path d="M26 6L12 26h10l-3 16 15-22H24z" fill="#fff4a0" stroke="#3a2a00" stroke-width="1.5"/>',
+    nova: '<circle cx="24" cy="24" r="7" fill="#fff"/><path d="M24 6v8M24 34v8M6 24h8M34 24h8M11 11l6 6M31 31l6 6M37 11l-6 6M17 31l-6 6" stroke="#fff" stroke-width="3" stroke-linecap="round"/>',
+    barrage: '<path d="M14 36l6-20 3 10zM24 36l6-24 3 12zM34 36l3-18 3 12z" fill="#fff"/>',
+    frostnova: '<path d="M24 8v32M10 16l28 16M10 32l28-16" stroke="#fff" stroke-width="3" stroke-linecap="round"/>',
+    reveal: '<path d="M6 24s7-11 18-11 18 11 18 11-7 11-18 11S6 24 6 24z" fill="none" stroke="#fff" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#fff"/>',
+    coolant: '<path d="M24 6c7 10 11 15 11 21a11 11 0 01-22 0c0-6 4-11 11-21z" fill="#fff"/>',
+    snipe: '<circle cx="24" cy="24" r="12" fill="none" stroke="#fff" stroke-width="3"/><path d="M24 4v12M24 32v12M4 24h12M32 24h12" stroke="#fff" stroke-width="3"/>',
+    slowfield: '<circle cx="24" cy="24" r="14" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="5 4"/><path d="M24 14v10l7 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>',
+  }[id] || '';
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 3h20l11 11v20L34 45H14L3 34V14z" fill="#141a22" stroke="${color}" stroke-width="3"/><path d="M16 8h16l8 8v16l-8 8H16l-8-8V16z" fill="${color}" opacity="0.85"/><g transform="translate(24 24) scale(0.62) translate(-24 -24)">${inner}</g></svg>`;
+}
+/** Overload: a reactor core with three spinning vanes (orange/cyan). */
+export function hyperIcon() {
+  return '<svg viewBox="0 0 48 48" aria-hidden="true"><defs><radialGradient id="ovl" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff"/><stop offset="0.35" stop-color="#7ff6ff"/><stop offset="1" stop-color="#0a6a8a"/></radialGradient></defs>'
+    + '<circle cx="24" cy="24" r="21" fill="#1a1208" stroke="#ff8a1a" stroke-width="3"/>'
+    + '<g fill="#ff8a1a"><path d="M24 6l5 9h-10z"/><path d="M39.6 33l-10.3.3 5.2-8.9z"/><path d="M8.4 33l5.1-8.6 5.2 8.9z"/></g>'
+    + '<circle cx="24" cy="24" r="8" fill="url(#ovl)"/><circle cx="24" cy="24" r="12.5" fill="none" stroke="#7ff6ff" stroke-width="1.5" stroke-dasharray="3 3"/></svg>';
+}
+/** Trait: a shield-shaped emblem with a double chevron. */
+export function traitIcon(color = '#ffd24a') {
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3l17 7v12c0 11-7 19-17 23C14 41 7 33 7 22V10z" fill="#1c2430" stroke="${color}" stroke-width="3" stroke-linejoin="round"/><path d="M15 28l9-7 9 7M15 36l9-7 9 7" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="13" r="3" fill="${color}"/></svg>`;
+}
+export const starPowerIcon = traitIcon;
+/** Mod: a circuit chip with pins. */
+export function gearIcon(color = '#9aa6b2') {
+  const pins = [12, 19, 26, 33].map((v) => `<rect x="${v}" y="3" width="3" height="6" rx="1"/><rect x="${v}" y="39" width="3" height="6" rx="1"/><rect x="3" y="${v}" width="6" height="3" rx="1"/><rect x="39" y="${v}" width="6" height="3" rx="1"/>`).join('');
+  return `<svg viewBox="0 0 48 48" aria-hidden="true"><g fill="#8a96a4">${pins}</g><rect x="8" y="8" width="32" height="32" rx="5" fill="#161d26" stroke="${color}" stroke-width="3"/><path d="M15 24h7l3-6h8M24 32v-5" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/><circle cx="33" cy="18" r="2.5" fill="${color}"/><circle cx="24" cy="33" r="2.5" fill="${color}"/></svg>`;
+}
+export function settingsIcon() {
+  return '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M20 3h8l1 6 5 2 5-4 6 6-4 5 2 5 6 1v8l-6 1-2 5 4 5-6 6-5-4-5 2-1 6h-8l-1-6-5-2-5 4-6-6 4-5-2-5-6-1v-8l6-1 2-5-4-5 6-6 5 4 5-2z" fill="#c9d2da" stroke="#10151c" stroke-width="2"/><circle cx="24" cy="24" r="7" fill="#10151c"/></svg>';
+}
+
+// colourful bottom-navigation icons
+export function navIcon(name) {
+  const g = (id, a, b) => `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient>`;
+  const icons = {
+    shop: `<defs>${g('nv-s', '#7ff0ff', '#2a8ae0')}</defs><path d="M8 16h32l-3 26H11z" fill="url(#nv-s)" stroke="#0a2440" stroke-width="2.5" stroke-linejoin="round"/><path d="M17 18v-5a7 7 0 0114 0v5" fill="none" stroke="#0a2440" stroke-width="3"/><circle cx="24" cy="30" r="5" fill="#ffd24a" stroke="#7a4a00" stroke-width="2"/>`,
+    armory: `<defs>${g('nv-a', '#ffb24d', '#c05a10')}</defs><path d="M10 38h28l-3-8H13z" fill="#5d6773" stroke="#10151c" stroke-width="2.5"/><rect x="14" y="20" width="20" height="11" rx="3" fill="url(#nv-a)" stroke="#10151c" stroke-width="2.5"/><rect x="18" y="5" width="4" height="17" rx="1" fill="#c9d2da" stroke="#10151c" stroke-width="2"/><rect x="26" y="5" width="4" height="17" rx="1" fill="#c9d2da" stroke="#10151c" stroke-width="2"/>`,
+    battle: `<defs>${g('nv-b', '#fff4c0', '#ffb020')}</defs><path d="M8 6l20 20-4 4L4 10zM40 6L20 26l4 4 20-20z" fill="url(#nv-b)" stroke="#3a1d00" stroke-width="2.5" stroke-linejoin="round"/><path d="M10 30l8 8M38 30l-8 8M6 34l6 6M42 34l-6 6" stroke="#3a1d00" stroke-width="4" stroke-linecap="round"/>`,
+    pass: `<defs>${g('nv-p', '#e0b0ff', '#7a2ad0')}</defs><path d="M14 4h20v16l-10 6-10-6z" fill="#ff4a6a" stroke="#3a0a1a" stroke-width="2.5"/><circle cx="24" cy="30" r="13" fill="url(#nv-p)" stroke="#2a0a4a" stroke-width="2.5"/><path d="M24 22l2.5 5.5 6 .5-4.5 4 1.5 6-5.5-3.2-5.5 3.2 1.5-6-4.5-4 6-.5z" fill="#fff4a0"/>`,
+    road: `<defs>${g('nv-r', '#fff0a0', '#e89a10')}</defs><path d="M14 6h20v10a10 10 0 01-20 0z" fill="url(#nv-r)" stroke="#5a3200" stroke-width="2.5"/><path d="M14 9H7c0 6 4 9 8 9M34 9h7c0 6-4 9-8 9" fill="none" stroke="#e89a10" stroke-width="3"/><path d="M24 26v7M15 42h18l-2-9H17z" fill="url(#nv-r)" stroke="#5a3200" stroke-width="2.5"/>`,
+  };
+  return `<svg viewBox="0 0 48 48" aria-hidden="true">${icons[name] || ''}</svg>`;
 }
