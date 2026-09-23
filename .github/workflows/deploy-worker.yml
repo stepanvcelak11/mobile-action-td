@@ -40,14 +40,21 @@ jobs:
           ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           api() { curl -s -o /tmp/r.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4$1"; }
-          v=$(api /user/tokens/verify); tok=$(python3 -c "import json; d=json.load(open('/tmp/r.json')); print(d.get('result',{}).get('status','?'))")
-          a=$(api "/accounts/$ACCOUNT"); w=$(api "/accounts/$ACCOUNT/workers/scripts"); d=$(api "/accounts/$ACCOUNT/d1/database")
+          why() { python3 -c "import json
+          try:
+              d=json.load(open('/tmp/r.json')); r=d.get('result') or {}
+              print((r.get('status') if isinstance(r,dict) else '') or '', '; '.join(str(e.get('code'))+' '+e.get('message','') for e in d.get('errors') or []))
+          except Exception as e: print('no json')"; }
+          v=$(api /user/tokens/verify); vw=$(why)
+          a=$(api "/accounts/$ACCOUNT"); aw=$(why)
+          w=$(api "/accounts/$ACCOUNT/workers/scripts"); ww=$(why)
+          d=$(api "/accounts/$ACCOUNT/d1/database"); dw=$(why)
           {
             echo "### Cloudflare token check"
-            echo "- token valid: HTTP $v, status $tok"
-            echo "- account ID reachable: HTTP $a (length ${#ACCOUNT})"
-            echo "- Workers permission: HTTP $w"
-            echo "- D1 permission: HTTP $d"
+            echo "- token (length ${#TOKEN}): HTTP $v $vw"
+            echo "- account ID (length ${#ACCOUNT}): HTTP $a $aw"
+            echo "- Workers: HTTP $w $ww"
+            echo "- D1: HTTP $d $dw"
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         if: steps.s.outputs.ok == 'yes'
