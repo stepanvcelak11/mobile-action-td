@@ -1,0 +1,10 @@
+# Serpent Line leaderboard. Deployed by .github/workflows/deploy-worker.yml,
+# which creates the D1 database on the first run and fills in database_id.
+name = "serpentline-api"
+main = "leaderboard.js"
+compatibility_date = "2026-07-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "serpentline-db"
+database_id = "__DATABASE_ID__"
