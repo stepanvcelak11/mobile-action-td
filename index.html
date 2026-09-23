@@ -14,7 +14,7 @@
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
   </script>
 </head>
-<body>
+<body data-theme="dark">
   <canvas id="game"></canvas>
 
   <!-- In-game HUD -->
@@ -35,10 +35,8 @@
     </div>
   </div>
 
-  <div id="abilities">
-    <button id="ab-strike" class="ability" aria-label="Airstrike"></button>
-    <button id="ab-emp" class="ability" aria-label="EMP"></button>
-  </div>
+  <div id="abilities"></div>
+  <div id="coach"></div>
 
   <div id="top-ui">
     <div id="wave-preview"></div>
@@ -55,29 +53,30 @@
     </div>
   </div>
 
-  <div id="turret-card" class="sheet wide">
-    <div class="sheet-head">
-      <div class="sheet-row">
-        <div id="tc-icon" class="t-icon"></div>
-        <div class="sheet-text">
-          <div class="sheet-title" id="tc-title">Twin Cannon</div>
-          <div class="sheet-sub" id="tc-stats"></div>
+  <div id="turret-card" class="sheet tree-sheet">
+    <div class="ts-left">
+      <div class="sheet-head">
+        <div class="sheet-row">
+          <div id="tc-icon" class="t-icon"></div>
+          <div class="sheet-text">
+            <div class="sheet-title" id="tc-title">Twin Cannon</div>
+            <div class="tc-chips" id="tc-stats"></div>
+          </div>
         </div>
+        <button class="x-btn" data-close aria-label="Close"></button>
       </div>
-      <button class="x-btn" data-close aria-label="Close"></button>
+      <div class="sheet-row actions three">
+        <button id="tc-sell" class="btn ghost">SELL</button>
+        <button id="tc-target" class="btn ghost">TARGET</button>
+        <button id="tc-control" class="btn primary">▶ CONTROL</button>
+      </div>
     </div>
-    <div class="sheet-row actions three">
-      <button id="tc-sell" class="btn ghost">SELL</button>
-      <button id="tc-target" class="btn ghost">TARGET: FIRST</button>
-      <button id="tc-control" class="btn primary">▶ CONTROL</button>
-    </div>
-    <div class="tree-note">Pick up to 10 upgrades. Only one branch can reach tiers 4 and ★.</div>
     <div id="tree"></div>
   </div>
 
   <!-- FPV HUD -->
   <div id="fpv-ui">
-    <div id="aim-zone"><div class="zone-ring"></div><span class="zone-label">DRAG TO AIM · TAP A MARKER TO SWITCH</span></div>
+    <div id="aim-zone"></div>
     <div id="markers"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><em></em></div>
     <div id="scope"><div class="mil"></div></div>
@@ -93,7 +92,7 @@
       <button id="fpv-upgrade" class="icon-btn up" aria-label="Upgrade turret"></button>
     </div>
     <button id="fire-btn">FIRE</button>
-    <div id="lock-hint">Click to lock mouse · Click to fire · Tab next · U upgrades · Q strike · R EMP · E exit</div>
+    <div id="lock-hint">Click to lock mouse · Click to fire · Tab next · U upgrades · Q/R/T/G abilities · E exit</div>
   </div>
 
   <div id="floaties"></div>
@@ -103,33 +102,41 @@
 
   <!-- Main menu -->
   <div id="menu" class="screen show">
-    <div class="menu-wrap">
-      <div class="menu-top">
-        <div class="brand">
-          <div class="kicker">3D ACTION TOWER DEFENSE</div>
-          <h1>SERPENT LINE</h1>
-        </div>
-        <div class="profile">
-          <div class="lvl-badge"><small>LV</small><b id="m-level">1</b></div>
-          <div class="profile-main">
-            <div class="xpbar"><div id="m-xp"></div></div>
-            <div class="profile-row"><span id="m-xptext">0 / 150 XP</span><span class="tp-chip"><span class="ico tp"></span><b id="m-tp">0</b> TECH</span></div>
-          </div>
-        </div>
+    <div class="topbar">
+      <div class="profile">
+        <div class="lvl-badge"><small>LV</small><b id="m-level">1</b></div>
+        <div class="profile-main"><b class="pname">SERPENT LINE</b><div class="xpbar"><div id="m-xp"></div></div></div>
       </div>
-      <div class="tabs">
-        <button class="tab active" data-tab="maps">CAMPAIGN</button>
-        <button class="tab" data-tab="armory">ARMORY</button>
-      </div>
-      <div id="tab-maps" class="tabpage active"></div>
-      <div id="tab-armory" class="tabpage">
-        <h3>Turrets <small>unlock with Tech points · tap to see the upgrade tree</small></h3>
-        <div id="arm-turrets" class="grid"></div>
-        <h3>Upgrades <small>permanent, every run</small></h3>
-        <div id="arm-perks" class="grid"></div>
-        <p class="menu-note">Earn XP for kills and waves. Every commander level = 1 Tech point, every new star = 2 Tech points.</p>
+      <div class="curs">
+        <span class="cur-pill" id="m-trophies"></span>
+        <span class="cur-pill" id="m-coins"></span>
+        <span class="cur-pill" id="m-gems"></span>
+        <span class="cur-pill tp" id="m-tp"></span>
+        <button id="m-settings" class="icon-btn sm" aria-label="Settings">⚙</button>
       </div>
     </div>
+    <div id="m-content" class="m-content"></div>
+    <nav class="bottomnav">
+      <button data-tab="shop"><span class="nav-ico">🛒</span>SHOP<i class="badge"></i></button>
+      <button data-tab="armory"><span class="nav-ico">🛠</span>ARMORY<i class="badge"></i></button>
+      <button data-tab="battle" class="center"><span class="nav-ico">⚔</span>BATTLE<i class="badge"></i></button>
+      <button data-tab="pass"><span class="nav-ico">🎖</span>PASS<i class="badge"></i></button>
+      <button data-tab="road"><span class="nav-ico">🏆</span>ROAD<i class="badge"></i></button>
+    </nav>
+  </div>
+
+  <!-- Generic overlay (briefing, turret details, settings) -->
+  <div id="overlay" class="ov">
+    <div id="overlay-close-layer"></div>
+    <div id="overlay-body"></div>
+  </div>
+  <div id="chest-ov" class="ov chest"></div>
+  <div id="toast"></div>
+
+  <div id="layout-bar">
+    <span>Drag the highlighted buttons where you want them</span>
+    <button id="le-reset" class="btn ghost">RESET</button>
+    <button id="le-done" class="btn primary">DONE</button>
   </div>
 
   <!-- Results -->
@@ -139,6 +146,9 @@
       <h1 id="r-title">VICTORY</h1>
       <div id="r-stars" class="stars big"></div>
       <div id="r-lines" class="r-lines"></div>
+      <div class="r-actions">
+        <button id="r-chest" class="btn primary chest-open">OPEN CHEST</button>
+      </div>
       <div class="r-actions">
         <button id="r-menu" class="btn ghost">MENU</button>
         <button id="r-retry" class="btn">RETRY</button>

@@ -2,6 +2,12 @@
 let ctx = null;
 let master = null;
 let noise = null;
+let volume = 0.8;
+
+export function setVolume(v) {
+  volume = v;
+  if (master) master.gain.value = 0.6 * v;
+}
 const last = {};
 
 export function unlockAudio() {
@@ -11,7 +17,7 @@ export function unlockAudio() {
       if (!AC) return;
       ctx = new AC();
       master = ctx.createGain();
-      master.gain.value = 0.5;
+      master.gain.value = 0.6 * volume;
       master.connect(ctx.destination);
       noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const d = noise.getChannelData(0);

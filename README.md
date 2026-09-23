@@ -54,6 +54,20 @@ Crawler (fast), Tank (armored −30%), Drone (flies; the Mortar can't hit it), G
 - **Armory:** unlock turrets and buy permanent upgrades (starting gold, base armor, manual damage, heat sinks, auto fire rate, kill bounty, ability cooldowns).
 - Progress is saved in the browser.
 
+## Meta game (v4)
+- **Menu** in the style of mobile games: currencies bar (trophies, coins, gems, tech) plus bottom navigation: **Shop · Armory · Battle · Pass · Road**.
+- **Mission briefing** before each map: 3D portraits of the enemies you will meet, bosses and rewards.
+- **Chests** after every match (Wood, Iron, Gold, Epic), opened with an animation. They drop coins, gems, **turret cards**, **ability charges** and sometimes a skin.
+- **Turret levels 1–10** from cards + coins: +7% damage and +1.5% range per level. A card of a locked turret unlocks it.
+- **Collectible abilities:** Airstrike, EMP, Repair and Cryo Bomb. Each use costs a charge.
+- **Trophy Road** with 40 milestones, and a 30-tier **Battle Pass** with a free and a premium track (the premium track is unlocked with gems earned in the game).
+- **Daily quests**, a daily gift and daily shop deals.
+- **Skins:** 7 turret skins with rarities, equipped per turret type.
+- **Enemy codex** with 3D portraits and tips.
+- **Settings:** dark/light theme, button size, aim sensitivity, volume, left-handed mode and a **layout editor** (drag the in-game buttons wherever you want).
+- **First-run tutorial** on Green Valley.
+- **Upgrade tree** redrawn as a graph: 3 rows of round nodes with effect icons and an info bar with BUY.
+
 ## Tech
 | File | Contents |
 |---|---|
@@ -63,7 +77,10 @@ Crawler (fast), Tank (armored −30%), Drone (flies; the Mortar can't hit it), G
 | `src/config.js` | Turrets, enemies, maps, themes, perks, abilities |
 | `src/trees.js` | Upgrade trees for all 10 turrets and the purchase rules |
 | `src/progress.js` | Saved progression: XP and levels, Tech points, unlocks, stars |
-| `src/ui.js` | Main menu, armory, map thumbnails |
+| `src/ui.js` | Menu shell and tabs, briefing, chest opening, turret details and skins, codex, settings, layout editor |
+| `src/meta.js` | Currencies, turret cards and levels, chests, Trophy Road, Battle Pass, quests, shop, skins |
+| `src/portraits.js` | 3D portraits of turrets and enemies rendered from the game models |
+| `src/treeview.js` | Graphical upgrade tree |
 | `src/icons.js` | SVG icon set for HUD buttons, enemies and turrets |
 | `src/world.js` | Waypoint roads (arc-length paths), gradient sky, ground, build plots, portals, base, landmarks, pools, instanced decor |
 | `src/entities.js` | Procedural low-poly turrets (10 weapon heads) and enemies (8 types) with billboard health and shield bars |

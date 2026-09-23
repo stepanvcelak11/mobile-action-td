@@ -3,12 +3,17 @@ import * as THREE from 'three';
 import { buildWorld } from './world.js';
 import { createTurret, createEnemy, setTurretRank } from './entities.js';
 import { Particles, Projectiles, Beams, AmbientFx } from './effects.js';
-import { sfx, unlockAudio } from './audio.js';
-import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, MAPS, THEMES } from './config.js';
+import { sfx, unlockAudio, setVolume } from './audio.js';
+import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, MAPS, THEMES } from './config.js';
 import { TREES, canBuy } from './trees.js';
 import { P, save, addXp, perk, recordResult, mapState, xpForLevel } from './progress.js';
-import { initMenu, renderMenu, selectMenuMap, starsHtml } from './ui.js';
-import { uiIcon, turretIcon, enemyIcon } from './icons.js';
+import { initMenu, renderMenu, selectMenuMap, starsHtml, openChest, applySettings } from './ui.js';
+import { uiIcon, turretIcon, enemyIcon, abilityIcon, coinIcon, trophyIcon } from './icons.js';
+import { ensureMeta, levelBonus, tlevel, skinOf, questProgress, matchRewards } from './meta.js';
+import { renderTree } from './treeview.js';
+import { turretPortrait, enemyPortrait } from './portraits.js';
+
+ensureMeta();
 
 /* ------------------------------------------------------------------ Config */
 const CFG = {
@@ -44,6 +49,7 @@ renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
 scene.background = new THREE.Color('#a9cfe8');
 scene.fog = new THREE.Fog('#a9cfe8', 70, 150);
 
@@ -132,8 +138,9 @@ const G = {
   menuAngle: 0,
   combo: 0,
   stats: { shots: 0, hits: 0, weak: 0, bestCombo: 0 },
-  cd: { strike: 0, emp: 0 },
+  cd: { strike: 0, emp: 0, repair: 0, freeze: 0 },
   targeting: null,
+  tut: -1,
   fires: [],
   timers: [],
   seen: new Set(),
@@ -158,6 +165,25 @@ function applyTheme(th) {
   hemi.groundColor.set(th.hemi[1]);
   hemi.intensity = th.hemi[2];
   renderer.toneMappingExposure = th.exposure;
+  // themed reflections: metal turrets and skins pick up this map's sky instead of looking flat black
+  const envScene = new THREE.Scene();
+  const g = new THREE.SphereGeometry(10, 24, 12);
+  const col = new Float32Array(g.attributes.position.count * 3);
+  const top = new THREE.Color(th.skyTop), hor = new THREE.Color(th.sky), gnd = new THREE.Color(th.groundA).multiplyScalar(0.6), c = new THREE.Color();
+  for (let i = 0; i < g.attributes.position.count; i++) {
+    const y = g.attributes.position.getY(i) / 10;
+    if (y >= 0) c.copy(hor).lerp(top, Math.pow(y, 0.6)); else c.copy(hor).lerp(gnd, Math.min(1, -y * 3));
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  envScene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const sunPanel = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(th.sun[0]).multiplyScalar(3), side: THREE.DoubleSide }));
+  sunPanel.position.set(5, 7, 4);
+  sunPanel.lookAt(0, 0, 0);
+  envScene.add(sunPanel);
+  if (scene.environment) scene.environment.dispose();
+  scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+  g.dispose();
   if (weather) { weather.dispose(scene); weather = null; }
   if (th.fx) weather = new AmbientFx(scene, th.fx);
 }
@@ -194,10 +220,10 @@ function resetGame(mode) {
   clearField();
   Object.assign(G, {
     state: STATE.IDLE, mode, wave: 0, queue: [], nextQueue: null, spawnTimer: 0, spawnCount: 0,
-    gold: CFG.startGold + 60 * (G.map.roads.length - 1) + 25 * G.map.intro + 30 * perk('gold'), maxHp: CFG.baseHp + 25 * perk('armor'),
+    gold: CFG.startGold + (G.map.startBonus || 0) + 60 * (G.map.roads.length - 1) + 25 * G.map.intro + 30 * perk('gold'), maxHp: CFG.baseHp + 25 * perk('armor'),
     heat: 0, overheated: false, fireHeld: false, fireCd: 0, spread: 0, shake: 0,
     paused: false, speed: 1, kills: 0, xpEarned: 0, levelStart: P.level, combo: 0,
-    stats: { shots: 0, hits: 0, weak: 0, bestCombo: 0 }, cd: { strike: 0, emp: 0 }, targeting: null,
+    stats: { shots: 0, hits: 0, weak: 0, bestCombo: 0 }, cd: { strike: 0, emp: 0, repair: 0, freeze: 0 }, targeting: null,
     seen: new Set(),
   });
   G.baseHp = G.maxHp;
@@ -331,6 +357,7 @@ function enterFPV(turret) {
   $('fpv-name').textContent = TURRETS[turret.type].name.toUpperCase();
   sfx('whoosh');
   updateFpvButtons();
+  coachEvent('fpv');
 }
 function exitFPV() {
   if (G.view !== 'FPV' && G.view !== 'TO_FPV') return;
@@ -343,6 +370,7 @@ function exitFPV() {
   G.view = 'TO_TOP';
   G.trans = snapshotTrans();
   sfx('whoosh');
+  coachEvent('exit');
 }
 function forceTopView() {
   releaseFire();
@@ -435,6 +463,7 @@ function startWave() {
   banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? '⚠ BOSS INCOMING ⚠' : `${G.queue.length} hostiles`);
   sfx('wave');
   updateHud(true);
+  coachEvent('wave');
 }
 
 function spawnEnemy(type, from) {
@@ -677,6 +706,8 @@ function killEnemy(e, point, st, manual) {
   if (manual && G.combo >= 10) reward = Math.round(reward * 1.2);
   G.gold += reward;
   G.kills++;
+  questProgress('kills');
+  if (manual) { questProgress('manualKills'); coachEvent('manualKill'); }
   gainXp(e.def.reward * 0.3);
   floaty(point || c, `+${reward}`, '');
   bump('hud-gold');
@@ -714,7 +745,9 @@ function checkWaveEnd() {
   G.gold += bonus;
   G.state = STATE.IDLE;
   gainXp(15);
+  questProgress('waves');
   save();
+  coachEvent('waveCleared');
   banner(`WAVE ${G.wave} CLEARED`, `+${bonus} gold bonus`);
   sfx('clear');
   bump('hud-gold');
@@ -728,8 +761,10 @@ function endGame(won) {
   closeSheets();
   const hpFrac = G.baseHp / G.maxHp;
   const wavesDone = won ? G.wave : G.wave - 1;
+  const stars = won ? (hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1) : 0;
   if (won) {
-    const stars = hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1;
+    questProgress('wins');
+    questProgress('waves');
     gainXp(100 + 50 * stars + G.map.intro * 25);
     banner('VICTORY', 'The line holds');
     sfx('clear');
@@ -740,6 +775,8 @@ function endGame(won) {
     sfx('over');
   }
   const res = recordResult(G.map.id, G.mode, { won, wave: wavesDone, hpFrac });
+  res.meta = matchRewards({ won, stars, waves: wavesDone, mapIndex: MAPS.indexOf(G.map), kills: G.kills, mode: G.mode });
+  setCoach(null);
   save();
   setTimeout(() => showResults(won, wavesDone, res), won ? 1400 : 1100);
 }
@@ -749,7 +786,8 @@ const comboMult = () => 1 + Math.min(G.combo, 20) * 0.025;
 function comboHit(weak) {
   G.combo++;
   G.stats.hits++;
-  if (weak) G.stats.weak++;
+  if (weak) { G.stats.weak++; questProgress('weak'); }
+  questProgress('combo', G.combo);
   G.stats.bestCombo = Math.max(G.stats.bestCombo, G.combo);
   renderCombo();
 }
@@ -783,10 +821,11 @@ function statsFor(t) {
   const f = sumFx(t);
   const g = (k) => f[k] || 0;
   const servo = 1 + 0.08 * perk('servo');
+  const lb = levelBonus(t.type);
   const st = {
-    range: d.range * (1 + g('range')),
+    range: d.range * (1 + g('range')) * lb.range,
     interval: d.interval / ((1 + g('rate')) * servo),
-    damage: d.damage * (1 + g('dmg')),
+    damage: d.damage * (1 + g('dmg')) * lb.dmg,
     shots: d.shots + g('shots'),
     splash: (d.splash || 0) + g('splash'),
     chain: (d.chain || 0) + g('chain'),
@@ -814,7 +853,7 @@ function statsFor(t) {
   const m = d.manual;
   st.manual = {
     interval: m.interval / (1 + g('rate')),
-    damage: m.damage * (1 + g('dmg')) * (1 + g('manualDmg')) * (1 + 0.15 * perk('crit')),
+    damage: m.damage * (1 + g('dmg')) * (1 + g('manualDmg')) * (1 + 0.15 * perk('crit')) * lb.dmg,
     heat: m.heat * st.heatMul * (1 - 0.15 * perk('cooling')),
     splash: (m.splash || 0) + g('splash'),
     chain: (m.chain || 0) + g('chain'),
@@ -830,7 +869,7 @@ function buildTurret(plot, type = 'cannon') {
   const d = TURRETS[type];
   if (!d || !plot || plot.turret || G.gold < d.cost || !P.unlocked[type]) { sfx('deny'); return false; }
   G.gold -= d.cost;
-  const t = createTurret(type, d.color);
+  const t = createTurret(type, d.color, skinOf(type));
   t.plot = plot;
   t.invested = d.cost;
   t.targetMode = d.target || 'first';
@@ -856,6 +895,7 @@ function buildTurret(plot, type = 'cannon') {
   sfx('build');
   bump('hud-gold');
   updateHud(true);
+  coachEvent('build');
   return true;
 }
 
@@ -870,6 +910,8 @@ function buyUpgrade(t, branch) {
   t.picks[branch]++;
   setTurretRank(t, upgradesOf(t));
   t.stats = statsFor(t);
+  questProgress('upgrades');
+  coachEvent('upgrade');
   sparks.emit(t.plot.pos.clone().setY(2), TREES[t.type][branch].color, 50, 7, 0.7, 5, 0.8);
   sfx(t.picks[branch] === 5 ? 'levelup' : 'build');
   if (G.view === 'FPV' || G.view === 'TO_FPV') banner(node.name.toUpperCase(), node.desc);
@@ -1448,38 +1490,99 @@ function projectileTick(p, dt) {
 }
 
 /* --------------------------------------------------------------- Abilities */
+// Abilities are collectible charges (P.abilities); every use costs one charge and starts a cooldown.
 const abilityCd = (id) => ABILITIES[id].cooldown * (1 - 0.15 * perk('support'));
+const charges = (id) => P.abilities[id] || 0;
+
+function renderAbilities() {
+  const box = $('abilities');
+  box.innerHTML = '';
+  for (const id of ABILITY_ORDER) {
+    const b = document.createElement('button');
+    b.className = 'ability';
+    b.id = `ab-${id}`;
+    b.style.setProperty('--ac', ABILITIES[id].color);
+    b.innerHTML = `${abilityIcon(id)}<small>${ABILITIES[id].name.split(' ')[0].toUpperCase()}</small><em>${charges(id)}</em>`;
+    b.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); unlockAudio(); useAbility(id); });
+    box.append(b);
+  }
+}
+
 function useAbility(id) {
-  if (!inGame() || G.state === STATE.IDLE && !G.enemies.length) { sfx('deny'); return; }
+  if (!inGame() || (G.state === STATE.IDLE && !G.enemies.length && id !== 'repair')) { sfx('deny'); return; }
+  if (charges(id) <= 0) { sfx('deny'); floatyScreen('NO CHARGES — earn more from chests', 'miss'); return; }
   if (G.cd[id] > 0) { sfx('deny'); return; }
+  if (id === 'strike' || id === 'freeze') {
+    if (G.view === 'FPV') castAt(id, groundAim(new V3(), 3, 45));
+    else if (G.view === 'TOP') {
+      G.targeting = G.targeting === id ? null : id;
+      document.body.classList.toggle('targeting', !!G.targeting);
+      if (G.targeting) floatyScreen(id === 'strike' ? 'TAP THE GROUND TO STRIKE' : 'TAP WHERE TO FREEZE');
+      updateHud(true);
+    }
+    return;
+  }
+  spendAbility(id);
   if (id === 'emp') {
-    G.cd.emp = abilityCd('emp');
     for (const e of G.enemies) {
       stunEnemy(e, ABILITIES.emp.stun, false);
       if (e.shield > 0) { e.shield = 0; sparks.emit(e.center, '#5fd8ff', 20, 6, 0.5, 4, 0.5); }
       e.revealT = Math.max(e.revealT, 4);
     }
     empRing.position.copy(world.base.position).setY(1);
+    empRing.material.color.set('#8fe3ff');
     empRing.visible = true;
     empRing.userData.t = 0;
     G.shake = 0.5;
     banner('EMP', 'Enemies stunned, shields down');
     sfx('boom');
-    return;
-  }
-  // airstrike: in FPV hit the crosshair, top-down asks for a tap
-  if (G.view === 'FPV') {
-    callStrike(groundAim(new V3(), 3, 45));
-  } else if (G.view === 'TOP') {
-    G.targeting = G.targeting === 'strike' ? null : 'strike';
-    document.body.classList.toggle('targeting', !!G.targeting);
-    if (G.targeting) floatyScreen('TAP THE GROUND TO STRIKE');
+  } else if (id === 'repair') {
+    G.baseHp = Math.min(G.maxHp, G.baseHp + ABILITIES.repair.heal);
+    const bp = world.base.position.clone().setY(3);
+    sparks.emit(bp, '#3ee07a', 60, 6, 1, -2, 0.8);
+    banner('REPAIRED', `+${ABILITIES.repair.heal} base HP`);
+    sfx('levelup');
+    updateHud();
   }
 }
-function callStrike(pos) {
-  G.cd.strike = abilityCd('strike');
+
+function spendAbility(id) {
+  P.abilities[id] = charges(id) - 1;
+  G.cd[id] = abilityCd(id);
+  questProgress('abilities');
+  save();
+  const em = $(`ab-${id}`)?.querySelector('em');
+  if (em) em.textContent = charges(id);
+}
+
+function castAt(id, pos) {
+  if (charges(id) <= 0 || G.cd[id] > 0) return;
+  spendAbility(id);
   G.targeting = null;
   document.body.classList.remove('targeting');
+  if (id === 'strike') callStrike(pos);
+  else freezeAt(pos);
+  updateHud(true);
+}
+
+function freezeAt(pos) {
+  const r = ABILITIES.freeze.radius;
+  for (const e of G.enemies) {
+    if (e.center.distanceTo(pos) < r + e.def.radius * 0.5) {
+      stunEnemy(e, 3, true);
+      hitEnemy(e, 25 * (1 + 0.1 * G.wave), { quiet: true });
+    }
+  }
+  empRing.position.copy(pos).setY(0.6);
+  empRing.material.color.set('#bff0ff');
+  empRing.visible = true;
+  empRing.userData.t = 0.45;
+  for (let i = 0; i < 3; i++) sparks.emit(pos.clone().setY(0.5 + i), '#dff8ff', 30, 8, 0.8, 2, 0.6);
+  sfx('boom');
+}
+
+function callStrike(pos) {
   strikeRing.position.copy(pos).setY(0.15);
   strikeRing.scale.set(4, 1, 4);
   strikeRing.visible = true;
@@ -1497,6 +1600,7 @@ function callStrike(pos) {
   }
   G.timers.push({ t: 1.8, fn: () => { strikeRing.visible = false; } });
 }
+
 function updateAbilities(dt) {
   for (const id of Object.keys(G.cd)) G.cd[id] = Math.max(0, G.cd[id] - dt);
   if (empRing.visible) {
@@ -1512,12 +1616,14 @@ function updateAbilities(dt) {
     if (jet.userData.t >= 1) jet.visible = false;
   }
   if (strikeRing.visible) strikeRing.material.opacity = 0.5 + 0.4 * Math.sin(G.time * 20);
-  for (const id of ['strike', 'emp']) {
+  for (const id of ABILITY_ORDER) {
     const el = $(`ab-${id}`);
+    if (!el) continue;
     const frac = G.cd[id] / abilityCd(id);
     el.style.setProperty('--cd', `${(frac * 360).toFixed(0)}deg`);
-    el.classList.toggle('ready', G.cd[id] <= 0);
-    el.classList.toggle('armed', id === 'strike' && G.targeting === 'strike');
+    el.classList.toggle('ready', G.cd[id] <= 0 && charges(id) > 0);
+    el.classList.toggle('empty', charges(id) <= 0);
+    el.classList.toggle('armed', G.targeting === id);
   }
 }
 
@@ -1545,7 +1651,7 @@ function updateHud(force) {
   sw.classList.toggle('hidden', !canStart);
   if (canStart) setText('sw', sw, early ? `CALL WAVE ${G.wave + 1} EARLY · +${earlyBonus()}` : `START WAVE ${G.wave + 1}`);
   $('wave-preview').classList.toggle('show', canStart && !!G.nextQueue);
-  const hint = G.targeting === 'strike' ? 'Tap the ground where the bombs should land'
+  const hint = G.targeting ? `Tap the ground to aim ${ABILITIES[G.targeting].name}`
     : G.state === STATE.WAVE
       ? (G.turrets.length ? 'Tap a turret to upgrade it or jump in and aim it yourself' : 'Tap a glowing pad to build a turret!')
       : 'Tap a glowing pad to build · Tap a turret to upgrade or control it';
@@ -1610,7 +1716,8 @@ function banner(title, sub) {
 let tipTimer = 0;
 function showTip(type) {
   const el = $('tip');
-  el.innerHTML = `<div class="tip-ico">${enemyIcon(type)}</div><div><b>NEW ENEMY — ${ENEMIES[type].name.toUpperCase()}</b><span>${ENEMY_TIPS[type]}</span></div>`;
+  const pic = enemyPortrait(type);
+  el.innerHTML = `<div class="tip-ico">${pic ? `<img src="${pic}" alt="">` : ''}</div><div><b>NEW ENEMY — ${ENEMIES[type].name.toUpperCase()}</b><span>${ENEMY_TIPS[type]}</span></div>`;
   el.classList.add('show');
   clearTimeout(tipTimer);
   tipTimer = setTimeout(() => el.classList.remove('show'), 6500);
@@ -1717,7 +1824,8 @@ function renderBuildOptions() {
     const b = document.createElement('button');
     b.className = `opt${G.buildType === id ? ' sel' : ''}${locked ? ' locked' : ''}`;
     b.dataset.type = id;
-    b.innerHTML = `<div class="t-icon">${turretIcon(id)}</div><div class="o-name">${d.name.split(' ').pop()}</div><div class="o-cost">${locked ? uiIcon('lock') : `<span class="ico gold sm"></span>${d.cost}`}</div>`;
+    const pic = turretPortrait(id, skinOf(id));
+    b.innerHTML = `<div class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(id)}</div><div class="o-name">${d.name.split(' ').pop()}</div><div class="o-cost">${locked ? uiIcon('lock') : `<span class="ico gold sm"></span>${d.cost}`}</div>`;
     b.addEventListener('click', () => { G.buildType = id; renderBuildOptions(); });
     box.append(b);
   }
@@ -1744,64 +1852,50 @@ function openTurretCard(t) {
   $('build-card').classList.remove('open');
   $('turret-card').classList.add('open');
   document.body.classList.add('sheet-open');
-  $('tc-icon').innerHTML = turretIcon(t.type);
+  const pic = turretPortrait(t.type, skinOf(t.type));
+  $('tc-icon').innerHTML = pic ? `<img src="${pic}" alt="">` : turretIcon(t.type);
   lastTree = '';
+  treeSel = null;
   renderTreeSheet();
+  coachEvent('card');
 }
 let lastTree = '';
-let treeNodes = [];
-function renderTreeSheet() {
+let treeSel = null;
+function renderTreeSheet(force) {
   const t = G.sheet?.turret;
   if (!t) return;
   const d = TURRETS[t.type];
   const st = t.stats;
   const inFpv = t === G.active;
-  const key = `${t.type}|${t.picks}|${t.targetMode}|${inFpv}`;
-  if (key === lastTree) {
-    // structure unchanged: only refresh affordability so taps are never lost to a re-render
-    for (const n of treeNodes) n.el.classList.toggle('poor', G.gold < n.cost);
-    return;
-  }
+  const afford = [0, 1, 2].map((b) => (G.gold >= nodeCost(t, b) ? 1 : 0)).join('');
+  const key = `${t.type}|${t.picks}|${t.targetMode}|${inFpv}|${afford}|${treeSel ? `${treeSel.b}${treeSel.n}` : '-'}`;
+  if (key === lastTree && !force) return;
   lastTree = key;
-  treeNodes = [];
-  $('tc-title').textContent = `${d.name} · ${upgradesOf(t)}/${MAX_UPGRADES} upgrades`;
-  const dmg = st.shots > 1 ? `${Math.round(st.damage)}×${st.shots}` : Math.round(st.damage * (d.kind === 'flame' || d.kind === 'laser' ? 10 : 1));
-  const extra = [];
-  if (st.splash) extra.push(`splash ${st.splash.toFixed(1)} m`);
-  if (st.chain) extra.push(`${st.chain} chains`);
-  if (st.pierce) extra.push(`pierce ${st.pierce}`);
-  if (st.slow) extra.push(`slow ${Math.round(st.slow * 100)}%`);
-  if (st.burn) extra.push(`burn ${st.burn}/s`);
-  if (st.detect) extra.push('detects cloak');
-  $('tc-stats').textContent = `${d.kind === 'flame' || d.kind === 'laser' ? 'DPS' : 'DMG'} ${dmg} · RNG ${st.range.toFixed(1)} m${d.kind === 'flame' || d.kind === 'laser' ? '' : ` · ${st.interval.toFixed(2)} s`}${extra.length ? ' · ' + extra.join(' · ') : ''}`;
+  $('tc-title').innerHTML = `${d.name} <span class="lvl-chip">LV ${tlevel(t.type)}</span>`;
+  const cont = d.kind === 'flame' || d.kind === 'laser';
+  const chips = [
+    `${cont ? 'DPS' : 'DMG'} ${st.shots > 1 ? `${Math.round(st.damage)}×${st.shots}` : Math.round(st.damage * (cont ? 10 : 1))}`,
+    `RNG ${st.range.toFixed(1)}`,
+  ];
+  if (!cont) chips.push(`${st.interval.toFixed(2)}s`);
+  if (st.splash) chips.push(`SPLASH ${st.splash.toFixed(1)}`);
+  if (st.chain) chips.push(`CHAIN ${st.chain}`);
+  if (st.pierce) chips.push(`PIERCE ${st.pierce}`);
+  if (st.slow) chips.push(`SLOW ${Math.round(st.slow * 100)}%`);
+  if (st.burn) chips.push(`BURN ${st.burn}`);
+  if (st.detect) chips.push('DETECT');
+  $('tc-stats').innerHTML = chips.map((c) => `<span>${c}</span>`).join('');
   $('tc-sell').textContent = `SELL +${sellValue(t)}`;
   $('tc-sell').style.display = inFpv ? 'none' : '';
   $('tc-control').style.display = inFpv ? 'none' : '';
-  $('tc-target').textContent = `TARGET: ${t.targetMode.toUpperCase()}`;
-  const tree = $('tree');
-  tree.innerHTML = '';
-  TREES[t.type].forEach((branch, bi) => {
-    const col = document.createElement('div');
-    col.className = 'branch';
-    col.style.setProperty('--bc', branch.color);
-    col.innerHTML = `<div class="b-name">${branch.name}</div>`;
-    branch.nodes.forEach((node, ni) => {
-      const owned = ni < t.picks[bi];
-      const next = ni === t.picks[bi];
-      const why = next ? canBuy(t.picks, bi) : null;
-      const cost = next && !why ? nodeCost(t, bi) : 0;
-      const el = document.createElement('button');
-      el.className = `node${owned ? ' owned' : ''}${next && !why ? ' next' : ''}${next && !why && G.gold < cost ? ' poor' : ''}${ni === 4 ? ' ult' : ''}`;
-      el.disabled = !(next && !why);
-      el.innerHTML = `<span class="n-tier">${ni === 4 ? '★' : ni + 1}</span><span class="n-name">${node.name}</span><span class="n-desc">${node.desc}</span>`
-        + (owned ? '<span class="n-cost owned">✓</span>' : next && !why ? `<span class="n-cost"><span class="ico gold sm"></span>${cost}</span>` : next && why ? `<span class="n-cost why">${why === 'Only one branch can go past tier 3' ? 'LOCKED' : '—'}</span>` : '');
-      if (next && !why) {
-        el.addEventListener('click', () => { unlockAudio(); buyUpgrade(t, bi); });
-        treeNodes.push({ el, cost });
-      }
-      col.append(el);
-    });
-    tree.append(col);
+  $('tc-target').textContent = `🎯 ${t.targetMode.toUpperCase()}`;
+  treeSel = renderTree($('tree'), t, {
+    gold: G.gold,
+    cost: (b) => nodeCost(t, b),
+    sel: treeSel,
+    onSelect: (sel) => { treeSel = sel; renderTreeSheet(true); },
+    buy: (b) => { if (buyUpgrade(t, b)) { treeSel = null; renderTreeSheet(true); } },
+    rootIcon: turretIcon(t.type),
   });
 }
 function closeSheets() {
@@ -1849,9 +1943,9 @@ function inGame() {
 
 function onTopTap(x, y) {
   if (G.view !== 'TOP' || !inGame()) return;
-  if (G.targeting === 'strike') {
+  if (G.targeting) {
     const g = groundAtScreen(x, y);
-    if (g) callStrike(g);
+    if (g) castAt(G.targeting, g);
     return;
   }
   const plot = pickPlot(x, y);
@@ -1886,7 +1980,7 @@ canvas.addEventListener('pointerup', (ev) => {
 function aimBy(dx, dy, sens) {
   const t = G.active;
   if (!t || (G.view !== 'FPV' && G.view !== 'TO_FPV')) return;
-  const zoom = camera.fov / 75;
+  const zoom = (camera.fov / 75) * (P.settings.sens || 1);
   t.yaw = shortAngle(t.yaw - dx * sens * zoom);
   t.pitch = THREE.MathUtils.clamp(t.pitch - dy * sens * zoom, CFG.pitchMin, CFG.pitchMax);
   if (Math.abs(dx) + Math.abs(dy) > 0.5) G.lastAim = G.time;
@@ -1894,7 +1988,6 @@ function aimBy(dx, dy, sens) {
 
 // ---- FPV left half: drag anywhere to aim, a quick tap picks a turret / pad
 const aimZone = $('aim-zone');
-const ring = aimZone.querySelector('.zone-ring');
 let aimPointer = null;
 aimZone.addEventListener('pointerdown', (ev) => {
   ev.preventDefault();
@@ -1902,10 +1995,6 @@ aimZone.addEventListener('pointerdown', (ev) => {
   if (aimPointer !== null) return;
   aimPointer = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() };
   aimZone.setPointerCapture(ev.pointerId);
-  aimZone.classList.add('active');
-  const r = aimZone.getBoundingClientRect();
-  ring.style.left = `${ev.clientX - r.left}px`;
-  ring.style.bottom = `${r.bottom - ev.clientY - ring.offsetHeight / 2}px`;
 });
 aimZone.addEventListener('pointermove', (ev) => {
   if (!aimPointer || ev.pointerId !== aimPointer.id) return;
@@ -1917,9 +2006,6 @@ const endAim = (ev) => {
   if (!aimPointer || ev.pointerId !== aimPointer.id) return;
   const tap = Math.hypot(ev.clientX - aimPointer.sx, ev.clientY - aimPointer.sy) < 14 && performance.now() - aimPointer.t < 400;
   aimPointer = null;
-  aimZone.classList.remove('active');
-  ring.style.left = '';
-  ring.style.bottom = '';
   if (tap && ev.type === 'pointerup') onFpvTap(ev.clientX, ev.clientY);
 };
 aimZone.addEventListener('pointerup', endAim);
@@ -1968,7 +2054,8 @@ canvas.addEventListener('pointerdown', (ev) => {
     if (ev.button === 0) { firePointers.set('mouse', {}); refreshFire(); }
     return;
   }
-  if (ev.clientX > window.innerWidth / 2) {
+  const fireSide = P.settings.leftHanded ? ev.clientX < window.innerWidth / 2 : ev.clientX > window.innerWidth / 2;
+  if (fireSide) {
     firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     canvas.setPointerCapture(ev.pointerId);
     refreshFire();
@@ -2007,8 +2094,6 @@ function fillIcons() {
   $('next-turret').innerHTML = uiIcon('swap') + '<small>NEXT</small>';
   $('fpv-wave').innerHTML = uiIcon('wave') + '<small>WAVE</small>';
   $('fpv-upgrade').innerHTML = uiIcon('upgrade') + '<small id="fpv-up-count">0/10</small>';
-  $('ab-strike').innerHTML = uiIcon('strike') + '<small>STRIKE</small>';
-  $('ab-emp').innerHTML = uiIcon('emp') + '<small>EMP</small>';
   document.querySelectorAll('[data-close]').forEach((b) => { b.innerHTML = uiIcon('close'); });
 }
 fillIcons();
@@ -2019,8 +2104,6 @@ on('next-turret', () => nextTurret());
 on('fpv-upgrade', () => { if (G.active) openTurretCard(G.active); });
 on('fpv-wave', () => startWave());
 on('start-wave', () => startWave());
-on('ab-strike', () => useAbility('strike'));
-on('ab-emp', () => useAbility('emp'));
 on('build-confirm', () => {
   const plot = G.sheet?.plot;
   if (plot && buildTurret(plot, G.buildType)) closeSheets();
@@ -2047,6 +2130,7 @@ on('p-resume', () => pauseGame(false));
 on('p-restart', () => startMap(G.map.id, G.mode));
 on('p-quit', () => showMenu());
 on('r-menu', () => showMenu());
+on('r-chest', (ev) => { const b = ev.currentTarget; openChest(b.dataset.kind); b.style.display = 'none'; });
 on('r-retry', () => startMap(G.map.id, G.mode));
 on('r-next', () => {
   const idx = MAPS.findIndex((m) => m.id === G.map.id);
@@ -2066,6 +2150,8 @@ window.addEventListener('keydown', (ev) => {
   if (ev.code === 'KeyP' && G.view !== 'MENU') pauseGame(!G.paused);
   if (ev.code === 'KeyQ' && G.view !== 'MENU') useAbility('strike');
   if (ev.code === 'KeyR' && G.view !== 'MENU') useAbility('emp');
+  if (ev.code === 'KeyT' && G.view !== 'MENU') useAbility('repair');
+  if (ev.code === 'KeyG' && G.view !== 'MENU') useAbility('freeze');
   if (ev.code === 'Escape' && G.sheet) closeSheets();
 });
 window.addEventListener('keyup', (ev) => {
@@ -2095,6 +2181,7 @@ function hideScreens() {
 }
 function showMenu() {
   hideScreens();
+  setCoach(null);
   closeSheets();
   forceTopView();
   clearField();
@@ -2117,6 +2204,9 @@ function startMap(id, mode) {
   G.view = 'TOP';
   applyTopPose();
   renderCombo();
+  renderAbilities();
+  G.tut = !P.tutorialDone && G.map.id === 'valley' && mode === 'campaign' ? 0 : -1;
+  setTimeout(() => coachStep(), 1500);
   banner(G.map.name.toUpperCase(), mode === 'endless' ? 'Endless — how long can you hold?' : `Build turrets, then start wave 1 · ${G.map.waves} waves`);
 }
 function pauseGame(p) {
@@ -2148,6 +2238,10 @@ function showResults(won, wavesDone, res) {
   ];
   const tpGain = (P.level - G.levelStart) + res.tpStars;
   const hl = [];
+  const m = res.meta;
+  hl.push(['Trophies', `${m.trophies >= 0 ? '+' : ''}${m.trophies} ${trophyIcon()}`]);
+  hl.push(['Coins', `+${m.coins} ${coinIcon()}`]);
+  hl.push(['Battle Pass XP', `+${m.passXp}`]);
   if (tpGain > 0) hl.push(['Tech points', `+${tpGain}`]);
   if (res.newStars > 0) hl.push(['New stars', `+${res.newStars} ★`]);
   if (res.unlockedMap) hl.push(['Map unlocked', res.unlockedMap.name]);
@@ -2157,6 +2251,12 @@ function showResults(won, wavesDone, res) {
   const idx = MAPS.findIndex((m) => m.id === G.map.id);
   const next = MAPS[idx + 1];
   $('r-next').style.display = won && next && mapState(next.id).unlocked && G.mode !== 'endless' ? '' : 'none';
+  const chestBtn = $('r-chest');
+  chestBtn.style.display = m.chest ? '' : 'none';
+  if (m.chest) {
+    chestBtn.dataset.kind = m.chest;
+    chestBtn.textContent = `OPEN ${m.chest.toUpperCase()} CHEST`;
+  }
   $('result').classList.add('show');
 }
 
@@ -2164,6 +2264,8 @@ initMenu({
   play: (id, mode) => startMap(id, mode),
   preview: (id) => loadMap(id),
   click: () => unlockAudio(),
+  settings: () => { setVolume(P.settings.volume); },
+  layoutPreview: () => { renderAbilities(); $('fpv-name').textContent = 'LAYOUT PREVIEW'; },
 });
 
 /* --------------------------------------------------------------- Main loop */
@@ -2217,6 +2319,8 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+applySettings();
+setVolume(P.settings.volume);
 loadMap(mapState(P.lastMap).unlocked ? P.lastMap : 'valley');
 showMenu();
 requestAnimationFrame(frame);
@@ -2224,7 +2328,7 @@ requestAnimationFrame(frame);
 // Debug / automated-test handle
 window.__game = {
   G, P, STATE, camera, startWave, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
-  useAbility, callStrike, openTurretCard, statsFor,
+  useAbility, callStrike, castAt, openTurretCard, statsFor, renderAbilities,
   get plots() { return world.plots; },
   get world() { return world; },
   plotScreen(i) {
@@ -2233,3 +2337,38 @@ window.__game = {
   },
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, plots: world.plots.length, paths: world.paths.map((p) => Math.round(p.length)) }),
 };
+
+/* ------------------------------------------------------ First-run tutorial */
+const COACH = [
+  { text: 'Tap a glowing pad next to the road to build your first turret.', next: 'build' },
+  { text: 'Nice! Press START WAVE at the bottom. Turrets fire on their own.', next: 'wave' },
+  { text: 'Tap your turret to open its upgrade tree.', next: 'card' },
+  { text: 'Tap a glowing node and press BUY. Then press ▶ CONTROL to aim it yourself.', next: 'fpv' },
+  { text: 'Drag on the left half to aim, hold FIRE on the right. Glowing weak points take bonus damage!', next: 'manualKill' },
+  { text: 'Great shot! Tap MAP (top right) to go back and build more turrets between waves.', next: 'exit' },
+];
+function coachStep() {
+  if (G.tut < 0 || G.view === 'MENU' || G.state === STATE.VICTORY || G.state === STATE.GAME_OVER) { setCoach(null); return; }
+  if (G.tut >= COACH.length) {
+    P.tutorialDone = true;
+    save();
+    setCoach('Tutorial done — good luck, Commander! Watch the NEXT preview for new enemy types.');
+    G.tut = -1;
+    setTimeout(() => setCoach(null), 5000);
+    return;
+  }
+  setCoach(COACH[G.tut].text);
+}
+function coachEvent(ev) {
+  if (G.tut < 0 || G.tut >= COACH.length) return;
+  if (COACH[G.tut].next === ev || (ev === 'fpv' && G.tut < 3 && G.tut >= 2)) {
+    G.tut = ev === 'fpv' ? 4 : G.tut + 1;
+    coachStep();
+  }
+}
+function setCoach(text) {
+  const el = $('coach');
+  if (!text) { el.classList.remove('show'); return; }
+  el.innerHTML = `<span class="coach-ico">💡</span><span>${text}</span>`;
+  el.classList.add('show');
+}

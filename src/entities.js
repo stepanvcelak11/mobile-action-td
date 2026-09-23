@@ -1,6 +1,6 @@
 // Procedural low-poly assets: twin-cannon turret and the three enemy archetypes.
 import * as THREE from 'three';
-import { ENEMIES } from './config.js';
+import { ENEMIES, SKINS } from './config.js';
 
 const matCache = new Map();
 function mat(color, opts = {}) {
@@ -167,13 +167,18 @@ function headLaser(pitch, M) {
 
 const HEADS = { cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
-export function createTurret(type, color) {
+export function createTurret(type, color, skinId = 'factory') {
   const root = new THREE.Group();
+  const sk = SKINS[skinId] || SKINS.factory;
+  const metal = sk.metal || 0;
+  const glowLight = sk.glow ? { emissive: sk.glow, emissiveIntensity: 0.35 } : {};
   const M = {
-    steel: mat('#5d6773', { metalness: 0.7, roughness: 0.35 }),
-    steelDark: mat('#2e343c', { metalness: 0.75, roughness: 0.4 }),
-    steelLight: mat('#9aa6b2', { metalness: 0.8, roughness: 0.3 }),
-    band: mat(color, { metalness: 0.2, roughness: 0.6 }),
+    steel: mat(sk.steel, { metalness: metal || 0.45, roughness: metal ? 0.28 : 0.45 }),
+    steelDark: mat(sk.dark, { metalness: metal || 0.5, roughness: 0.5 }),
+    steelLight: mat(sk.light, { metalness: metal || 0.55, roughness: 0.35, ...glowLight }),
+    band: sk.glow
+      ? mat(sk.band, { metalness: 0.2, roughness: 0.4, emissive: sk.glow, emissiveIntensity: 2.4 })
+      : mat(sk.band || color, { metalness: 0.2, roughness: 0.6 }),
   };
 
   // Heavy hexagonal base

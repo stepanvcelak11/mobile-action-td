@@ -110,10 +110,27 @@ export const PERKS = [
   { id: 'support', name: 'Air Support', desc: '−15% ability cooldowns', max: 3 },
 ];
 
+// Abilities are collectible charges (from chests, the pass, the road and the shop); each use costs one charge.
 export const ABILITIES = {
-  strike: { name: 'Airstrike', cooldown: 40, damage: 140, desc: 'Tap the ground: 5 bombs land after 1.2 s. Lead your target.' },
-  emp: { name: 'EMP', cooldown: 55, stun: 2.5, desc: 'Stuns every enemy and pops all shields.' },
+  strike: { name: 'Airstrike', cooldown: 25, damage: 140, color: '#ff8a3a', desc: '5 bombs land 1.2 s after you pick the spot. Lead your target.' },
+  emp: { name: 'EMP', cooldown: 30, stun: 2.5, color: '#8fa8ff', desc: 'Stuns every enemy for 2.5 s and pops all shields.' },
+  repair: { name: 'Repair', cooldown: 30, heal: 30, color: '#3ee07a', desc: 'Restores 30 base HP.' },
+  freeze: { name: 'Cryo Bomb', cooldown: 25, radius: 6, color: '#8fe3ff', desc: 'Freezes everything in a 6 m circle for 3 s.' },
 };
+export const ABILITY_ORDER = ['strike', 'emp', 'repair', 'freeze'];
+
+// Turret skins: material palettes applied to every turret of the chosen type.
+export const SKINS = {
+  factory: { name: 'Factory', rarity: 'common', price: 0, steel: '#5d6773', dark: '#2e343c', light: '#9aa6b2' },
+  desert: { name: 'Desert Camo', rarity: 'rare', price: 80, steel: '#a88a5a', dark: '#6a5238', light: '#d0b88a' },
+  arctic: { name: 'Arctic', rarity: 'rare', price: 80, steel: '#dfe8f0', dark: '#8a9aac', light: '#ffffff', band: '#4fc3ff' },
+  toxic: { name: 'Toxic', rarity: 'epic', price: 160, steel: '#55703a', dark: '#2a3a1e', light: '#8fb84a', band: '#8fe04a', glow: '#8fe04a' },
+  obsidian: { name: 'Obsidian', rarity: 'epic', price: 160, steel: '#3e2a30', dark: '#1c1014', light: '#6a3a40', band: '#ff5a1a', glow: '#ff5a1a' },
+  neon: { name: 'Neon Night', rarity: 'legendary', price: 300, steel: '#2a2a3c', dark: '#14141e', light: '#44446a', band: '#ff3d9f', glow: '#ff3d9f' },
+  gold: { name: 'Solid Gold', rarity: 'legendary', price: 300, steel: '#ffc93a', dark: '#c08a1a', light: '#fff0a8', band: '#ffffff', metal: 0.55, glow: '#ffb020' },
+};
+export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'neon', 'gold'];
+export const RARITY_COLORS = { common: '#9aa7b4', rare: '#4fa8ff', epic: '#b46bff', legendary: '#ffb020' };
 
 export const THEMES = {
   grass: {
@@ -163,7 +180,7 @@ export const THEMES = {
 export const MAPS = [
   {
     id: 'valley', name: 'Green Valley', sub: 'One winding road. Learn the ropes.', theme: 'grass',
-    waves: 8, bosses: [5, 8], hpScale: 1, intro: 0,
+    waves: 8, bosses: [5, 8], hpScale: 0.9, intro: 0, budget: 0.8, startBonus: 50,
     roads: [[[-28, -15], [-14, -16], [0, -14], [12, -11], [16, -5], [10, 0], [-4, 1], [-14, 4], [-17, 10], [-10, 15], [4, 15], [15, 14], [23, 15]]],
   },
   {

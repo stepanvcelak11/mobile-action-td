@@ -101,3 +101,64 @@ export function turretIcon(type) {
   };
   return svg(heads[type] + base, g.def);
 }
+
+// Small glyphs for upgrade-tree nodes, keyed by the node's main effect.
+const FX_GLYPH = {
+  dmg: '<path d="M12 3l3 6 6 1-4.5 4 1 6.5L12 17l-5.5 3.5 1-6.5L3 10l6-1z"/>',
+  rate: '<path d="M13 2L5 13h6l-1 9 8-11h-6z"/>',
+  range: '<circle cx="12" cy="12" r="8" fill="none" stroke-width="2.2"/><circle cx="12" cy="12" r="3.5"/>',
+  splash: '<circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" stroke-width="2.2" fill="none"/>',
+  chain: '<path d="M4 20l5-7-3-1 6-9M14 21l4-6-3-1 4-6" fill="none" stroke-width="2.4"/>',
+  slow: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7" fill="none" stroke-width="2.2"/>',
+  freeze: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 3l3 3 3-3M9 21l3-3 3 3" fill="none" stroke-width="2"/>',
+  stun: '<path d="M12 2l2.2 6.8H21l-5.5 4 2.1 6.7L12 15.4l-5.6 4.1 2.1-6.7-5.5-4h6.8z"/>',
+  burn: '<path d="M12 2c4 5 7 8 7 12a7 7 0 01-14 0c0-3 2-5 3-7 1 2 2 3 3 3-1-3 0-6 1-8z"/>',
+  napalm: '<path d="M12 3c3 4 5 6 5 9a5 5 0 01-10 0c0-2 1-3 2-5 1 1 1 2 2 2 0-2 0-4 1-6zM3 20h18" fill="currentColor" stroke-width="2"/>',
+  pierce: '<path d="M2 12h16M14 6l6 6-6 6" fill="none" stroke-width="2.6"/>',
+  crit: '<circle cx="12" cy="12" r="7" fill="none" stroke-width="2"/><path d="M12 1v6M12 17v6M1 12h6M17 12h6" stroke-width="2" fill="none"/>',
+  shots: '<circle cx="6" cy="12" r="3"/><circle cx="12" cy="12" r="3"/><circle cx="18" cy="12" r="3"/>',
+  heat: '<path d="M10 3a2 2 0 014 0v10a4.5 4.5 0 11-4 0z" fill="none" stroke-width="2.2"/><circle cx="12" cy="17" r="2"/>',
+  weakMul: '<circle cx="12" cy="12" r="9" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="1.8"/>',
+  manualDmg: '<path d="M7 11V5a1.5 1.5 0 013 0v5V3.5a1.5 1.5 0 013 0V10V4.5a1.5 1.5 0 013 0V13l1-2a1.5 1.5 0 012.6 1.5L17 20H9l-3-5.5V11a1.5 1.5 0 013 0"/>',
+  detect: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke-width="2"/><circle cx="12" cy="12" r="3.2"/>',
+  shred: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke-width="2"/><path d="M9 8l3 4-2 2 3 4" fill="none" stroke-width="2"/>',
+  bounty: '<circle cx="12" cy="12" r="9" fill="none" stroke-width="2"/><path d="M14.5 8.5c-.6-1-1.5-1.3-2.5-1.3-1.6 0-2.7.8-2.7 2.1 0 3 5.6 1.6 5.6 4.6 0 1.4-1.2 2.3-2.9 2.3-1.2 0-2.2-.5-2.8-1.4M12 5.5v2M12 16.5v2" fill="none" stroke-width="1.8"/>',
+  homing: '<path d="M4 20c0-9 6-14 14-14M13 2l5 4-4 5" fill="none" stroke-width="2.4"/>',
+  execute: '<path d="M12 2a8 8 0 00-8 8c0 3 1.5 5 3 6v4h10v-4c1.5-1 3-3 3-6a8 8 0 00-8-8z"/><circle cx="9" cy="10" r="1.8" fill="#10151c"/><circle cx="15" cy="10" r="1.8" fill="#10151c"/>',
+  bossDmg: '<path d="M3 18l2-11 4.5 5L12 5l2.5 7L19 7l2 11z"/>',
+  cluster: '<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/>',
+  shatter: '<path d="M12 2l3 7 7 1-5 5 2 7-7-4-7 4 2-7-5-5 7-1z" fill="none" stroke-width="2"/><path d="M12 8v8M8 12h8" stroke-width="2"/>',
+  ramp: '<path d="M3 20h18M4 17l5-5 4 3 7-9" fill="none" stroke-width="2.4"/><path d="M16 6h4v4" fill="none" stroke-width="2.4"/>',
+  beams: '<path d="M3 12l7-7v14zM10 12l11-6M10 12h11M10 12l11 6" fill="none" stroke-width="2"/>',
+  steady: '<path d="M12 21c-4 0-7-3-7-7V7a1.5 1.5 0 013 0v5V4a1.5 1.5 0 013 0v7V3.5a1.5 1.5 0 013 0V11V5a1.5 1.5 0 013 0v9c0 4-3 7-8 7z"/>',
+};
+export function fxIcon(key) {
+  const g = FX_GLYPH[key] || FX_GLYPH.dmg;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round">${g}</svg>`;
+}
+
+export function abilityIcon(id) {
+  if (id === 'repair') {
+    return `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="8" width="32" height="32" rx="9" fill="#1f6a3a" stroke="#3ee07a" stroke-width="2.5"/><path d="M24 14v20M14 24h20" stroke="#fff" stroke-width="6" stroke-linecap="round"/></svg>`;
+  }
+  if (id === 'freeze') {
+    return `<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="26" r="15" fill="#1a4a6a" stroke="#8fe3ff" stroke-width="2.5"/><path d="M24 14v24M13.6 20l20.8 12M13.6 32l20.8-12" stroke="#dff8ff" stroke-width="3" stroke-linecap="round"/><path d="M30 6l4 5" stroke="#ffcf5a" stroke-width="3" stroke-linecap="round"/></svg>`;
+  }
+  return uiIcon(id);
+}
+
+export function coinIcon() {
+  return '<svg class="cur" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#ffc62e" stroke="#b87800" stroke-width="2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#fff3b0" stroke-width="1.6"/></svg>';
+}
+export function gemIcon() {
+  return '<svg class="cur" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12l4 6-10 13L2 9z" fill="#3fd0ff" stroke="#0a6a9a" stroke-width="1.5"/><path d="M2 9h20M9 3l3 6 3-6M12 9v13" fill="none" stroke="#bff0ff" stroke-width="1.1"/></svg>';
+}
+export function trophyIcon() {
+  return '<svg class="cur" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v5a5 5 0 01-10 0z" fill="#ffcf5a" stroke="#a86a00" stroke-width="1.5"/><path d="M7 5H3c0 3 2 5 4 5M17 5h4c0 3-2 5-4 5" fill="none" stroke="#ffcf5a" stroke-width="2"/><path d="M12 13v4M8 21h8l-1-4H9z" fill="#ffcf5a" stroke="#a86a00" stroke-width="1.2"/></svg>';
+}
+export function chestIcon(kind, color) {
+  return `<svg viewBox="0 0 64 56" aria-hidden="true" class="chest-svg"><path d="M6 24h52v26a4 4 0 01-4 4H10a4 4 0 01-4-4z" fill="${color}" stroke="#1b1208" stroke-width="3"/>
+    <path d="M6 24c0-12 8-18 26-18s26 6 26 18z" fill="${color}" stroke="#1b1208" stroke-width="3" class="chest-lid"/>
+    <path d="M6 24h52" stroke="#1b1208" stroke-width="3"/><rect x="27" y="20" width="10" height="13" rx="2" fill="#ffe28a" stroke="#1b1208" stroke-width="2.5"/>
+    <path d="M14 8v46M50 8v46" stroke="rgba(0,0,0,0.25)" stroke-width="5"/></svg>`;
+}
