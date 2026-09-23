@@ -25,69 +25,152 @@ function part(parent, geo, material, x = 0, y = 0, z = 0, shadow = true) {
 
 /* ------------------------------------------------------------------ Turret */
 
-export function createTurret() {
-  const root = new THREE.Group();
-  const steel = mat('#5d6773', { metalness: 0.7, roughness: 0.35 });
-  const steelDark = mat('#2e343c', { metalness: 0.75, roughness: 0.4 });
-  const steelLight = mat('#9aa6b2', { metalness: 0.8, roughness: 0.3 });
-  const hazard = mat('#f0a020', { metalness: 0.2, roughness: 0.6 });
+const cyl = (rt, rb, h, seg, alongZ = true) => {
+  const g = new THREE.CylinderGeometry(rt, rb, h, seg);
+  if (alongZ) g.rotateX(Math.PI / 2);
+  return g;
+};
 
-  // Heavy hexagonal base
-  part(root, new THREE.CylinderGeometry(1.5, 1.6, 0.25, 6), steelDark, 0, 0.125, 0);
-  part(root, new THREE.CylinderGeometry(1.2, 1.45, 0.75, 6), steel, 0, 0.62, 0);
-  part(root, new THREE.CylinderGeometry(1.24, 1.24, 0.12, 6), hazard, 0, 0.95, 0);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-    part(root, new THREE.BoxGeometry(0.28, 0.5, 0.28), steelDark, Math.cos(a) * 1.28, 0.45, Math.sin(a) * 1.28);
-  }
-
-  // Swivel torso (yaw)
-  const yaw = new THREE.Group();
-  yaw.position.y = 1.0;
-  root.add(yaw);
-  part(yaw, new THREE.CylinderGeometry(0.85, 0.95, 0.35, 10), steelDark, 0, 0.18, 0);
-  part(yaw, new THREE.BoxGeometry(1.7, 0.75, 1.35), steel, 0, 0.72, -0.1);
-  part(yaw, new THREE.BoxGeometry(1.2, 0.4, 0.5), steelLight, 0, 0.55, -0.85);
-  const antenna = part(yaw, new THREE.CylinderGeometry(0.03, 0.03, 1.1, 4), steelDark, 0.6, 1.5, -0.6, false);
-  antenna.rotation.x = -0.2;
-  part(yaw, new THREE.SphereGeometry(0.07, 6, 4), glow('#ff3b3b'), 0.6, 2.05, -0.72, false);
-  const sensor = part(yaw, new THREE.BoxGeometry(0.34, 0.18, 0.08), glow('#39d5ff'), -0.55, 0.85, 0.58, false);
-  sensor.userData.isSensor = true;
-
-  // Elevating cannon (pitch)
-  const pitch = new THREE.Group();
-  pitch.position.set(0, 1.12, 0.1);
-  yaw.add(pitch);
-  part(pitch, new THREE.BoxGeometry(1.15, 0.55, 0.75), steelDark, 0, 0, 0.05);
-  const barrelGeo = new THREE.CylinderGeometry(0.11, 0.15, 2.2, 8);
-  barrelGeo.rotateX(Math.PI / 2);
-  const brakeGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.34, 8);
-  brakeGeo.rotateX(Math.PI / 2);
-  const sleeveGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.6, 8);
-  sleeveGeo.rotateX(Math.PI / 2);
+function headCannon(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.15, 0.55, 0.75), M.steelDark, 0, 0, 0.05);
   const barrels = [];
   const muzzles = [];
   for (const sx of [-0.34, 0.34]) {
     const b = new THREE.Group();
     b.position.set(sx, 0, 0);
     pitch.add(b);
-    part(b, sleeveGeo, steel, 0, 0, 0.55);
-    part(b, barrelGeo, steelLight, 0, 0, 1.45);
-    part(b, brakeGeo, steelDark, 0, 0, 2.55);
+    part(b, cyl(0.2, 0.2, 0.6, 8), M.steel, 0, 0, 0.55);
+    part(b, cyl(0.11, 0.15, 2.2, 8), M.steelLight, 0, 0, 1.45);
+    part(b, cyl(0.19, 0.19, 0.34, 8), M.steelDark, 0, 0, 2.55);
     barrels.push({ group: b, recoil: 0 });
     muzzles.push(new THREE.Vector3(sx, 0, 2.75));
   }
+  return { barrels, muzzles, cam: [0, 0.62, 0.35] };
+}
 
-  // FPV camera anchor, between the barrels (rotated so the camera's -Z looks down the barrels)
+function headGatling(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.9, 0.62, 0.9), M.steelDark, 0, 0, 0);
+  for (const sx of [-0.62, 0.62]) part(pitch, new THREE.BoxGeometry(0.34, 0.5, 0.7), M.band, sx, -0.05, -0.05);
+  const holder = new THREE.Group();
+  holder.position.set(0, 0, 0.45);
+  pitch.add(holder);
+  const spinner = new THREE.Group();
+  holder.add(spinner);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    part(spinner, cyl(0.055, 0.055, 1.9, 6), M.steelLight, Math.cos(a) * 0.17, Math.sin(a) * 0.17, 0.95);
+  }
+  part(spinner, cyl(0.26, 0.26, 0.12, 10), M.steelDark, 0, 0, 0.45);
+  part(spinner, cyl(0.26, 0.26, 0.12, 10), M.steelDark, 0, 0, 1.8);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 2.45)], cam: [0, 0.58, 0.25], spinner };
+}
+
+function headRocket(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.35, 0.95, 1.2), M.steel, 0, 0.05, 0.15);
+  for (const sx of [-0.7, 0.7]) part(pitch, new THREE.BoxGeometry(0.06, 0.5, 1.0), M.band, sx, 0.05, 0.15);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const muzzles = [];
+  for (const sx of [-0.33, 0.33]) {
+    for (const sy of [-0.2, 0.25]) {
+      part(holder, cyl(0.17, 0.17, 0.25, 8), M.steelDark, sx, sy, 0.8);
+      part(holder, cyl(0.12, 0.12, 0.05, 8), glow('#ff5a3a'), sx, sy, 0.93, false);
+      muzzles.push(new THREE.Vector3(sx, sy, 1.0));
+    }
+  }
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles, cam: [0, 1.32, -0.85] };
+}
+
+function headTesla(pitch, M) {
+  part(pitch, new THREE.CylinderGeometry(0.45, 0.55, 0.5, 8), M.steelDark, 0, 0, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.07, 0.1, 1.5, 6), M.steelLight, 0, 0, 0.7);
+  const coilM = mat('#c08a3a', { metalness: 0.9, roughness: 0.3 });
+  for (let i = 0; i < 3; i++) {
+    part(holder, new THREE.TorusGeometry(0.3 - i * 0.06, 0.06, 6, 14), coilM, 0, 0, 0.35 + i * 0.35);
+  }
+  const orb = part(holder, new THREE.IcosahedronGeometry(0.2, 1), glow('#d9a8ff'), 0, 0, 1.55, false);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.6)], cam: [0, 0.72, -0.1], orb };
+}
+
+function headRail(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.8, 0.5, 1.1), M.steelDark, 0, 0, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  for (const sx of [-0.15, 0.15]) part(holder, new THREE.BoxGeometry(0.08, 0.16, 3.2), M.steelLight, sx, 0, 1.7);
+  part(holder, new THREE.BoxGeometry(0.1, 0.06, 3.1), M.steelDark, 0, -0.1, 1.7);
+  const coils = [];
+  for (let i = 0; i < 5; i++) {
+    coils.push(part(holder, new THREE.TorusGeometry(0.26, 0.045, 6, 12), glow('#4fc3ff'), 0, 0, 0.6 + i * 0.55, false));
+  }
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 3.3)], cam: [0, 0.45, 0.25], coils };
+}
+
+const HEADS = { cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail };
+
+export function createTurret(type, color) {
+  const root = new THREE.Group();
+  const M = {
+    steel: mat('#5d6773', { metalness: 0.7, roughness: 0.35 }),
+    steelDark: mat('#2e343c', { metalness: 0.75, roughness: 0.4 }),
+    steelLight: mat('#9aa6b2', { metalness: 0.8, roughness: 0.3 }),
+    band: mat(color, { metalness: 0.2, roughness: 0.6 }),
+  };
+
+  // Heavy hexagonal base
+  part(root, new THREE.CylinderGeometry(1.5, 1.6, 0.25, 6), M.steelDark, 0, 0.125, 0);
+  part(root, new THREE.CylinderGeometry(1.2, 1.45, 0.75, 6), M.steel, 0, 0.62, 0);
+  part(root, new THREE.CylinderGeometry(1.24, 1.24, 0.12, 6), M.band, 0, 0.95, 0);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    part(root, new THREE.BoxGeometry(0.28, 0.5, 0.28), M.steelDark, Math.cos(a) * 1.28, 0.45, Math.sin(a) * 1.28);
+  }
+
+  // Swivel torso (yaw)
+  const yaw = new THREE.Group();
+  yaw.position.y = 1.0;
+  root.add(yaw);
+  part(yaw, new THREE.CylinderGeometry(0.85, 0.95, 0.35, 10), M.steelDark, 0, 0.18, 0);
+  part(yaw, new THREE.BoxGeometry(1.7, 0.75, 1.35), M.steel, 0, 0.72, -0.1);
+  part(yaw, new THREE.BoxGeometry(1.2, 0.4, 0.5), M.steelLight, 0, 0.55, -0.85);
+  const antenna = part(yaw, new THREE.CylinderGeometry(0.03, 0.03, 1.1, 4), M.steelDark, 0.6, 1.5, -0.6, false);
+  antenna.rotation.x = -0.2;
+  part(yaw, new THREE.SphereGeometry(0.07, 6, 4), glow('#ff3b3b'), 0.6, 2.05, -0.72, false);
+  part(yaw, new THREE.BoxGeometry(0.34, 0.18, 0.08), glow(color), -0.55, 0.85, 0.58, false);
+
+  // Level pips on the back of the torso
+  const pips = [];
+  for (let i = 0; i < 3; i++) {
+    const pip = part(yaw, new THREE.BoxGeometry(0.22, 0.14, 0.06), glow('#ffd24a'), (i - 1) * 0.32, 0.95, -0.79, false);
+    pip.visible = i === 0;
+    pips.push(pip);
+  }
+
+  // Elevating weapon head (pitch)
+  const pitch = new THREE.Group();
+  pitch.position.set(0, 1.12, 0.1);
+  yaw.add(pitch);
+  const head = HEADS[type](pitch, M);
+
+  // FPV camera anchor (rotated so the camera's -Z looks down the barrels)
   const camAnchor = new THREE.Object3D();
-  camAnchor.position.set(0, 0.62, 0.35);
+  camAnchor.position.set(...head.cam);
   camAnchor.rotation.y = Math.PI;
   pitch.add(camAnchor);
 
   return {
-    root, yawG: yaw, pitchG: pitch, barrels, muzzles, camAnchor,
-    yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null,
+    type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor,
+    spinner: head.spinner, orb: head.orb, coils: head.coils, spin: 0, pips,
+    yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null, level: 1, invested: 0,
   };
+}
+
+export function setTurretLevel(t, level) {
+  t.level = level;
+  t.pips.forEach((p, i) => { p.visible = i < level; });
+  const s = 1 + (level - 1) * 0.07;
+  t.root.scale.setScalar(s);
 }
 
 /* ----------------------------------------------------------------- Enemies */
@@ -218,7 +301,7 @@ export function createEnemy(type, hpMult = 1) {
   return {
     type, def, group: parts.g, body: parts.body, legs: parts.legs, wp: parts.wp, tur: parts.tur,
     bar, fill, fillM, hp: maxHp, maxHp, s: 0, lateral: (Math.random() * 2 - 1) * def.lateral,
-    alive: true, anim: Math.random() * 10, flash: 0,
+    alive: true, anim: Math.random() * 10, flash: 0, slowT: 0, speedMult: 1, path: null,
     center: new THREE.Vector3(), wpWorld: new THREE.Vector3(), vel: new THREE.Vector3(),
   };
 }

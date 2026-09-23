@@ -55,6 +55,11 @@ function tone({ f0 = 440, f1 = f0, dur = 0.15, gain = 0.2, type = 'square', dela
 
 const SOUNDS = {
   manual: () => { burst({ dur: 0.12, gain: 0.35, freq: 2600, sweep: 0.2 }); tone({ f0: 180, f1: 60, dur: 0.1, gain: 0.25, type: 'triangle' }); },
+  gatling: () => burst({ dur: 0.05, gain: 0.18, freq: 3200, sweep: 0.4 }),
+  rocket: () => { burst({ dur: 0.35, gain: 0.25, freq: 500, sweep: 3, type: 'bandpass', q: 1.5 }); },
+  zap: () => { tone({ f0: 900, f1: 120, dur: 0.12, gain: 0.08, type: 'sawtooth' }); burst({ dur: 0.1, gain: 0.15, freq: 5000, type: 'highpass' }); },
+  rail: () => { tone({ f0: 2400, f1: 200, dur: 0.35, gain: 0.12, type: 'sawtooth' }); burst({ dur: 0.3, gain: 0.35, freq: 1500, sweep: 0.1 }); },
+  levelup: () => { [523, 659, 784, 1047].forEach((f, i) => tone({ f0: f, dur: 0.18, gain: 0.12, type: 'triangle', delay: i * 0.08 })); },
   auto: () => burst({ dur: 0.1, gain: 0.12, freq: 1800, sweep: 0.3 }),
   hit: () => tone({ f0: 1400, f1: 900, dur: 0.05, gain: 0.08, type: 'square' }),
   weak: () => { tone({ f0: 1800, f1: 2400, dur: 0.08, gain: 0.1, type: 'square' }); },

@@ -17,58 +17,133 @@
 <body>
   <canvas id="game"></canvas>
 
-  <!-- Strategic HUD -->
+  <!-- In-game HUD -->
   <div id="hud">
-    <div class="pill" id="hud-gold"><span class="ico gold"></span><b id="gold">150</b></div>
-    <div class="pill hp">
-      <span class="ico heart"></span>
-      <div class="bar"><div id="hp-fill"></div></div>
-      <b id="hp">100</b>
+    <div id="hud-left">
+      <button id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
+      <button id="btn-speed" class="icon-btn" aria-label="Game speed">1×</button>
     </div>
-    <div class="pill"><span class="lbl">WAVE</span><b id="wave">0/8</b></div>
-    <div class="pill"><span class="ico skull"></span><b id="enemies">0</b></div>
+    <div id="hud-pills">
+      <div class="pill" id="hud-gold"><span class="ico gold"></span><b id="gold">150</b></div>
+      <div class="pill hp">
+        <span class="ico heart"></span>
+        <div class="bar"><div id="hp-fill"></div></div>
+        <b id="hp">100</b>
+      </div>
+      <div class="pill"><span class="lbl">WAVE</span><b id="wave">0/8</b></div>
+      <div class="pill"><span class="ico skull"></span><b id="enemies">0</b></div>
+    </div>
   </div>
 
   <div id="top-ui">
-    <div id="hint">Tap a glowing pad to build · Tap a turret to take control</div>
+    <div id="hint">Tap a glowing pad to build · Tap a turret to control or upgrade it</div>
     <button id="start-wave" class="btn primary">START WAVE 1</button>
   </div>
 
   <div id="build-card" class="sheet">
-    <div class="sheet-row">
-      <div class="turret-icon"></div>
-      <div class="sheet-text">
-        <div class="sheet-title">Twin Cannon Turret</div>
-        <div class="sheet-sub">Auto-fires every 1.2 s · Range 11.5 m · Tap it later to aim manually (2× damage)</div>
-      </div>
-    </div>
+    <div class="sheet-head"><div class="sheet-title">Build turret</div><button class="x-btn" data-close aria-label="Close">✕</button></div>
+    <div id="build-options" class="opts"></div>
+    <div id="build-desc" class="sheet-sub"></div>
     <div class="sheet-row actions">
-      <button id="build-cancel" class="btn ghost">CANCEL</button>
-      <button id="build-confirm" class="btn primary">BUILD · <span class="ico gold sm"></span>100</button>
+      <button id="build-confirm" class="btn primary">BUILD</button>
+    </div>
+  </div>
+
+  <div id="turret-card" class="sheet">
+    <div class="sheet-head">
+      <div class="sheet-row">
+        <div id="tc-icon" class="t-icon"></div>
+        <div class="sheet-text">
+          <div class="sheet-title" id="tc-title">Twin Cannon</div>
+          <div class="sheet-sub" id="tc-stats"></div>
+        </div>
+      </div>
+      <button class="x-btn" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="sheet-row actions three">
+      <button id="tc-sell" class="btn ghost">SELL</button>
+      <button id="tc-upgrade" class="btn">UPGRADE</button>
+      <button id="tc-control" class="btn primary">▶ CONTROL</button>
     </div>
   </div>
 
   <!-- FPV HUD -->
   <div id="fpv-ui">
-    <div id="aim-zone"><div class="zone-ring"></div><span>DRAG TO AIM</span></div>
+    <div id="aim-zone"><div class="zone-ring"></div><span class="zone-label">DRAG ANYWHERE HERE TO AIM</span></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><em></em></div>
+    <div id="scope"></div>
     <div id="hitmark"></div>
-    <div id="heat"><div class="heat-label">BARREL HEAT</div><div class="heat-bar"><div id="heat-fill"></div></div></div>
-    <button id="exit-fpv" class="btn ghost">⤢ EXIT TO TOP-DOWN</button>
+    <div id="heat"><div class="heat-label"><span id="fpv-name">TWIN CANNON</span> · HEAT</div><div class="heat-bar"><div id="heat-fill"></div></div></div>
+    <div id="fpv-corner">
+      <button id="exit-fpv" class="icon-btn" aria-label="Exit to top-down">⤢<small>MAP</small></button>
+      <button id="next-turret" class="icon-btn" aria-label="Next turret">⇄<small>NEXT</small></button>
+      <button id="fpv-wave" class="icon-btn up" aria-label="Start next wave">▶<small>WAVE</small></button>
+      <button id="fpv-upgrade" class="icon-btn up" aria-label="Upgrade turret">⬆<small id="fpv-up-cost">75</small></button>
+    </div>
     <button id="fire-btn">FIRE</button>
-    <div id="lock-hint">Click to lock mouse · Click to fire · E to exit</div>
+    <div id="lock-hint">Click to lock mouse · Click to fire · Tab next turret · E exit</div>
   </div>
 
   <div id="floaties"></div>
   <div id="banner"></div>
   <div id="vignette"></div>
 
-  <div id="overlay" class="show">
+  <!-- Main menu -->
+  <div id="menu" class="screen show">
+    <div class="menu-wrap">
+      <div class="menu-top">
+        <div class="brand">
+          <div class="kicker">3D ACTION TOWER DEFENSE</div>
+          <h1>SERPENT LINE</h1>
+        </div>
+        <div class="profile">
+          <div class="lvl-badge"><small>LV</small><b id="m-level">1</b></div>
+          <div class="profile-main">
+            <div class="xpbar"><div id="m-xp"></div></div>
+            <div class="profile-row"><span id="m-xptext">0 / 150 XP</span><span class="tp-chip"><span class="ico tp"></span><b id="m-tp">0</b> TECH</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="maps">CAMPAIGN</button>
+        <button class="tab" data-tab="armory">ARMORY</button>
+      </div>
+      <div id="tab-maps" class="tabpage active"></div>
+      <div id="tab-armory" class="tabpage">
+        <h3>Turrets <small>unlock with Tech points</small></h3>
+        <div id="arm-turrets" class="grid"></div>
+        <h3>Upgrades <small>permanent, every run</small></h3>
+        <div id="arm-perks" class="grid"></div>
+        <p class="menu-note">Earn XP for kills and waves. Every commander level = 1 Tech point, every new star = 2 Tech points.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="result" class="screen">
     <div class="panel">
-      <div class="kicker">3D ACTION TOWER DEFENSE</div>
-      <h1 id="ov-title">SERPENT LINE</h1>
-      <p id="ov-text">Hold the road for 8 waves. Build twin-cannon turrets on the glowing pads, then tap any turret to jump inside and aim it yourself — manual shots crit for 2× and can hit glowing weak points.</p>
-      <button id="ov-btn" class="btn primary big">DEPLOY</button>
+      <div class="kicker" id="r-kicker">MISSION REPORT</div>
+      <h1 id="r-title">VICTORY</h1>
+      <div id="r-stars" class="stars big"></div>
+      <div id="r-lines" class="r-lines"></div>
+      <div class="r-actions">
+        <button id="r-menu" class="btn ghost">MENU</button>
+        <button id="r-retry" class="btn">RETRY</button>
+        <button id="r-next" class="btn primary">NEXT MAP ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="screen">
+    <div class="panel">
+      <div class="kicker">PAUSED</div>
+      <h1 id="p-title">Green Valley</h1>
+      <div class="r-actions col">
+        <button id="p-resume" class="btn primary big">RESUME</button>
+        <button id="p-restart" class="btn">RESTART MAP</button>
+        <button id="p-quit" class="btn ghost">QUIT TO MENU</button>
+      </div>
     </div>
   </div>
 
