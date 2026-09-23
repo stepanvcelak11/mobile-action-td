@@ -33,6 +33,22 @@ jobs:
           else
             echo "ok=yes" >> "$GITHUB_OUTPUT"
           fi
+      - name: Check the token (valid? right account? Workers + D1 allowed?)
+        if: steps.s.outputs.ok == 'yes'
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          api() { curl -s -o /tmp/r.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "https://api.cloudflare.com/client/v4$1"; }
+          v=$(api /user/tokens/verify); tok=$(python3 -c "import json; d=json.load(open('/tmp/r.json')); print(d.get('result',{}).get('status','?'))")
+          a=$(api "/accounts/$ACCOUNT"); w=$(api "/accounts/$ACCOUNT/workers/scripts"); d=$(api "/accounts/$ACCOUNT/d1/database")
+          {
+            echo "### Cloudflare token check"
+            echo "- token valid: HTTP $v, status $tok"
+            echo "- account ID reachable: HTTP $a (length ${#ACCOUNT})"
+            echo "- Workers permission: HTTP $w"
+            echo "- D1 permission: HTTP $d"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         if: steps.s.outputs.ok == 'yes'
         with:
