@@ -110,6 +110,10 @@ rocketGeo.rotateX(Math.PI / 2);
 const noseGeo = new THREE.ConeGeometry(0.09, 0.22, 6);
 noseGeo.rotateX(Math.PI / 2);
 noseGeo.translate(0, 0, 0.38);
+const mortarGeo = new THREE.SphereGeometry(0.22, 8, 6);
+mortarGeo.scale(1, 1, 1.4);
+const shardGeo = new THREE.OctahedronGeometry(0.14, 0);
+shardGeo.scale(0.7, 0.7, 2.4);
 const flameGeo = new THREE.ConeGeometry(0.1, 0.5, 6);
 flameGeo.rotateX(-Math.PI / 2);
 flameGeo.translate(0, 0, -0.5);
@@ -119,6 +123,12 @@ const MATS = {
   shell: { core: new THREE.MeshBasicMaterial({ color: '#ffe38a', toneMapped: false }), trail: add('#ff9a2e', 0.55) },
   shellM: { core: new THREE.MeshBasicMaterial({ color: '#fff2f0', toneMapped: false }), trail: add('#ff4a2a', 0.7) },
   bullet: { core: new THREE.MeshBasicMaterial({ color: '#f4ffb0', toneMapped: false }), trail: add('#9dff6a', 0.45) },
+  sniper: { core: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }), trail: add('#bfe8ff', 0.6) },
+  shard: { core: new THREE.MeshBasicMaterial({ color: '#dff8ff', toneMapped: false }), trail: add('#6fd8ff', 0.6) },
+  mortar: {
+    body: new THREE.MeshStandardMaterial({ color: '#3a3f2a', metalness: 0.4, roughness: 0.5, flatShading: true }),
+    trail: add('#ffcf6a', 0.35),
+  },
   rocket: {
     body: new THREE.MeshStandardMaterial({ color: '#d8dde2', metalness: 0.5, roughness: 0.4, flatShading: true }),
     nose: new THREE.MeshStandardMaterial({ color: '#e0412e', metalness: 0.3, roughness: 0.5, flatShading: true }),
@@ -139,7 +149,18 @@ export class Projectiles {
   _make(kind) {
     const g = new THREE.Group();
     let trail = null;
-    if (kind === 'rocket') {
+    if (kind === 'mortar') {
+      g.add(new THREE.Mesh(mortarGeo, MATS.mortar.body));
+      trail = new THREE.Mesh(trailGeo, MATS.mortar.trail);
+      trail.position.z = -0.2;
+      g.add(trail);
+      g.children[0].castShadow = true;
+    } else if (kind === 'shard') {
+      g.add(new THREE.Mesh(shardGeo, MATS.shard.core));
+      trail = new THREE.Mesh(trailGeo, MATS.shard.trail);
+      trail.position.z = -0.25;
+      g.add(trail);
+    } else if (kind === 'rocket') {
       const m = MATS.rocket;
       g.add(new THREE.Mesh(rocketGeo, m.body), new THREE.Mesh(noseGeo, m.nose));
       const flame = new THREE.Mesh(flameGeo, m.flame);
@@ -148,7 +169,7 @@ export class Projectiles {
       g.children[0].castShadow = true;
     } else {
       const m = MATS[kind];
-      g.add(new THREE.Mesh(kind === 'bullet' ? bulletGeo : coreGeo, m.core));
+      g.add(new THREE.Mesh(kind === 'bullet' || kind === 'sniper' ? bulletGeo : coreGeo, m.core));
       trail = new THREE.Mesh(trailGeo, m.trail);
       trail.position.z = -0.3;
       g.add(trail);
@@ -170,7 +191,9 @@ export class Projectiles {
     if (mesh.userData.trail) mesh.userData.trail.scale.set(1, 1, 0.01);
     this.active.push({
       ...o, mesh, pos: origin.clone(), vel: dir.clone().multiplyScalar(o.speed),
-      life: kind === 'rocket' ? 3 : 1.6, travelled: 0, maxTrail: kind === 'shellM' ? 4.5 : kind === 'bullet' ? 2 : 3, smokeT: 0,
+      life: kind === 'rocket' || kind === 'mortar' ? 4 : 1.6, travelled: 0,
+      maxTrail: kind === 'shellM' || kind === 'sniper' ? 4.5 : kind === 'bullet' ? 2 : 3, smokeT: 0,
+      hits: null, speed: o.speed,
     });
   }
 
@@ -183,13 +206,14 @@ export class Projectiles {
         this._want.subVectors(p.target.center, p.pos).normalize().multiplyScalar(p.speed);
         p.vel.lerp(this._want, Math.min(1, p.homing * dt)).setLength(p.speed);
       }
+      if (p.gravity) p.vel.y -= p.gravity * dt;
       prev.copy(p.pos);
       p.pos.addScaledVector(p.vel, dt);
       p.life -= dt;
-      p.travelled += p.speed * dt;
+      p.travelled += p.vel.length() * dt;
       let dead = hitTest(prev, p.pos, p);
       if (!dead && p.pos.y < 0.02) { onGround(p); dead = true; }
-      if (!dead && p.life <= 0) { if (p.kind === 'rocket') onGround(p); dead = true; }
+      if (!dead && p.life <= 0) { onGround(p, true); dead = true; }
       if (dead) {
         p.mesh.visible = false;
         this.pool[p.kind].push(p.mesh);
@@ -198,7 +222,7 @@ export class Projectiles {
         continue;
       }
       p.mesh.position.copy(p.pos);
-      if (p.homing) {
+      if (p.homing || p.gravity) {
         this._look.copy(p.pos).add(p.vel);
         p.mesh.lookAt(this._look);
       }
@@ -246,6 +270,10 @@ export class Beams {
     this._seg(a, b, 0.16, color, 0.35);
     this._seg(a, b, 0.05, '#ffffff', 0.25);
   }
+  /** Thin short-lived beam segment (laser / flame core), refreshed every frame by the caller. */
+  line(a, b, color, radius = 0.06, life = 0.06) {
+    this._seg(a, b, radius, color, life);
+  }
   /** Jagged lightning bolt. */
   bolt(a, b, color = '#c68bff') {
     const n = Math.max(3, Math.min(9, Math.round(a.distanceTo(b) / 1.2)));
@@ -285,18 +313,18 @@ export class Beams {
 export class AmbientFx {
   constructor(scene, kind) {
     this.kind = kind;
-    const n = kind === 'snow' ? 900 : kind === 'embers' ? 350 : 400;
+    const n = kind === 'snow' ? 900 : kind === 'rain' ? 1100 : kind === 'embers' ? 350 : kind === 'petals' ? 160 : 400;
     this.n = n;
     const pos = new Float32Array(n * 3);
     this.vel = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) this._reset(pos, i, true);
     this.geo = new THREE.BufferGeometry();
     this.geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
-    const color = kind === 'snow' ? '#ffffff' : kind === 'embers' ? '#ff7a2a' : '#e8c890';
-    const size = kind === 'snow' ? 0.22 : kind === 'embers' ? 0.2 : 0.3;
+    const color = { snow: '#ffffff', embers: '#ff7a2a', dust: '#e8c890', rain: '#9fc4ff', spores: '#b8ff6a', petals: '#ffc0d8' }[kind] || '#ffffff';
+    const size = { snow: 0.22, embers: 0.2, dust: 0.3, rain: 0.14, spores: 0.22, petals: 0.2 }[kind] || 0.2;
     this.mat = new THREE.PointsMaterial({
       size, map: TEX, color, transparent: true, depthWrite: false, toneMapped: false,
-      opacity: kind === 'dust' ? 0.45 : 0.9, blending: kind === 'embers' ? THREE.AdditiveBlending : THREE.NormalBlending,
+      opacity: kind === 'dust' ? 0.45 : 0.9, blending: kind === 'embers' || kind === 'spores' ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     this.points = new THREE.Points(this.geo, this.mat);
     this.points.frustumCulled = false;
@@ -310,7 +338,13 @@ export class AmbientFx {
     if (this.kind === 'snow') {
       pos[k + 1] = initial ? Math.random() * 30 : 30;
       v[k] = 0.6 + Math.random() * 0.6; v[k + 1] = -(1.5 + Math.random() * 1.5); v[k + 2] = (Math.random() - 0.5) * 0.6;
-    } else if (this.kind === 'embers') {
+    } else if (this.kind === 'rain') {
+      pos[k + 1] = initial ? Math.random() * 30 : 30;
+      v[k] = 1.5; v[k + 1] = -(22 + Math.random() * 8); v[k + 2] = 0.5;
+    } else if (this.kind === 'petals') {
+      pos[k + 1] = initial ? Math.random() * 12 : 12;
+      v[k] = 1 + Math.random(); v[k + 1] = -(0.4 + Math.random() * 0.5); v[k + 2] = (Math.random() - 0.5) * 0.8;
+    } else if (this.kind === 'embers' || this.kind === 'spores') {
       pos[k + 1] = initial ? Math.random() * 20 : 0;
       v[k] = (Math.random() - 0.5) * 0.6; v[k + 1] = 1 + Math.random() * 2; v[k + 2] = (Math.random() - 0.5) * 0.6;
     } else {

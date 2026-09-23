@@ -1,21 +1,10 @@
-// DOM for the main menu (campaign map cards + armory), turret icons and map thumbnails.
+// DOM for the main menu (campaign map cards + armory) and map thumbnails.
 import { MAPS, THEMES, TURRETS, TURRET_ORDER, PERKS } from './config.js';
+import { TREES } from './trees.js';
 import { P, xpForLevel, mapState, perk, perkCost, buyPerk, unlockTurret } from './progress.js';
+import { turretIcon, uiIcon } from './icons.js';
 
 const $ = (id) => document.getElementById(id);
-
-export function turretIcon(type) {
-  const c = TURRETS[type].color;
-  const body = `<rect x="11" y="24" width="18" height="10" rx="2" fill="#6b7784"/><rect x="9" y="33" width="22" height="3" rx="1" fill="${c}"/>`;
-  const heads = {
-    cannon: `<rect x="14" y="17" width="12" height="9" rx="2" fill="#9aa6b2"/><rect x="15" y="4" width="3" height="15" fill="#c9d2da"/><rect x="22" y="4" width="3" height="15" fill="#c9d2da"/>`,
-    gatling: `<rect x="13" y="18" width="14" height="8" rx="2" fill="#9aa6b2"/>${[14, 17, 20, 23].map((x) => `<rect x="${x}" y="3" width="2.2" height="16" fill="#c9d2da"/>`).join('')}<rect x="12.5" y="7" width="15" height="2.4" fill="${c}"/>`,
-    rocket: `<rect x="10" y="9" width="20" height="16" rx="2" fill="#9aa6b2"/>${[[15, 14], [25, 14], [15, 21], [25, 21]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3" fill="#2e343c"/><circle cx="${x}" cy="${y}" r="1.5" fill="${c}"/>`).join('')}`,
-    tesla: `<rect x="18.5" y="8" width="3" height="17" fill="#c9d2da"/><ellipse cx="20" cy="19" rx="6" ry="2" fill="none" stroke="#c08a3a" stroke-width="2"/><ellipse cx="20" cy="14" rx="5" ry="1.8" fill="none" stroke="#c08a3a" stroke-width="2"/><circle cx="20" cy="7" r="4" fill="${c}"/><path d="M26 3l-3 5h3l-3 5" stroke="#fff" stroke-width="1.3" fill="none"/>`,
-    rail: `<rect x="15" y="17" width="10" height="9" rx="2" fill="#9aa6b2"/><rect x="17" y="1" width="2" height="18" fill="#c9d2da"/><rect x="21" y="1" width="2" height="18" fill="#c9d2da"/>${[5, 10, 15].map((y) => `<rect x="15.5" y="${y}" width="9" height="2" rx="1" fill="${c}"/>`).join('')}`,
-  };
-  return `<svg viewBox="0 0 40 40" aria-hidden="true">${heads[type]}${body}</svg>`;
-}
 
 export function mapArt(map) {
   const th = THEMES[map.theme];
@@ -25,11 +14,11 @@ export function mapArt(map) {
     const d = r.map(([x, z], i) => `${i ? 'L' : 'M'}${px(x).toFixed(1)} ${pz(z).toFixed(1)}`).join(' ');
     return `<path d="${d}" fill="none" stroke="${th.edge}" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/><path d="${d}" fill="none" stroke="${th.road[2]}" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join('');
-  const lava = th.lava ? '<circle cx="40" cy="20" r="7" fill="#ff5a1a"/><circle cx="262" cy="70" r="6" fill="#ff7a2a"/><circle cx="150" cy="40" r="4" fill="#ff5a1a"/>' : '';
+  const glow = th.pools?.glow ? [[40, 20, 7], [262, 70, 6], [150, 40, 4]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${th.pools.color}"/>`).join('') : '';
   const end = map.roads[0][map.roads[0].length - 1];
   return `<svg viewBox="0 0 300 84" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
     <defs><linearGradient id="g-${map.id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${th.groundB}"/><stop offset="1" stop-color="${th.groundA}"/></linearGradient></defs>
-    <rect width="300" height="84" fill="url(#g-${map.id})"/>${lava}${roads}
+    <rect width="300" height="84" fill="url(#g-${map.id})"/>${glow}${roads}
     <circle cx="${px(end[0])}" cy="${pz(end[1])}" r="6" fill="#58e1ff" stroke="#fff" stroke-width="1.5"/>
     ${map.roads.map((r) => `<circle cx="${px(r[0][0])}" cy="${pz(r[0][1])}" r="5" fill="#ff3355"/>`).join('')}
   </svg>`;
@@ -39,6 +28,7 @@ export const starsHtml = (n) => [0, 1, 2].map((i) => `<span class="${i < n ? 'on
 
 let handlers = {};
 let selectedMap = null;
+let openTurret = null;
 
 export function initMenu(h) {
   handlers = h;
@@ -77,7 +67,7 @@ export function renderMenu() {
         ${ms.unlocked ? `<div class="map-actions">
           <button class="btn primary" data-play="campaign">▶ PLAY</button>
           <button class="btn" data-play="endless" ${ms.cleared ? '' : 'disabled'} title="${ms.cleared ? '' : 'Clear the map first'}">∞ ENDLESS</button>
-        </div>` : `<div class="lock-note">🔒 Clear ${prev.name} to unlock</div>`}
+        </div>` : `<div class="lock-note">${uiIcon('lock')} Clear ${prev.name} to unlock</div>`}
       </div>`;
     card.addEventListener('click', (ev) => {
       if (!ms.unlocked) return;
@@ -90,21 +80,24 @@ export function renderMenu() {
     maps.append(card);
   });
 
-  // armory: turrets
+  // armory: turrets (tap a card to preview its upgrade tree)
   const at = $('arm-turrets');
   at.innerHTML = '';
   for (const id of TURRET_ORDER) {
     const t = TURRETS[id];
     const owned = !!P.unlocked[id];
     const card = document.createElement('div');
-    card.className = `card${owned ? ' owned' : ''}`;
-    card.innerHTML = `<div class="t-icon">${turretIcon(id)}</div>
+    card.className = `card turret-card${owned ? ' owned' : ''}${openTurret === id ? ' expanded' : ''}`;
+    card.innerHTML = `<div class="card-row"><div class="t-icon">${turretIcon(id)}</div>
       <div class="c-main"><div class="c-name">${t.name}</div><div class="c-desc">${t.desc}</div>
-      <div class="c-stat">${t.cost} gold · range ${t.range} m</div></div>
-      ${owned ? '' : `<button class="btn ${P.tp >= t.unlockTP ? 'primary' : ''}" ${P.tp >= t.unlockTP ? '' : 'disabled'}><span class="ico tp sm"></span>${t.unlockTP}</button>`}`;
-    card.querySelector('button')?.addEventListener('click', () => {
+      <div class="c-stat">${t.cost} gold · range ${t.range} m · ${openTurret === id ? 'hide tree ▲' : 'upgrade tree ▼'}</div></div>
+      ${owned ? '' : `<button class="btn ${P.tp >= t.unlockTP ? 'primary' : ''}" ${P.tp >= t.unlockTP ? '' : 'disabled'}><span class="ico tp sm"></span>${t.unlockTP}</button>`}</div>
+      ${openTurret === id ? `<div class="mini-tree">${TREES[id].map((b) => `<div class="mt-branch" style="--bc:${b.color}"><b>${b.name}</b>${b.nodes.map((n, i) => `<span class="${i === 4 ? 'ult' : ''}">${i === 4 ? '★ ' : ''}${n.name}<em>${n.desc}</em></span>`).join('')}</div>`).join('')}</div>` : ''}`;
+    card.querySelector('button')?.addEventListener('click', (ev) => {
+      ev.stopPropagation();
       if (unlockTurret(id)) { handlers.bought?.(); renderMenu(); }
     });
+    card.addEventListener('click', () => { openTurret = openTurret === id ? null : id; renderMenu(); });
     at.append(card);
   }
 
@@ -117,9 +110,9 @@ export function renderMenu() {
     const cost = perkCost(pk.id);
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `<div class="c-main"><div class="c-name">${pk.name}</div><div class="c-desc">${pk.desc} per level</div>
+    card.innerHTML = `<div class="card-row"><div class="c-main"><div class="c-name">${pk.name}</div><div class="c-desc">${pk.desc} per level</div>
       <div class="pips">${Array.from({ length: pk.max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div></div>
-      ${maxed ? '<span class="lock-note">MAX</span>' : `<button class="btn ${P.tp >= cost ? 'primary' : ''}" ${P.tp >= cost ? '' : 'disabled'}><span class="ico tp sm"></span>${cost}</button>`}`;
+      ${maxed ? '<span class="lock-note">MAX</span>' : `<button class="btn ${P.tp >= cost ? 'primary' : ''}" ${P.tp >= cost ? '' : 'disabled'}><span class="ico tp sm"></span>${cost}</button>`}</div>`;
     card.querySelector('button')?.addEventListener('click', () => {
       if (buyPerk(pk.id)) { handlers.bought?.(); renderMenu(); }
     });

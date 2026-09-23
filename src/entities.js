@@ -1,5 +1,6 @@
 // Procedural low-poly assets: twin-cannon turret and the three enemy archetypes.
 import * as THREE from 'three';
+import { ENEMIES } from './config.js';
 
 const matCache = new Map();
 function mat(color, opts = {}) {
@@ -107,7 +108,64 @@ function headRail(pitch, M) {
   return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 3.3)], cam: [0, 0.45, 0.25], coils };
 }
 
-const HEADS = { cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail };
+function headSniper(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.7, 0.42, 1.0), M.steelDark, 0, 0, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.05, 0.07, 3.0, 8), M.steelLight, 0, 0.05, 1.8);
+  part(holder, cyl(0.1, 0.1, 0.3, 8), M.steelDark, 0, 0.05, 3.3);
+  part(holder, cyl(0.1, 0.1, 0.75, 10), M.steelDark, 0, 0.3, 0.35);
+  part(holder, cyl(0.075, 0.075, 0.02, 10), glow('#8fe3ff'), 0, 0.3, 0.73, false);
+  part(holder, new THREE.BoxGeometry(0.12, 0.3, 0.9), M.band, 0, -0.2, 0.1);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.05, 3.5)], cam: [0, 0.3, 0.05] };
+}
+
+function headCryo(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.9, 0.55, 0.9), M.steelDark, 0, 0, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  const crystal = new THREE.ConeGeometry(0.2, 1.3, 6);
+  crystal.rotateX(Math.PI / 2);
+  part(holder, crystal, glow('#bff0ff'), 0, 0, 1.15, false);
+  for (let i = 0; i < 3; i++) part(holder, new THREE.TorusGeometry(0.26, 0.05, 6, 12), M.band, 0, 0, 0.55 + i * 0.3);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.85)], cam: [0, 0.58, 0.05] };
+}
+
+function headFlame(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.85, 0.5, 0.9), M.steelDark, 0, 0, -0.05);
+  for (const sx of [-0.62, 0.62]) {
+    const tank = part(pitch, new THREE.CylinderGeometry(0.2, 0.2, 0.9, 10), mat('#b8321a', { metalness: 0.4, roughness: 0.4 }), sx, 0.05, -0.15);
+    tank.rotation.x = Math.PI / 2;
+  }
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.1, 0.14, 1.1, 8), M.steelLight, 0, 0, 0.8);
+  part(holder, cyl(0.17, 0.12, 0.25, 8), M.band, 0, 0, 1.4);
+  part(holder, new THREE.SphereGeometry(0.06, 6, 4), glow('#4fa0ff'), 0, -0.12, 1.5, false);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.6)], cam: [0, 0.6, 0.05] };
+}
+
+function headMortar(pitch, M) {
+  part(pitch, new THREE.CylinderGeometry(0.55, 0.6, 0.45, 10), M.steelDark, 0, -0.1, 0);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, cyl(0.26, 0.3, 1.4, 12), M.steel, 0, 0.1, 0.55);
+  part(holder, cyl(0.3, 0.3, 0.14, 12), M.band, 0, 0.1, 1.2);
+  part(holder, cyl(0.2, 0.2, 0.02, 12), mat('#111111'), 0, 0.1, 1.28);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.1, 1.35)], cam: [0, 1.0, -0.9] };
+}
+
+function headLaser(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(0.9, 0.55, 0.9), M.steelDark, 0, 0, -0.05);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  part(holder, new THREE.BoxGeometry(0.34, 0.34, 1.1), M.steelLight, 0, 0, 0.7);
+  part(holder, new THREE.TorusGeometry(0.3, 0.06, 6, 16), M.band, 0, 0, 1.25);
+  const lens = part(holder, new THREE.CircleGeometry(0.2, 16), glow('#ff9ac0'), 0, 0, 1.27, false);
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0, 1.35)], cam: [0, 0.82, -0.35], lens };
+}
+
+const HEADS = { cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
 export function createTurret(type, color) {
   const root = new THREE.Group();
@@ -141,9 +199,9 @@ export function createTurret(type, color) {
 
   // Level pips on the back of the torso
   const pips = [];
-  for (let i = 0; i < 3; i++) {
-    const pip = part(yaw, new THREE.BoxGeometry(0.22, 0.14, 0.06), glow('#ffd24a'), (i - 1) * 0.32, 0.95, -0.79, false);
-    pip.visible = i === 0;
+  for (let i = 0; i < 5; i++) {
+    const pip = part(yaw, new THREE.BoxGeometry(0.2, 0.14, 0.06), glow('#ffd24a'), (i - 2) * 0.27, 0.95, -0.79, false);
+    pip.visible = false;
     pips.push(pip);
   }
 
@@ -161,31 +219,25 @@ export function createTurret(type, color) {
 
   return {
     type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor,
-    spinner: head.spinner, orb: head.orb, coils: head.coils, spin: 0, pips,
-    yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null, level: 1, invested: 0,
+    spinner: head.spinner, orb: head.orb, coils: head.coils, lens: head.lens, spin: 0, pips,
+    yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null, picks: [0, 0, 0], invested: 0, beamT: 0, beamTarget: null,
   };
 }
 
-export function setTurretLevel(t, level) {
-  t.level = level;
-  t.pips.forEach((p, i) => { p.visible = i < level; });
-  const s = 1 + (level - 1) * 0.07;
-  t.root.scale.setScalar(s);
+/** Visual rank from the number of bought upgrades (0-10). */
+export function setTurretRank(t, n) {
+  const lit = Math.ceil(n / 2);
+  t.pips.forEach((p, i) => { p.visible = i < lit; });
+  t.root.scale.setScalar(1 + n * 0.018);
 }
 
 /* ----------------------------------------------------------------- Enemies */
 
-export const ENEMY_TYPES = {
-  scout: { hp: 40, speed: 4.4, reward: 15, damage: 5, radius: 0.75, centerY: 0.55, barY: 1.5, barW: 1.2, wpR: 0.3, lateral: 0.8 },
-  heavy: { hp: 260, speed: 1.9, reward: 40, damage: 15, radius: 1.45, centerY: 0.85, barY: 2.5, barW: 2.0, wpR: 0.42, lateral: 0.45 },
-  boss: { hp: 2600, speed: 1.1, reward: 300, damage: 60, radius: 2.9, centerY: 2.0, barY: 6.2, barW: 4.2, wpR: 0.95, lateral: 0 },
-};
-
-function buildScout() {
+function buildScout(color = '#c7d43a') {
   const g = new THREE.Group();
   const body = new THREE.Group();
   g.add(body);
-  const shell = mat('#c7d43a', { metalness: 0.1, roughness: 0.5 });
+  const shell = mat(color, { metalness: 0.1, roughness: 0.5 });
   const dark = mat('#39402a', { metalness: 0.2 });
   const b = part(body, new THREE.IcosahedronGeometry(0.55, 0), shell, 0, 0.55, 0);
   b.scale.set(1, 0.6, 1.35);
@@ -208,7 +260,7 @@ function buildScout() {
     legs.push({ pivot, phase: i * 1.7 + (side > 0 ? Math.PI : 0) });
   }
   const wp = part(body, new THREE.SphereGeometry(0.22, 8, 6), glow('#ff4a2a'), 0, 0.86, -0.3, false);
-  return { g, body, legs, wp };
+  return { g, body, legs, wp, gait: 'crawl' };
 }
 
 function buildHeavy() {
@@ -234,7 +286,93 @@ function buildHeavy() {
   part(tur, gunGeo, tread, 0, 0.05, 1.0);
   part(body, new THREE.BoxGeometry(0.9, 0.3, 0.5), tread, 0, 1.1, -1.05);
   const wp = part(body, new THREE.SphereGeometry(0.3, 8, 6), glow('#ff8a1a'), 0, 1.02, -1.3, false);
-  return { g, body, legs: [], wp, tur };
+  return { g, body, legs: [], wp, tur, gait: 'tank' };
+}
+
+function buildDrone() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const shell = mat('#9aa6b2', { metalness: 0.6, roughness: 0.35 });
+  const dark = mat('#2e343c', { metalness: 0.6 });
+  const pod = part(body, new THREE.SphereGeometry(0.42, 10, 8), shell, 0, 3.4, 0);
+  pod.scale.set(1, 0.6, 1.3);
+  part(body, new THREE.SphereGeometry(0.1, 6, 4), glow('#ff3b3b'), 0, 3.35, 0.52, false);
+  const legs = [];
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    const arm = part(body, new THREE.BoxGeometry(0.9, 0.06, 0.1), dark, Math.cos(a) * 0.45, 3.45, Math.sin(a) * 0.45);
+    arm.rotation.y = -a;
+    const rotor = new THREE.Group();
+    rotor.position.set(Math.cos(a) * 0.9, 3.55, Math.sin(a) * 0.9);
+    body.add(rotor);
+    part(rotor, new THREE.BoxGeometry(0.7, 0.02, 0.08), mat('#d0d6dc'), 0, 0, 0, false);
+    part(rotor, new THREE.BoxGeometry(0.08, 0.02, 0.7), mat('#d0d6dc'), 0, 0, 0, false);
+    legs.push({ pivot: rotor, phase: i });
+  }
+  const wp = part(body, new THREE.BoxGeometry(0.22, 0.14, 0.3), glow('#ffd24a'), 0, 3.66, -0.1, false);
+  return { g, body, legs, wp, gait: 'fly' };
+}
+
+function buildShield() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const plate = mat('#3a6a8a', { metalness: 0.5, roughness: 0.4 });
+  const dark = mat('#1e2a36', { metalness: 0.5 });
+  part(body, new THREE.BoxGeometry(1.2, 0.9, 1.3), plate, 0, 1.0, 0);
+  part(body, new THREE.BoxGeometry(0.7, 0.45, 0.6), dark, 0, 1.6, 0.3);
+  part(body, new THREE.SphereGeometry(0.08, 6, 4), glow('#8fe3ff'), -0.15, 1.65, 0.62, false);
+  part(body, new THREE.SphereGeometry(0.08, 6, 4), glow('#8fe3ff'), 0.15, 1.65, 0.62, false);
+  const legs = [];
+  for (const sx of [-0.45, 0.45]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 0.7, 0);
+    body.add(pivot);
+    part(pivot, new THREE.BoxGeometry(0.3, 0.75, 0.35), dark, 0, -0.35, 0);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  // generator on the back = weak point
+  part(body, new THREE.CylinderGeometry(0.28, 0.28, 0.5, 10), dark, 0, 1.35, -0.75);
+  const wp = part(body, new THREE.SphereGeometry(0.26, 10, 8), glow('#4fe0ff'), 0, 1.35, -0.95, false);
+  const bubbleM = new THREE.MeshBasicMaterial({ color: '#5fd8ff', transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const bubble = new THREE.Mesh(new THREE.IcosahedronGeometry(1.55, 2), bubbleM);
+  bubble.position.y = 1.0;
+  body.add(bubble);
+  return { g, body, legs, wp, bubble, gait: 'walk' };
+}
+
+function buildCloak() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const cloth = new THREE.MeshStandardMaterial({ color: '#8aa0c8', flatShading: true, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.35 });
+  const robe = part(body, new THREE.ConeGeometry(0.6, 1.5, 7), cloth, 0, 0.75, 0);
+  robe.castShadow = false;
+  const head = part(body, new THREE.SphereGeometry(0.3, 8, 6), cloth, 0, 1.55, 0.05);
+  head.castShadow = false;
+  part(body, new THREE.SphereGeometry(0.06, 6, 4), glow('#e8f4ff'), -0.1, 1.58, 0.3, false);
+  part(body, new THREE.SphereGeometry(0.06, 6, 4), glow('#e8f4ff'), 0.1, 1.58, 0.3, false);
+  const wp = part(body, new THREE.OctahedronGeometry(0.2, 0), glow('#b6c8ff'), 0, 1.0, -0.42, false);
+  return { g, body, legs: [], wp, cloth, gait: 'glide' };
+}
+
+function buildSplitter() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const flesh = mat('#d46a3a', { metalness: 0.1, roughness: 0.6 });
+  const pod = mat('#c7d43a', { metalness: 0.1, roughness: 0.5 });
+  const core = part(body, new THREE.IcosahedronGeometry(0.75, 1), flesh, 0, 0.85, 0);
+  core.scale.set(1, 0.8, 1.1);
+  const legs = [];
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const n = part(body, new THREE.IcosahedronGeometry(0.34, 0), pod, Math.cos(a) * 0.72, 1.05, Math.sin(a) * 0.72);
+    legs.push({ pivot: n, phase: i * 2 });
+  }
+  const wp = part(body, new THREE.SphereGeometry(0.25, 8, 6), glow('#ffea4a'), 0, 1.55, 0, false);
+  return { g, body, legs, wp, gait: 'pulse' };
 }
 
 function buildBoss() {
@@ -273,35 +411,64 @@ function buildBoss() {
   const wp = part(body, new THREE.DodecahedronGeometry(0.9, 0), glow('#c64dff'), 0, 3.55, 0.6, false);
   const cage = part(body, new THREE.TorusGeometry(1.05, 0.08, 6, 12), plate, 0, 3.55, 0.6);
   cage.rotation.x = Math.PI / 2;
-  return { g, body, legs, wp };
+  return { g, body, legs, wp, gait: 'stomp' };
 }
 
-const BUILDERS = { scout: buildScout, heavy: buildHeavy, boss: buildBoss };
+const BUILDERS = {
+  scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
+  shield: buildShield, cloak: buildCloak, splitter: buildSplitter, boss: buildBoss,
+};
+
+const iceM = new THREE.MeshBasicMaterial({ color: '#bff0ff', transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false });
+const iceGeo = new THREE.IcosahedronGeometry(1, 0);
+
+function barMesh(w, h, color, z, order) {
+  const geo = new THREE.PlaneGeometry(w, h);
+  geo.translate(w / 2, 0, 0);
+  const m = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, toneMapped: false });
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(-w / 2, 0, z);
+  mesh.renderOrder = order;
+  return mesh;
+}
 
 export function createEnemy(type, hpMult = 1) {
-  const def = ENEMY_TYPES[type];
+  const def = ENEMIES[type];
   const parts = BUILDERS[type]();
   const maxHp = Math.round(def.hp * hpMult);
+  if (def.scale) parts.g.scale.setScalar(def.scale);
 
   // Billboard health bar (added to the scene separately so it never inherits enemy rotation)
   const bar = new THREE.Group();
-  const bgM = new THREE.MeshBasicMaterial({ color: '#0b0d10', transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false });
-  const fillM = new THREE.MeshBasicMaterial({ color: '#3ee07a', transparent: true, depthWrite: false, toneMapped: false });
   const h = type === 'boss' ? 0.32 : 0.18;
-  const bg = new THREE.Mesh(new THREE.PlaneGeometry(def.barW + 0.08, h + 0.08), bgM);
-  const fillGeo = new THREE.PlaneGeometry(def.barW, h);
-  fillGeo.translate(def.barW / 2, 0, 0);
-  const fill = new THREE.Mesh(fillGeo, fillM);
-  fill.position.set(-def.barW / 2, 0, 0.01);
-  bar.add(bg, fill);
-  bar.renderOrder = 10;
+  const bg = new THREE.Mesh(new THREE.PlaneGeometry(def.barW + 0.08, h + 0.08),
+    new THREE.MeshBasicMaterial({ color: '#0b0d10', transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }));
   bg.renderOrder = 10;
-  fill.renderOrder = 11;
+  const fill = barMesh(def.barW, h, '#3ee07a', 0.01, 11);
+  bar.add(bg, fill);
+  let shieldFill = null;
+  if (def.shield) {
+    shieldFill = barMesh(def.barW, h * 0.55, '#5fd8ff', 0.02, 12);
+    shieldFill.position.y = h * 0.5 + 0.06;
+    bar.add(shieldFill);
+  }
+  bar.renderOrder = 10;
 
+  // Ice shell shown while frozen
+  const ice = new THREE.Mesh(iceGeo, iceM);
+  ice.scale.setScalar(def.radius * 1.05);
+  ice.position.y = def.centerY / (def.scale || 1);
+  ice.visible = false;
+  parts.g.add(ice);
+
+  const shield = def.shield ? Math.round(def.shield * hpMult) : 0;
   return {
-    type, def, group: parts.g, body: parts.body, legs: parts.legs, wp: parts.wp, tur: parts.tur,
-    bar, fill, fillM, hp: maxHp, maxHp, s: 0, lateral: (Math.random() * 2 - 1) * def.lateral,
-    alive: true, anim: Math.random() * 10, flash: 0, slowT: 0, speedMult: 1, path: null,
+    type, def, group: parts.g, body: parts.body, legs: parts.legs, wp: parts.wp, tur: parts.tur, gait: parts.gait,
+    bubble: parts.bubble || null, cloth: parts.cloth || null, ice,
+    bar, fill, fillM: fill.material, shieldFill, hp: maxHp, maxHp, shield, maxShield: shield, shieldIdle: 0,
+    s: 0, lateral: (Math.random() * 2 - 1) * def.lateral,
+    alive: true, anim: Math.random() * 10, flash: 0, speedMult: 1, path: null,
+    slowT: 0, slowAmt: 0, stunT: 0, frozen: false, burnT: 0, burnDps: 0, shredT: 0, shredAmt: 0, revealT: 0,
     center: new THREE.Vector3(), wpWorld: new THREE.Vector3(), vel: new THREE.Vector3(),
   };
 }

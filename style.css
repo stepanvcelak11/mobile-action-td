@@ -194,10 +194,9 @@ body.fpv #top-ui > *, body.sheet-open #top-ui > * { pointer-events: none; }
 .sheet-row.actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
 .sheet-title { font-weight: 800; font-size: 16px; }
 .sheet-sub { color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.35; min-height: 17px; }
-.opts { display: flex; gap: 6px; margin: 10px 0 6px; overflow-x: auto; padding-bottom: 2px; touch-action: pan-x; }
+.opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0 6px; }
 .opt {
-  flex: 1 0 58px;
-  min-width: 58px;
+  min-width: 0;
   border: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
@@ -501,7 +500,7 @@ body.mouse.fpv:not(.locked) #lock-hint { display: block; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .card {
-  display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px;
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px;
   background: var(--panel-solid); border: 1px solid var(--panel-border);
 }
 .card .c-main { flex: 1; min-width: 0; }
@@ -513,3 +512,163 @@ body.mouse.fpv:not(.locked) #lock-hint { display: block; }
 .pips { display: flex; gap: 3px; margin-top: 5px; }
 .pips i { width: 16px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); }
 .pips i.on { background: linear-gradient(90deg, #7ff0ff, #3a8dff); }
+
+/* ================= v3 additions ================= */
+.icon-btn svg { width: 26px; height: 26px; }
+.icon-btn.sm svg { width: 18px; height: 18px; }
+.icon-btn.sm small { font-size: 7.5px; margin-top: 1px; }
+.icon-btn { width: 54px; height: 54px; border-radius: 15px; }
+#hud-left .icon-btn { width: 42px; height: 42px; }
+.x-btn svg { width: 18px; height: 18px; display: block; }
+.o-cost svg, .lock-note svg { width: 13px; height: 13px; }
+.lock-note { display: inline-flex; align-items: center; gap: 4px; }
+
+/* abilities */
+#abilities {
+  position: fixed; left: calc(8px + var(--sal)); top: 50%; transform: translateY(-50%);
+  display: none; flex-direction: column; gap: 10px; z-index: 11;
+}
+body.ingame #abilities { display: flex; }
+.ability {
+  --cd: 0deg;
+  position: relative; width: 58px; height: 58px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2); background: rgba(13, 17, 23, 0.75);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  overflow: hidden;
+}
+.ability svg { width: 30px; height: 30px; position: relative; z-index: 1; }
+.ability small { position: relative; z-index: 1; font-size: 7.5px; font-weight: 900; letter-spacing: 0.1em; color: var(--muted); margin-top: -1px; }
+.ability::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(rgba(0, 0, 0, 0.72) var(--cd), transparent 0);
+}
+.ability.ready { border-color: rgba(255, 207, 90, 0.8); box-shadow: 0 0 16px rgba(255, 180, 60, 0.4); }
+.ability.ready small { color: #ffd24a; }
+.ability.armed { border-color: #ff4a2a; box-shadow: 0 0 22px rgba(255, 74, 42, 0.8); animation: blink 0.5s steps(2) infinite; }
+body.targeting #game { cursor: crosshair; }
+
+/* wave preview */
+#wave-preview {
+  display: none; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
+  background: rgba(0, 0, 0, 0.5); pointer-events: none;
+}
+#wave-preview.show { display: flex; }
+.wp-lbl { font-size: 10px; font-weight: 900; letter-spacing: 0.14em; color: var(--muted); }
+.wp-e { display: inline-flex; align-items: center; gap: 1px; font-size: 12px; }
+.wp-e svg { width: 24px; height: 24px; }
+.wp-e.boss b { color: #ff7a7a; }
+
+/* turret / upgrade sheet */
+.sheet.wide { width: min(620px, calc(100vw - 16px)); max-height: calc(100vh - 24px - var(--sat) - var(--sab)); overflow-y: auto; touch-action: pan-y; }
+.sheet-row.actions.three .btn { font-size: 12px; }
+.tree-note { color: var(--muted); font-size: 11px; margin: 8px 0 6px; text-align: center; }
+#tree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.branch { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.b-name { font-size: 11px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bc); text-align: center; padding: 2px 0 3px; border-bottom: 2px solid var(--bc); }
+.node {
+  position: relative; text-align: left; border-radius: 10px; padding: 5px 6px 5px 22px; min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.03);
+  display: flex; flex-direction: column; gap: 1px; cursor: default; color: var(--muted);
+}
+.node .n-tier { position: absolute; left: 5px; top: 5px; font-size: 11px; font-weight: 900; color: var(--muted); }
+.node .n-name { font-size: 11.5px; font-weight: 800; color: #c9d3dd; line-height: 1.15; }
+.node .n-desc { font-size: 10px; line-height: 1.2; }
+.node .n-cost { font-size: 11px; font-weight: 900; color: var(--accent-2); display: inline-flex; align-items: center; gap: 3px; margin-top: 2px; }
+.node .n-cost.owned { color: var(--good); }
+.node .n-cost.why { color: var(--muted); font-size: 9.5px; }
+.node.owned { border-color: var(--bc); background: rgba(255, 255, 255, 0.09); }
+.node.owned .n-tier, .node.owned .n-name { color: #fff; }
+.node.next { cursor: pointer; border-color: rgba(255, 207, 90, 0.7); background: rgba(255, 207, 90, 0.08); animation: nodepulse 1.6s ease-in-out infinite; }
+.node.next.poor { animation: none; border-color: rgba(255, 255, 255, 0.15); }
+.node.next.poor .n-cost { color: var(--danger); }
+.node.next:active { transform: scale(0.97); }
+.node.ult { border-style: dashed; }
+.node.ult .n-tier { color: #ffd24a; }
+@keyframes nodepulse { 50% { box-shadow: 0 0 12px rgba(255, 207, 90, 0.35); } }
+@media (max-width: 420px) {
+  .node { padding-left: 18px; min-height: 46px; }
+  .node .n-desc { display: none; }
+  .node.next .n-desc { display: block; }
+}
+
+/* FPV markers above other turrets / pads */
+#markers { position: absolute; inset: 0; pointer-events: none; }
+.marker {
+  position: absolute; left: 0; top: 0; width: 44px; height: 44px; padding: 3px; border-radius: 12px;
+  border: 2px solid rgba(62, 224, 122, 0.85); background: rgba(13, 17, 23, 0.72);
+  display: none; cursor: pointer; pointer-events: auto;
+}
+body.markers-on .marker { display: block; }
+.marker svg { width: 100%; height: 100%; display: block; }
+.marker i {
+  position: absolute; right: -6px; bottom: -6px; min-width: 18px; height: 18px; border-radius: 9px;
+  background: #ffd24a; color: #1b0d00; font-style: normal; font-size: 11px; font-weight: 900; line-height: 18px; text-align: center;
+}
+.marker.pad { border-color: rgba(57, 213, 255, 0.8); border-radius: 50%; background: transparent; }
+.marker.pad.poor { opacity: 0.45; }
+.marker::after {
+  content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -5px; border: 5px solid transparent; border-top-color: rgba(62, 224, 122, 0.85);
+}
+.marker.pad::after { display: none; }
+
+/* combo, ramp, rangefinder, tip */
+#combo {
+  position: absolute; left: 50%; top: calc(64% - 10px); transform: translateX(-50%);
+  font-size: 13px; font-weight: 900; letter-spacing: 0.12em; color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+  opacity: 0; transition: opacity 0.2s ease; text-align: center; pointer-events: none; white-space: nowrap;
+}
+#combo b { font-size: 22px; color: #ffd24a; }
+#combo small { display: block; font-size: 10px; letter-spacing: 0.08em; color: var(--accent-2); }
+#combo.show { opacity: 1; }
+#combo.pop { animation: combopop 0.18s ease-out; }
+@keyframes combopop { from { transform: translateX(-50%) scale(1.25); } to { transform: translateX(-50%) scale(1); } }
+#ramp, #rangefinder {
+  position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%);
+  font-size: 12px; font-weight: 900; color: #ff9ac0; text-shadow: 0 1px 4px #000; display: none; pointer-events: none;
+}
+#rangefinder { color: #8fe3ff; top: calc(50% + 30px); }
+body[data-weapon="laser"] #ramp { display: block; }
+body[data-weapon="sniper"] #rangefinder, body[data-weapon="mortar"] #rangefinder, body[data-weapon="rail"] #rangefinder { display: block; }
+#scope .mil { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+body[data-weapon="sniper"] #scope .mil::before {
+  content: ""; position: absolute; left: -1px; top: 10px; width: 2px; height: 90px;
+  background: repeating-linear-gradient(180deg, rgba(143, 227, 255, 0.8) 0 2px, transparent 2px 18px);
+}
+
+#tip {
+  position: fixed; left: 50%; top: calc(110px + var(--sat)); transform: translate(-50%, -20px);
+  width: min(460px, calc(100vw - 24px)); display: flex; gap: 10px; align-items: center;
+  background: rgba(13, 17, 23, 0.92); border: 1px solid rgba(255, 207, 90, 0.5); border-radius: 14px; padding: 10px 12px;
+  z-index: 13; opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease;
+}
+#tip.show { opacity: 1; transform: translate(-50%, 0); }
+#tip .tip-ico { width: 44px; height: 44px; flex: none; }
+#tip .tip-ico svg { width: 100%; height: 100%; }
+#tip b { display: block; font-size: 12px; letter-spacing: 0.1em; color: var(--accent-2); }
+#tip span { font-size: 12.5px; color: #c9d3dd; line-height: 1.35; }
+
+.floaty.big { font-size: 20px; color: #fff; letter-spacing: 0.08em; }
+.floaty.miss { color: #ff7a7a; }
+
+/* armory cards */
+.card-row { display: flex; gap: 10px; align-items: center; }
+.turret-card { cursor: pointer; }
+.turret-card.expanded { grid-column: 1 / -1; }
+.mini-tree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mt-branch { display: flex; flex-direction: column; gap: 4px; }
+.mt-branch b { color: var(--bc); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 2px solid var(--bc); padding-bottom: 2px; }
+.mt-branch span { font-size: 11.5px; font-weight: 700; color: #c9d3dd; }
+.mt-branch span.ult { color: #ffd24a; }
+.mt-branch em { display: block; font-style: normal; font-weight: 400; font-size: 10.5px; color: var(--muted); }
+
+@media (orientation: portrait) {
+  .icon-btn { width: 48px; height: 48px; }
+  .icon-btn svg { width: 22px; height: 22px; }
+  .ability { width: 50px; height: 50px; }
+  .ability svg { width: 26px; height: 26px; }
+  #abilities { top: auto; bottom: calc(200px + var(--sab)); transform: none; }
+}
+@media (max-height: 430px) and (orientation: landscape) {
+  .icon-btn { width: 44px; height: 44px; }
+  .ability { width: 46px; height: 46px; }
+}

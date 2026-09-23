@@ -20,8 +20,8 @@
   <!-- In-game HUD -->
   <div id="hud">
     <div id="hud-left">
-      <button id="btn-pause" class="icon-btn" aria-label="Pause">❚❚</button>
-      <button id="btn-speed" class="icon-btn" aria-label="Game speed">1×</button>
+      <button id="btn-pause" class="icon-btn sm" aria-label="Pause"></button>
+      <button id="btn-speed" class="icon-btn sm" aria-label="Game speed"></button>
     </div>
     <div id="hud-pills">
       <div class="pill" id="hud-gold"><span class="ico gold"></span><b id="gold">150</b></div>
@@ -35,13 +35,19 @@
     </div>
   </div>
 
+  <div id="abilities">
+    <button id="ab-strike" class="ability" aria-label="Airstrike"></button>
+    <button id="ab-emp" class="ability" aria-label="EMP"></button>
+  </div>
+
   <div id="top-ui">
-    <div id="hint">Tap a glowing pad to build · Tap a turret to control or upgrade it</div>
+    <div id="wave-preview"></div>
+    <div id="hint">Tap a glowing pad to build · Tap a turret to upgrade or control it</div>
     <button id="start-wave" class="btn primary">START WAVE 1</button>
   </div>
 
   <div id="build-card" class="sheet">
-    <div class="sheet-head"><div class="sheet-title">Build turret</div><button class="x-btn" data-close aria-label="Close">✕</button></div>
+    <div class="sheet-head"><div class="sheet-title">Build turret</div><button class="x-btn" data-close aria-label="Close"></button></div>
     <div id="build-options" class="opts"></div>
     <div id="build-desc" class="sheet-sub"></div>
     <div class="sheet-row actions">
@@ -49,7 +55,7 @@
     </div>
   </div>
 
-  <div id="turret-card" class="sheet">
+  <div id="turret-card" class="sheet wide">
     <div class="sheet-head">
       <div class="sheet-row">
         <div id="tc-icon" class="t-icon"></div>
@@ -58,34 +64,41 @@
           <div class="sheet-sub" id="tc-stats"></div>
         </div>
       </div>
-      <button class="x-btn" data-close aria-label="Close">✕</button>
+      <button class="x-btn" data-close aria-label="Close"></button>
     </div>
     <div class="sheet-row actions three">
       <button id="tc-sell" class="btn ghost">SELL</button>
-      <button id="tc-upgrade" class="btn">UPGRADE</button>
+      <button id="tc-target" class="btn ghost">TARGET: FIRST</button>
       <button id="tc-control" class="btn primary">▶ CONTROL</button>
     </div>
+    <div class="tree-note">Pick up to 10 upgrades. Only one branch can reach tiers 4 and ★.</div>
+    <div id="tree"></div>
   </div>
 
   <!-- FPV HUD -->
   <div id="fpv-ui">
-    <div id="aim-zone"><div class="zone-ring"></div><span class="zone-label">DRAG ANYWHERE HERE TO AIM</span></div>
+    <div id="aim-zone"><div class="zone-ring"></div><span class="zone-label">DRAG TO AIM · TAP A MARKER TO SWITCH</span></div>
+    <div id="markers"></div>
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><em></em></div>
-    <div id="scope"></div>
+    <div id="scope"><div class="mil"></div></div>
+    <div id="rangefinder"></div>
+    <div id="ramp">×1.0</div>
     <div id="hitmark"></div>
+    <div id="combo"></div>
     <div id="heat"><div class="heat-label"><span id="fpv-name">TWIN CANNON</span> · HEAT</div><div class="heat-bar"><div id="heat-fill"></div></div></div>
     <div id="fpv-corner">
-      <button id="exit-fpv" class="icon-btn" aria-label="Exit to top-down">⤢<small>MAP</small></button>
-      <button id="next-turret" class="icon-btn" aria-label="Next turret">⇄<small>NEXT</small></button>
-      <button id="fpv-wave" class="icon-btn up" aria-label="Start next wave">▶<small>WAVE</small></button>
-      <button id="fpv-upgrade" class="icon-btn up" aria-label="Upgrade turret">⬆<small id="fpv-up-cost">75</small></button>
+      <button id="exit-fpv" class="icon-btn" aria-label="Exit to top-down"></button>
+      <button id="next-turret" class="icon-btn" aria-label="Next turret"></button>
+      <button id="fpv-wave" class="icon-btn up" aria-label="Start next wave"></button>
+      <button id="fpv-upgrade" class="icon-btn up" aria-label="Upgrade turret"></button>
     </div>
     <button id="fire-btn">FIRE</button>
-    <div id="lock-hint">Click to lock mouse · Click to fire · Tab next turret · E exit</div>
+    <div id="lock-hint">Click to lock mouse · Click to fire · Tab next · U upgrades · Q strike · R EMP · E exit</div>
   </div>
 
   <div id="floaties"></div>
   <div id="banner"></div>
+  <div id="tip"></div>
   <div id="vignette"></div>
 
   <!-- Main menu -->
@@ -110,7 +123,7 @@
       </div>
       <div id="tab-maps" class="tabpage active"></div>
       <div id="tab-armory" class="tabpage">
-        <h3>Turrets <small>unlock with Tech points</small></h3>
+        <h3>Turrets <small>unlock with Tech points · tap to see the upgrade tree</small></h3>
         <div id="arm-turrets" class="grid"></div>
         <h3>Upgrades <small>permanent, every run</small></h3>
         <div id="arm-perks" class="grid"></div>

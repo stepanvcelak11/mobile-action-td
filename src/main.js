@@ -1,12 +1,14 @@
 // Serpent Line — hybrid 3D action tower defense (strategic top-down + turret FPV).
 import * as THREE from 'three';
 import { buildWorld } from './world.js';
-import { createTurret, createEnemy, setTurretLevel } from './entities.js';
+import { createTurret, createEnemy, setTurretRank } from './entities.js';
 import { Particles, Projectiles, Beams, AmbientFx } from './effects.js';
 import { sfx, unlockAudio } from './audio.js';
-import { TURRETS, TURRET_ORDER, UPGRADE, WEAK_MULT, MAPS, THEMES } from './config.js';
+import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, MAPS, THEMES } from './config.js';
+import { TREES, canBuy } from './trees.js';
 import { P, save, addXp, perk, recordResult, mapState, xpForLevel } from './progress.js';
-import { initMenu, renderMenu, selectMenuMap, turretIcon, starsHtml } from './ui.js';
+import { initMenu, renderMenu, selectMenuMap, starsHtml } from './ui.js';
+import { uiIcon, turretIcon, enemyIcon } from './icons.js';
 
 /* ------------------------------------------------------------------ Config */
 const CFG = {
@@ -20,8 +22,10 @@ const CFG = {
   heatRecover: 35,         // overheat unlocks below this
   touchSens: 0.0055,
   mouseSens: 0.0022,
+  mortarG: 16,
 };
 const STATE = { IDLE: 'IDLE', WAVE: 'WAVE_IN_PROGRESS', VICTORY: 'VICTORY', GAME_OVER: 'GAME_OVER' };
+const TARGET_MODES = ['first', 'strong', 'near'];
 
 const $ = (id) => document.getElementById(id);
 const V3 = THREE.Vector3;
@@ -43,7 +47,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color('#a9cfe8');
 scene.fog = new THREE.Fog('#a9cfe8', 70, 150);
 
-const camera = new THREE.PerspectiveCamera(CFG.topFov, window.innerWidth / window.innerHeight, 0.05, 400);
+const camera = new THREE.PerspectiveCamera(CFG.topFov, window.innerWidth / window.innerHeight, 0.05, 700);
 
 const ambient = new THREE.AmbientLight('#ffffff', 0.55);
 const hemi = new THREE.HemisphereLight('#cfe6ff', '#4a5a30', 0.7);
@@ -60,10 +64,37 @@ scene.add(sun);
 const muzzleLight = new THREE.PointLight('#ffb050', 0, 9, 2);
 scene.add(muzzleLight);
 
-const sparks = new Particles(scene, 1600, 0.28, true);
-const smoke = new Particles(scene, 700, 1.1, false);
+const sparks = new Particles(scene, 2200, 0.28, true);
+const smoke = new Particles(scene, 900, 1.1, false);
+const flames = new Particles(scene, 900, 0.7, true);
 const projectiles = new Projectiles(scene);
 const beams = new Beams(scene);
+
+// target markers (mortar landing ring, airstrike zone)
+const ringGeo = new THREE.RingGeometry(0.85, 1, 40);
+ringGeo.rotateX(-Math.PI / 2);
+const landRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffcf5a', transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
+landRing.visible = false;
+scene.add(landRing);
+const strikeRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ff4a2a', transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+strikeRing.visible = false;
+scene.add(strikeRing);
+const empRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.15, 8, 48), new THREE.MeshBasicMaterial({ color: '#8fe3ff', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+empRing.rotation.x = Math.PI / 2;
+empRing.visible = false;
+scene.add(empRing);
+const jet = new THREE.Group();
+{
+  const m = new THREE.MeshStandardMaterial({ color: '#6a7480', metalness: 0.6, roughness: 0.4, flatShading: true });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.45, 4, 6), m);
+  body.rotation.x = Math.PI / 2;
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.08, 1.2), m);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.8), m);
+  tail.position.set(0, 0.45, -1.6);
+  jet.add(body, wing, tail);
+  jet.visible = false;
+  scene.add(jet);
+}
 
 /* -------------------------------------------------------------- Game state */
 const G = {
@@ -77,6 +108,7 @@ const G = {
   wave: 0,
   enemies: [],
   queue: [],
+  nextQueue: null,
   spawnTimer: 0,
   spawnCount: 0,
   turrets: [],
@@ -98,10 +130,20 @@ const G = {
   xpEarned: 0,
   levelStart: 1,
   menuAngle: 0,
+  combo: 0,
+  stats: { shots: 0, hits: 0, weak: 0, bestCombo: 0 },
+  cd: { strike: 0, emp: 0 },
+  targeting: null,
+  fires: [],
+  timers: [],
+  seen: new Set(),
+  lastAim: 0,
+  sway: 0,
+  laser: { target: null, t: 0 },
 };
 let world = null;
-let fogBase = [70, 150];
 let weather = null;
+let fogBase = [70, 150];
 let pickables = [];
 
 /* ---------------------------------------------------------- Map & theme */
@@ -131,6 +173,7 @@ function loadMap(id) {
   world = buildWorld(map, th);
   scene.add(world.root);
   pickables = world.plots.map((p) => p.group);
+  buildMarkers();
 }
 
 function clearField() {
@@ -138,8 +181,11 @@ function clearField() {
   G.enemies = [];
   for (const t of G.turrets) { t.plot.group.remove(t.root); t.plot.turret = null; }
   G.turrets = [];
+  G.fires = [];
+  G.timers = [];
   projectiles.clear();
   beams.clear();
+  landRing.visible = strikeRing.visible = empRing.visible = jet.visible = false;
 }
 
 function resetGame(mode) {
@@ -147,14 +193,17 @@ function resetGame(mode) {
   closeSheets();
   clearField();
   Object.assign(G, {
-    state: STATE.IDLE, mode, wave: 0, queue: [], spawnTimer: 0, spawnCount: 0,
-    gold: CFG.startGold + 30 * perk('gold'), maxHp: CFG.baseHp + 25 * perk('armor'),
+    state: STATE.IDLE, mode, wave: 0, queue: [], nextQueue: null, spawnTimer: 0, spawnCount: 0,
+    gold: CFG.startGold + 60 * (G.map.roads.length - 1) + 25 * G.map.intro + 30 * perk('gold'), maxHp: CFG.baseHp + 25 * perk('armor'),
     heat: 0, overheated: false, fireHeld: false, fireCd: 0, spread: 0, shake: 0,
-    paused: false, speed: 1, kills: 0, xpEarned: 0, levelStart: P.level,
+    paused: false, speed: 1, kills: 0, xpEarned: 0, levelStart: P.level, combo: 0,
+    stats: { shots: 0, hits: 0, weak: 0, bestCombo: 0 }, cd: { strike: 0, emp: 0 }, targeting: null,
+    seen: new Set(),
   });
   G.baseHp = G.maxHp;
   if (!P.unlocked[G.buildType]) G.buildType = 'cannon';
-  $('btn-speed').textContent = '1×';
+  setSpeedIcon();
+  prepareNextWave();
   updateHud(true);
 }
 
@@ -229,7 +278,7 @@ function updateCamera(dt) {
     if (k >= 1) {
       if (G.view === 'TO_FPV') {
         G.view = 'FPV';
-        const scoped = G.active.type === 'rail';
+        const scoped = !!TURRETS[G.active.type].scope;
         document.body.classList.toggle('scope', scoped);
         G.active.pitchG.visible = !scoped;
       } else {
@@ -240,10 +289,18 @@ function updateCamera(dt) {
     }
     return;
   }
-  // FPV: glue the camera to the turret's anchor
+  // FPV: glue the camera to the turret's anchor (+ scope sway for snipers)
   anchorPose(G.active);
   camera.position.copy(_anchorPos);
   camera.quaternion.copy(_anchorQuat);
+  if (G.active.type === 'sniper') {
+    const st = G.active.stats;
+    const still = G.time - G.lastAim > 0.8;
+    const amp = 0.006 * (1 - (st.steady || 0)) * (still ? 0.3 : 1);
+    G.sway += dt;
+    camera.rotateY(Math.sin(G.sway * 0.9) * amp);
+    camera.rotateX(Math.sin(G.sway * 1.7) * amp * 0.7);
+  }
   if (G.shake > 0) {
     camera.position.x += (Math.random() - 0.5) * G.shake * 0.25;
     camera.position.y += (Math.random() - 0.5) * G.shake * 0.25;
@@ -258,15 +315,18 @@ function enterFPV(turret) {
   if (G.view === 'MENU' || G.state === STATE.GAME_OVER || G.state === STATE.VICTORY) return;
   if (G.active === turret && (G.view === 'FPV' || G.view === 'TO_FPV')) return;
   closeSheets();
+  releaseFire();
   if (G.active) { G.active.manual = false; G.active.pitchG.visible = true; }
   G.active = turret;
   turret.manual = true;
   G.heat = Math.min(G.heat, 50);
   G.overheated = false;
   G.fireCd = 0;
+  G.laser.target = null;
   G.view = 'TO_FPV';
   document.body.classList.add('fpv');
   document.body.classList.remove('scope');
+  document.body.dataset.weapon = turret.type;
   G.trans = snapshotTrans();
   $('fpv-name').textContent = TURRETS[turret.type].name.toUpperCase();
   sfx('whoosh');
@@ -278,6 +338,7 @@ function exitFPV() {
   if (document.pointerLockElement) document.exitPointerLock();
   document.body.classList.remove('fpv', 'scope');
   if (G.active) G.active.pitchG.visible = true;
+  landRing.visible = false;
   closeSheets();
   G.view = 'TO_TOP';
   G.trans = snapshotTrans();
@@ -289,6 +350,7 @@ function forceTopView() {
   document.body.classList.remove('fpv', 'scope');
   if (G.active) { G.active.manual = false; G.active.pitchG.visible = true; }
   G.active = null;
+  landRing.visible = false;
   G.view = 'TOP';
 }
 function nextTurret() {
@@ -301,16 +363,44 @@ function nextTurret() {
 /* ------------------------------------------------------------------- Waves */
 const totalWaves = () => (G.mode === 'endless' ? Infinity : G.map.waves);
 const isBossWave = (n) => (G.mode === 'endless' ? n % 5 === 0 || G.map.bosses.includes(n) : G.map.bosses.includes(n));
+const GAPS = { scout: 0.55, mini: 0.4, heavy: 1.3, drone: 0.5, shield: 1.4, cloak: 0.9, splitter: 1.2, boss: 3 };
+
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
+}
 
 function buildWave(n) {
-  const q = [];
-  const scouts = Math.min(4 + n * 2, 38);
-  let heavies = n < 2 ? 0 : Math.floor(n * 0.8);
-  for (let i = 0; i < scouts; i++) {
-    q.push({ type: 'scout', gap: Math.max(0.3, 0.6 - n * 0.015) + Math.random() * 0.4 });
-    if (heavies > 0 && i % 3 === 2) { q.push({ type: 'heavy', gap: 1.3 }); heavies--; }
+  const d = G.map.intro;
+  const rand = seeded(n * 7919 + d * 131 + (G.mode === 'endless' ? 99 : 0));
+  const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d) };
+  const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2 };
+  const avail = Object.keys(weights).filter((t) => t === 'scout' || n >= unlockAt[t]);
+  let budget = 4 + n * 3.6 + (n > 8 ? (n - 8) * 0.8 : 0) + d * 1.2 * Math.min(1, n / 6) + (G.mode === 'endless' && n > 20 ? (n - 20) * 2 : 0);
+  budget *= G.map.budget || 1;
+  const picks = [];
+  // the newest type of this wave always shows up at least twice so its tip makes sense
+  const newest = avail.filter((t) => unlockAt[t] === n);
+  for (const t of newest) { picks.push(t, t); budget -= ENEMIES[t].cost * 2; }
+  const total = avail.reduce((a, t) => a + weights[t], 0);
+  let guard = 0;
+  while (budget > 0 && guard++ < 400) {
+    let r = rand() * total, t = avail[0];
+    for (const k of avail) { r -= weights[k]; if (r <= 0) { t = k; break; } }
+    picks.push(t);
+    budget -= ENEMIES[t].cost;
   }
-  while (heavies-- > 0) q.push({ type: 'heavy', gap: 1.5 });
+  // group into squads of the same type for readable waves
+  const groups = {};
+  for (const t of picks) (groups[t] ||= []).push(t);
+  const order = Object.keys(groups).sort(() => rand() - 0.5);
+  const q = [];
+  while (order.some((t) => groups[t].length)) {
+    for (const t of order) {
+      const squad = groups[t].splice(0, 3 + Math.floor(rand() * 4));
+      for (const s of squad) q.push({ type: s, gap: GAPS[s] * (0.8 + rand() * 0.4) * Math.max(0.6, 1 - n * 0.015) });
+    }
+  }
   if (isBossWave(n)) {
     q.push({ type: 'boss', gap: 3 });
     if (n >= 15) q.push({ type: 'boss', gap: 3 });
@@ -318,28 +408,62 @@ function buildWave(n) {
   return q;
 }
 
+function prepareNextWave() {
+  G.nextQueue = G.wave < totalWaves() ? buildWave(G.wave + 1) : null;
+  renderWavePreview();
+}
+
+const earlyBonus = () => 10 + G.wave * 3;
+function canCallEarly() {
+  return G.state === STATE.WAVE && !G.queue.length && G.wave < totalWaves();
+}
+
 function startWave() {
-  if (G.state !== STATE.IDLE || G.view === 'MENU') return;
+  if (G.view === 'MENU') return;
+  const early = canCallEarly();
+  if (G.state !== STATE.IDLE && !early) return;
+  if (early) {
+    const b = earlyBonus();
+    G.gold += b;
+    floatyScreen(`EARLY CALL +${b}`);
+  }
   G.wave++;
   G.state = STATE.WAVE;
-  G.queue = buildWave(G.wave);
+  G.queue = G.nextQueue || buildWave(G.wave);
   G.spawnTimer = 0.4;
+  prepareNextWave();
   banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? '⚠ BOSS INCOMING ⚠' : `${G.queue.length} hostiles`);
   sfx('wave');
   updateHud(true);
 }
 
-function spawnEnemy(type) {
-  const hpMult = G.map.hpScale * (1 + (G.wave - 1) * 0.13);
-  const e = createEnemy(type, hpMult);
-  e.speedMult = 1 + Math.min(G.wave - 1, 14) * 0.025;
-  e.path = world.paths[G.spawnCount++ % world.paths.length];
+function spawnEnemy(type, from) {
+  const hpMult = (1 + (G.map.hpScale - 1) * Math.min(1, G.wave / 6)) * (1 + (G.wave - 1) * 0.12) * (G.mode === 'endless' && G.wave > 20 ? 1 + (G.wave - 20) * 0.06 : 1);
+  const e = createEnemy(type, from ? from.hpMult : hpMult);
+  e.hpMult = from ? from.hpMult : hpMult;
+  e.speedMult = 1 + Math.min(G.wave - 1, 14) * 0.02;
+  if (from) {
+    e.path = from.path;
+    e.s = Math.max(0, from.s - Math.random() * 1.2);
+  } else {
+    e.path = world.paths[G.spawnCount++ % world.paths.length];
+  }
   scene.add(e.group);
   scene.add(e.bar);
   G.enemies.push(e);
   placeEnemy(e, 0);
-  sparks.emit(e.path.pts[0].clone().setY(2.3), '#ff3355', type === 'boss' ? 80 : 20, 6, 0.6, 4, 0.2);
-  if (type === 'boss') { banner('BOSS', 'Shoot the glowing core'); sfx('boom'); }
+  if (!from) {
+    sparks.emit(e.path.pts[0].clone().setY(2.3), '#ff3355', type === 'boss' ? 80 : 14, 6, 0.6, 4, 0.2);
+    if (type === 'boss') { banner('BOSS', 'Shoot the glowing core'); sfx('boom'); }
+    if (!G.seen.has(type)) {
+      G.seen.add(type);
+      if (ENEMY_TIPS[type] && !P.seen?.[type]) {
+        P.seen = { ...(P.seen || {}), [type]: true };
+        save();
+        showTip(type);
+      }
+    }
+  }
 }
 
 const _p = new V3(), _t = new V3(), _look = new V3();
@@ -352,46 +476,97 @@ function placeEnemy(e, dt) {
   _look.copy(e.group.position).add(_t);
   e.group.lookAt(_look);
   e.group.updateMatrixWorld(true);
-  e.center.copy(e.group.position).setY(e.def.centerY);
+  e.center.copy(e.group.position).setY(e.def.centerY + (e.gait === 'fly' ? e.body.position.y : 0));
   e.wp.getWorldPosition(e.wpWorld);
 }
 
 function updateEnemies(dt) {
   for (let i = G.enemies.length - 1; i >= 0; i--) {
     const e = G.enemies[i];
+    if (!e.alive) continue;
+    // statuses
     let slow = 1;
-    if (e.slowT > 0) { e.slowT -= dt; slow = e.type === 'boss' ? 0.75 : 0.55; }
+    if (e.slowT > 0) { e.slowT -= dt; slow = 1 - e.slowAmt * (e.type === 'boss' ? 0.5 : 1); if (e.slowT <= 0) e.slowAmt = 0; }
+    if (e.stunT > 0) {
+      e.stunT -= dt;
+      slow = 0;
+      if (e.stunT <= 0) { e.frozen = false; e.ice.visible = false; }
+      else if (!e.frozen && Math.random() < dt * 6) sparks.emit(e.center.clone().setY(e.center.y + 0.8), '#ffe14a', 1, 1.5, 0.3, -2, 0.5);
+    }
+    if (e.shredT > 0) { e.shredT -= dt; if (e.shredT <= 0) e.shredAmt = 0; }
+    if (e.revealT > 0) e.revealT -= dt;
+    if (e.burnT > 0) {
+      e.burnT -= dt;
+      applyRaw(e, e.burnDps * dt, null);
+      if (Math.random() < dt * 14) flames.emit(e.center, '#ff7a1a', 1, 1.2, 0.4, -3, 0.6);
+      if (!e.alive) continue;
+    }
+    if (e.maxShield) {
+      e.shieldIdle += dt;
+      if (e.shieldIdle > 3 && e.shield < e.maxShield) e.shield = Math.min(e.maxShield, e.shield + e.maxShield * 0.25 * dt);
+      e.bubble.visible = e.shield > 0;
+      e.bubble.material.opacity = 0.08 + 0.2 * (e.shield / e.maxShield) + (e.shieldHitT > 0 ? 0.25 : 0);
+      if (e.shieldHitT > 0) e.shieldHitT -= dt;
+    }
+    if (e.cloth) e.cloth.opacity = e.revealT > 0 ? 0.85 : 0.2 + 0.08 * Math.sin(G.time * 5 + i);
+
     const sp = e.def.speed * e.speedMult * slow;
     e.s += sp * dt;
-    e.anim += dt * sp * 2.2;
+    e.anim += dt * Math.max(sp, 0.2) * 2.2;
     if (e.s >= e.path.length) {
       damageBase(e.def.damage, e);
       removeEnemy(i);
       continue;
     }
     placeEnemy(e, dt);
-    if (e.type === 'scout') {
-      e.body.position.y = Math.abs(Math.sin(e.anim * 2)) * 0.08;
-      for (const l of e.legs) l.pivot.rotation.x = 0.55 + Math.sin(e.anim * 2 + l.phase) * 0.35;
-    } else if (e.type === 'heavy') {
-      e.body.position.y = Math.sin(e.anim * 4) * 0.02;
-      e.tur.rotation.y = Math.sin(e.anim * 0.3) * 0.6;
-    } else {
-      e.body.position.y = Math.sin(e.anim * 1.2) * 0.15;
-      for (const l of e.legs) l.pivot.rotation.x = Math.sin(e.anim * 1.2 + l.phase) * 0.35;
-      e.wp.rotation.y += dt * 2;
-      e.wp.rotation.x += dt * 1.3;
-    }
+    animateEnemy(e, dt, slow);
     if (e.flash > 0) {
       e.flash -= dt;
       e.body.scale.setScalar(1 + Math.max(0, e.flash) * 0.6);
     }
-    if (e.slowT > 0 && Math.random() < dt * 8) sparks.emit(e.center, '#b46bff', 1, 1.5, 0.4, -1, 0.5);
-    e.bar.position.set(e.group.position.x, e.def.barY + e.body.position.y, e.group.position.z);
+    if (e.slowT > 0 && !e.frozen && Math.random() < dt * 6) sparks.emit(e.center, '#8fe3ff', 1, 1.5, 0.4, -1, 0.5);
+    e.bar.position.set(e.group.position.x, e.def.barY + (e.gait === 'fly' ? e.body.position.y : 0), e.group.position.z);
     e.bar.quaternion.copy(camera.quaternion);
     const f = Math.max(0, e.hp / e.maxHp);
     e.fill.scale.x = Math.max(0.001, f);
     e.fillM.color.setHSL(f * 0.33, 0.85, 0.5);
+    if (e.shieldFill) {
+      e.shieldFill.visible = e.shield > 0;
+      e.shieldFill.scale.x = Math.max(0.001, e.shield / e.maxShield);
+    }
+  }
+}
+
+function animateEnemy(e, dt, slow) {
+  switch (e.gait) {
+    case 'crawl':
+      e.body.position.y = Math.abs(Math.sin(e.anim * 2)) * 0.08;
+      for (const l of e.legs) l.pivot.rotation.x = 0.55 + Math.sin(e.anim * 2 + l.phase) * 0.35 * slow;
+      break;
+    case 'tank':
+      e.body.position.y = Math.sin(e.anim * 4) * 0.02;
+      e.tur.rotation.y = Math.sin(e.anim * 0.3) * 0.6;
+      break;
+    case 'fly':
+      e.body.position.y = Math.sin(G.time * 2 + e.anim) * 0.25;
+      for (const l of e.legs) l.pivot.rotation.y += dt * 30;
+      break;
+    case 'walk':
+      e.body.position.y = Math.abs(Math.sin(e.anim * 1.6)) * 0.08;
+      for (const l of e.legs) l.pivot.rotation.x = Math.sin(e.anim * 1.6 + l.phase) * 0.5;
+      break;
+    case 'glide':
+      e.body.position.y = 0.15 + Math.sin(G.time * 3 + e.anim) * 0.1;
+      break;
+    case 'pulse':
+      e.body.scale.y = 1 + Math.sin(e.anim * 3) * 0.08;
+      for (const l of e.legs) l.pivot.position.y = 1.05 + Math.sin(e.anim * 3 + l.phase) * 0.1;
+      break;
+    default:
+      e.body.position.y = Math.sin(e.anim * 1.2) * 0.15;
+      for (const l of e.legs) l.pivot.rotation.x = Math.sin(e.anim * 1.2 + l.phase) * 0.35;
+      e.wp.rotation.y += dt * 2;
+      e.wp.rotation.x += dt * 1.3;
   }
 }
 
@@ -405,17 +580,80 @@ function removeEnemy(i) {
   G.enemies.pop();
 }
 
-function damageEnemy(e, amount, point, weak, manual) {
+/* ---------------------------------------------------------------- Damage */
+const NO_STATS = { weakMul: WEAK_MULT, crit: 0, bossDmg: 0, shatter: false, slow: 0, burn: 0, shred: 0, stun: 0, freeze: 0, execute: 0, bounty: 0 };
+
+/** Raw damage (burn ticks, fire zones): armor/shred and shields apply, no statuses. */
+function applyRaw(e, amount, st) {
   if (!e.alive) return;
-  e.hp -= amount;
+  let dmg = amount * (e.shredT > 0 ? 1 + e.shredAmt : 1 - (e.def.armor || 0));
+  if (e.shield > 0) {
+    const a = Math.min(e.shield, dmg);
+    e.shield -= a;
+    dmg -= a;
+    e.shieldIdle = 0;
+  }
+  e.hp -= dmg;
+  if (e.hp <= 0) killEnemy(e, e.center.clone(), st);
+}
+
+/** Main damage pipeline for weapon hits. */
+function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, point = e.center, quiet = false } = {}) {
+  if (!e.alive) return;
+  let dmg = base;
+  let crit = false;
+  if (weak) dmg *= st.weakMul;
+  if (st.crit && Math.random() < st.crit) { dmg *= 2; crit = true; }
+  if (e.type === 'boss') dmg *= 1 + (st.bossDmg || 0);
+  if (st.shatter && e.stunT > 0) dmg *= 1.5;
+  dmg *= e.shredT > 0 ? 1 + e.shredAmt : 1 - (e.def.armor || 0);
+  if (manual) dmg *= comboMult();
+  // shields: weak point pops them, otherwise they soak damage
+  if (e.shield > 0) {
+    if (weak) {
+      e.shield = 0;
+      sparks.emit(e.center, '#5fd8ff', 40, 9, 0.6, 4, 0.5);
+      if (manual) floaty(point, 'SHIELD DOWN', 'weak');
+      sfx('weak');
+    } else {
+      const a = Math.min(e.shield, dmg);
+      e.shield -= a;
+      dmg -= a;
+      e.shieldHitT = 0.1;
+      if (a > 0) sparks.emit(point, '#5fd8ff', 4, 4, 0.3, 4, 0.3);
+    }
+    e.shieldIdle = 0;
+  }
+  e.hp -= dmg;
   e.flash = 0.08;
-  sparks.emit(point, weak ? '#ffe14a' : manual ? '#ff7a3c' : '#ffc080', weak ? 16 : 6, weak ? 9 : 6, 0.35, 12, 0.3);
-  if (manual) {
+  e.revealT = Math.max(e.revealT, 2);
+  // statuses
+  if (st.slow) { e.slowT = Math.max(e.slowT, 1.5); e.slowAmt = Math.max(e.slowAmt, st.slow); }
+  if (st.burn) { e.burnT = 3; e.burnDps = Math.max(e.burnDps, st.burn * (manual ? 1.3 : 1)); }
+  if (st.shred) { e.shredT = 4; e.shredAmt = Math.max(e.shredAmt, 0.25 * st.shred); }
+  if (st.stun && Math.random() < st.stun) stunEnemy(e, 0.6, false);
+  if (st.freeze && Math.random() < st.freeze) stunEnemy(e, 1.3, true);
+  if (st.execute && e.type !== 'boss' && e.hp > 0 && e.hp / e.maxHp < st.execute) {
+    e.hp = 0;
+    floaty(e.center, 'EXECUTE', 'weak');
+  }
+  if (!quiet) sparks.emit(point, weak ? '#ffe14a' : crit ? '#ff5aff' : manual ? '#ff7a3c' : '#ffc080', weak ? 16 : 6, weak ? 9 : 6, 0.35, 12, 0.3);
+  if (manual && !quiet) {
     sfx(weak ? 'weak' : 'hit');
     hitMarker(weak);
-    floaty(point, weak ? `WEAK ${Math.round(amount)}` : `${Math.round(amount)}`, weak ? 'weak' : 'dmg');
+    floaty(point, `${weak ? 'WEAK ' : crit ? 'CRIT ' : ''}${Math.round(dmg)}`, weak || crit ? 'weak' : 'dmg');
   }
-  if (e.hp <= 0) killEnemy(e, point);
+  if (e.hp <= 0) killEnemy(e, point, st, manual);
+}
+
+function stunEnemy(e, dur, freeze) {
+  const d = e.type === 'boss' ? dur * 0.35 : dur;
+  e.stunT = Math.max(e.stunT, d);
+  if (freeze) {
+    e.frozen = true;
+    e.ice.visible = true;
+    sparks.emit(e.center, '#bff0ff', 12, 4, 0.5, 4, 0.4);
+  }
 }
 
 function gainXp(n) {
@@ -427,24 +665,28 @@ function gainXp(n) {
   }
 }
 
-function killEnemy(e, point) {
+function killEnemy(e, point, st, manual) {
   const idx = G.enemies.indexOf(e);
-  if (idx < 0) return;
-  const big = e.type === 'boss' ? 3 : e.type === 'heavy' ? 1.6 : 1;
+  if (idx < 0 || !e.alive) return;
+  const big = e.type === 'boss' ? 3 : e.type === 'heavy' || e.type === 'shield' ? 1.6 : e.type === 'mini' ? 0.6 : 1;
   const c = e.center.clone();
   sparks.emit(c, '#ffb347', Math.round(40 * big), 8 * big, 0.8, 10, 0.5);
   sparks.emit(c, '#ff5a1f', Math.round(25 * big), 5 * big, 0.6, 6, 0.3);
   smoke.emit(c, '#3a3a3a', Math.round(14 * big), 2.2 * big, 1.4, -1.2, 0.7, 2.5);
-  const reward = Math.round(e.def.reward * (1 + 0.1 * perk('bounty')));
+  let reward = Math.round(e.def.reward * (1 + 0.1 * perk('bounty'))) + (st?.bounty || 0);
+  if (manual && G.combo >= 10) reward = Math.round(reward * 1.2);
   G.gold += reward;
   G.kills++;
   gainXp(e.def.reward * 0.3);
   floaty(point || c, `+${reward}`, '');
   bump('hud-gold');
-  G.shake = Math.max(G.shake, 0.15 * big);
+  G.shake = Math.max(G.shake, 0.12 * big);
   sfx(e.type === 'boss' ? 'boom' : 'explode', 0.06);
   if (e.type === 'boss') banner('BOSS DESTROYED', `+${reward} gold`);
   removeEnemy(idx);
+  if (e.def.split) {
+    for (let k = 0; k < e.def.split; k++) spawnEnemy('mini', e);
+  }
   updateHud();
 }
 
@@ -488,7 +730,7 @@ function endGame(won) {
   const wavesDone = won ? G.wave : G.wave - 1;
   if (won) {
     const stars = hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1;
-    gainXp(100 + 50 * stars);
+    gainXp(100 + 50 * stars + G.map.intro * 25);
     banner('VICTORY', 'The line holds');
     sfx('clear');
   } else {
@@ -502,25 +744,87 @@ function endGame(won) {
   setTimeout(() => showResults(won, wavesDone, res), won ? 1400 : 1100);
 }
 
+/* ------------------------------------------------------------ Combo / skill */
+const comboMult = () => 1 + Math.min(G.combo, 20) * 0.025;
+function comboHit(weak) {
+  G.combo++;
+  G.stats.hits++;
+  if (weak) G.stats.weak++;
+  G.stats.bestCombo = Math.max(G.stats.bestCombo, G.combo);
+  renderCombo();
+}
+function comboMiss() {
+  if (G.combo >= 3) floatyScreen('COMBO LOST', 'miss');
+  G.combo = 0;
+  renderCombo();
+}
+function renderCombo() {
+  const el = $('combo');
+  el.classList.toggle('show', G.combo >= 3);
+  el.innerHTML = `<b>${G.combo}×</b> COMBO <small>+${Math.round((comboMult() - 1) * 100)}% dmg${G.combo >= 10 ? ' · +20% gold' : ''}</small>`;
+  el.classList.remove('pop');
+  void el.offsetWidth;
+  el.classList.add('pop');
+}
+
 /* ----------------------------------------------------------------- Turrets */
-function autoStats(t) {
-  const d = TURRETS[t.type], L = t.level - 1;
-  return {
-    range: d.range * (1 + UPGRADE.range * L),
-    interval: d.interval / ((1 + UPGRADE.rate * L) * (1 + 0.08 * perk('servo'))),
-    damage: d.damage * (1 + UPGRADE.dmg * L),
-  };
+function sumFx(t) {
+  const fx = {};
+  TREES[t.type].forEach((branch, bi) => {
+    for (let k = 0; k < t.picks[bi]; k++) {
+      for (const [key, v] of Object.entries(branch.nodes[k].fx)) fx[key] = (fx[key] || 0) + v;
+    }
+  });
+  return fx;
 }
-function manualStats(t) {
-  const d = TURRETS[t.type], m = d.manual, L = t.level - 1;
-  return {
-    interval: m.interval / (1 + UPGRADE.rate * L),
-    damage: m.damage * (1 + UPGRADE.dmg * L) * (1 + 0.15 * perk('crit')),
-    heat: m.heat * (1 - 0.15 * perk('cooling')),
+
+function statsFor(t) {
+  const d = TURRETS[t.type];
+  const f = sumFx(t);
+  const g = (k) => f[k] || 0;
+  const servo = 1 + 0.08 * perk('servo');
+  const st = {
+    range: d.range * (1 + g('range')),
+    interval: d.interval / ((1 + g('rate')) * servo),
+    damage: d.damage * (1 + g('dmg')),
+    shots: d.shots + g('shots'),
+    splash: (d.splash || 0) + g('splash'),
+    chain: (d.chain || 0) + g('chain'),
+    slow: Math.min(0.8, (d.slow || 0) + g('slow')),
+    stun: g('stun'),
+    burn: (d.burn || 0) + g('burn'),
+    pierce: g('pierce'),
+    crit: g('crit'),
+    heatMul: Math.max(0.3, 1 - g('heat')),
+    weakMul: WEAK_MULT + (d.weakBonus || 0) + g('weakMul'),
+    detect: g('detect') > 0,
+    shred: g('shred'),
+    bounty: g('bounty'),
+    homing: (d.homing || 0) + g('homing'),
+    execute: g('execute'),
+    bossDmg: g('bossDmg'),
+    cluster: g('cluster'),
+    napalm: g('napalm') > 0,
+    freeze: g('freeze'),
+    shatter: g('shatter') > 0,
+    ramp: (d.ramp || 0) + g('ramp'),
+    beams: g('beams'),
+    steady: Math.min(0.8, g('steady')),
   };
+  const m = d.manual;
+  st.manual = {
+    interval: m.interval / (1 + g('rate')),
+    damage: m.damage * (1 + g('dmg')) * (1 + g('manualDmg')) * (1 + 0.15 * perk('crit')),
+    heat: m.heat * st.heatMul * (1 - 0.15 * perk('cooling')),
+    splash: (m.splash || 0) + g('splash'),
+    chain: (m.chain || 0) + g('chain'),
+  };
+  return st;
 }
-const upgradeCost = (t) => (t.level >= UPGRADE.maxLevel ? Infinity : Math.round(TURRETS[t.type].cost * UPGRADE.costFactor * t.level));
-const sellValue = (t) => Math.round(t.invested * UPGRADE.sell);
+
+const upgradesOf = (t) => t.picks[0] + t.picks[1] + t.picks[2];
+const nodeCost = (t, branch) => Math.round(TURRETS[t.type].cost * TIER_COST[t.picks[branch]]);
+const sellValue = (t) => Math.round(t.invested * SELL_RATE);
 
 function buildTurret(plot, type = 'cannon') {
   const d = TURRETS[type];
@@ -529,10 +833,11 @@ function buildTurret(plot, type = 'cannon') {
   const t = createTurret(type, d.color);
   t.plot = plot;
   t.invested = d.cost;
+  t.targetMode = d.target || 'first';
   t.root.position.set(0, 0.25, 0);
   plot.group.add(t.root);
   t.root.traverse((o) => { o.userData.plot = plot; });
-  t.stats = autoStats(t);
+  t.stats = statsFor(t);
   // face the nearest road initially
   let best = Infinity, bx = 0, bz = 1;
   for (const path of world.paths) {
@@ -554,18 +859,21 @@ function buildTurret(plot, type = 'cannon') {
   return true;
 }
 
-function upgradeTurret(t) {
+function buyUpgrade(t, branch) {
   if (!t) return false;
-  const cost = upgradeCost(t);
-  if (cost === Infinity || G.gold < cost) { sfx('deny'); return false; }
+  const why = canBuy(t.picks, branch);
+  const cost = why ? Infinity : nodeCost(t, branch);
+  if (why || G.gold < cost) { sfx('deny'); return false; }
+  const node = TREES[t.type][branch].nodes[t.picks[branch]];
   G.gold -= cost;
   t.invested += cost;
-  setTurretLevel(t, t.level + 1);
-  t.stats = autoStats(t);
-  sparks.emit(t.plot.pos.clone().setY(2), '#ffd24a', 50, 7, 0.7, 5, 0.8);
-  sfx('build');
-  if (G.view === 'FPV') banner(`LEVEL ${t.level}`, `${TURRETS[t.type].name} upgraded`);
-  else floaty(t.plot.pos.clone().setY(3), `LEVEL ${t.level}`, 'weak');
+  t.picks[branch]++;
+  setTurretRank(t, upgradesOf(t));
+  t.stats = statsFor(t);
+  sparks.emit(t.plot.pos.clone().setY(2), TREES[t.type][branch].color, 50, 7, 0.7, 5, 0.8);
+  sfx(t.picks[branch] === 5 ? 'levelup' : 'build');
+  if (G.view === 'FPV' || G.view === 'TO_FPV') banner(node.name.toUpperCase(), node.desc);
+  else floaty(t.plot.pos.clone().setY(3), node.name, 'weak');
   bump('hud-gold');
   updateHud(true);
   return true;
@@ -597,6 +905,26 @@ function muzzleWorld(t, i, out) {
   return t.pitchG.localToWorld(out.copy(t.muzzles[i % t.muzzles.length]));
 }
 
+function canTarget(t, st, e) {
+  const d = TURRETS[t.type];
+  if (e.def.air && d.groundOnly) return false;
+  if (e.def.cloak && e.revealT <= 0 && !st.detect) return false;
+  return true;
+}
+
+function pickTarget(t, st, pivot) {
+  const d = TURRETS[t.type];
+  let best = null, score = -Infinity, bestDist = 0;
+  for (const e of G.enemies) {
+    if (!e.alive || !canTarget(t, st, e)) continue;
+    const dist = pivot.distanceTo(e.center);
+    if (dist > st.range || (d.minRange && dist < d.minRange)) continue;
+    const sc = t.targetMode === 'strong' ? e.hp + e.shield : t.targetMode === 'near' ? -dist : e.s / e.path.length;
+    if (sc > score) { score = sc; best = e; bestDist = dist; }
+  }
+  return best ? { e: best, dist: bestDist } : null;
+}
+
 function updateTurrets(dt) {
   for (const t of G.turrets) {
     for (const b of t.barrels) b.recoil = Math.max(0, b.recoil - dt * 1.6);
@@ -610,66 +938,89 @@ function updateTurrets(dt) {
     t.cooldown -= dt;
     t.pitchG.getWorldPosition(_pivot);
     const st = t.stats;
-    let target = null, best = Infinity;
-    for (const e of G.enemies) {
-      const d = _pivot.distanceTo(e.center);
-      if (d <= st.range && d < best) { best = d; target = e; }
-    }
-    if (!target) {
+    const found = pickTarget(t, st, _pivot);
+    if (!found) {
+      t.beamTarget = null;
       t.yaw += dt * 0.25;
       t.pitch += (0 - t.pitch) * Math.min(1, dt * 2);
       applyTurretPose(t);
       continue;
     }
+    const target = found.e;
     const d = TURRETS[t.type];
     _aim.copy(target.center);
-    if (d.speed && !d.homing) _aim.addScaledVector(target.vel, best / d.speed);
+    if (d.speed && !d.homing) _aim.addScaledVector(target.vel, found.dist / d.speed);
     const dx = _aim.x - _pivot.x, dz = _aim.z - _pivot.z, dy = _aim.y - _pivot.y;
     const wantYaw = Math.atan2(dx, dz);
-    const wantPitch = THREE.MathUtils.clamp(Math.atan2(dy, Math.hypot(dx, dz)) + (d.kind === 'rocket' ? 0.25 : 0), CFG.pitchMin, CFG.pitchMax);
+    let wantPitch = Math.atan2(dy, Math.hypot(dx, dz));
+    if (d.kind === 'rocket') wantPitch += 0.25;
+    if (d.kind === 'mortar') wantPitch = 0.75;
+    wantPitch = THREE.MathUtils.clamp(wantPitch, CFG.pitchMin, CFG.pitchMax);
     const k = 1 - Math.exp(-dt * 9);
     const dYaw = shortAngle(wantYaw - t.yaw);
     t.yaw = shortAngle(t.yaw + dYaw * k);
     t.pitch += (wantPitch - t.pitch) * k;
     applyTurretPose(t);
-    if (t.cooldown <= 0 && Math.abs(dYaw) < 0.12) {
+    if (t.cooldown <= 0 && Math.abs(dYaw) < (d.kind === 'flame' ? 0.3 : 0.12)) {
       t.cooldown = st.interval;
       t.root.updateMatrixWorld(true);
-      autoFire(t, target, _aim, st);
+      autoFire(t, target, _aim, st, dt);
     }
   }
 }
 
 function autoFire(t, target, aim, st) {
   const d = TURRETS[t.type];
-  if (d.kind === 'zap') {
-    muzzleWorld(t, 0, _muzzle);
-    chainZap(_muzzle, target, st.damage, d.chain, false, false, d.slow);
-    return;
+  switch (d.kind) {
+    case 'zap':
+      muzzleWorld(t, 0, _muzzle);
+      chainZap(_muzzle, target, st.damage, st.chain, st, false, false, (e) => canTarget(t, st, e));
+      return;
+    case 'rail':
+      muzzleWorld(t, 0, _muzzle);
+      _dir.subVectors(target.center, _muzzle).normalize();
+      railShot(_muzzle, _dir, st.range * 1.4, st.damage, st, false);
+      t.barrels[0].recoil = 0.4;
+      return;
+    case 'flame':
+      muzzleWorld(t, 0, _muzzle);
+      _dir.subVectors(target.center, _muzzle).normalize();
+      flameTick(t, _muzzle, _dir, st.range, st.damage, st, false);
+      return;
+    case 'laser':
+      muzzleWorld(t, 0, _muzzle);
+      laserTick(t, _muzzle, target, st.damage, st, false, false);
+      return;
+    case 'mortar':
+      muzzleWorld(t, 0, _muzzle);
+      for (let i = 0; i < st.shots; i++) {
+        const T = 1.1 + _muzzle.distanceTo(target.center) * 0.035;
+        const lead = target.center.clone().addScaledVector(target.vel, T).setY(0.1);
+        if (i > 0) lead.add(new V3((Math.random() - 0.5) * 3, 0, (Math.random() - 0.5) * 3));
+        lobShell(t, _muzzle, lead, st.damage, st.splash, st, false);
+      }
+      t.barrels[0].recoil = 0.4;
+      sfx('rocket', 0.08);
+      return;
+    default:
   }
-  if (d.kind === 'rail') {
-    muzzleWorld(t, 0, _muzzle);
-    _dir.subVectors(target.center, _muzzle).normalize();
-    railShot(_muzzle, _dir, st.range * 1.4, st.damage, false);
-    t.barrels[0].recoil = 0.4;
-    return;
-  }
-  for (let i = 0; i < d.shots; i++) {
+  const kind = d.kind === 'shell' ? 'shell' : d.kind;
+  for (let i = 0; i < st.shots; i++) {
     const mi = t.nextBarrel;
     t.nextBarrel = (t.nextBarrel + 1) % t.muzzles.length;
     muzzleWorld(t, mi, _muzzle);
     _dir.subVectors(aim, _muzzle).normalize();
-    if (d.spread) jitter(_dir, d.spread);
+    if (d.spread || st.shots > d.shots) jitter(_dir, (d.spread || 0) + (i >= d.shots ? 0.03 : 0));
     projectiles.spawn(_muzzle, _dir, {
-      kind: d.kind === 'shell' ? 'shell' : d.kind, speed: d.speed, damage: st.damage, manual: false,
-      splash: d.splash, homing: d.homing, target, owner: t,
+      kind, speed: d.speed, damage: st.damage, manual: false, splash: st.splash, homing: st.homing,
+      target, owner: t, st, pierce: st.pierce, groundOnly: d.groundOnly,
     });
     sparks.emit(_muzzle, '#ffcf6a', d.kind === 'bullet' ? 2 : 6, 3, 0.15, 0, 0.1);
     const b = t.barrels[Math.min(mi, t.barrels.length - 1)];
     b.recoil = d.kind === 'bullet' ? 0.05 : 0.25;
   }
   if (t.spinner) t.spin = 30;
-  sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : 'auto', 0.05);
+  sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : d.kind === 'sniper' ? 'rail' : 'auto', 0.05);
 }
 
 function jitter(v, s) {
@@ -677,6 +1028,18 @@ function jitter(v, s) {
   v.y += (Math.random() - 0.5) * 2 * s;
   v.z += (Math.random() - 0.5) * 2 * s;
   return v.normalize();
+}
+
+function lobShell(t, from, target, dmg, splash, st, manual) {
+  const g = CFG.mortarG;
+  const T = 1.1 + from.distanceTo(target) * 0.035;
+  const v = new V3().subVectors(target, from).divideScalar(T);
+  v.y += 0.5 * g * T;
+  const speed = v.length();
+  projectiles.spawn(from, v.clone().normalize(), {
+    kind: 'mortar', speed, damage: dmg, manual, splash, owner: t, st, gravity: g, groundOnly: true,
+  });
+  smoke.emit(from, '#bbb', 5, 2, 0.6, -0.5, 0.6, 2);
 }
 
 /* --------------------------------------------------------- Hitscan weapons */
@@ -690,7 +1053,7 @@ function segSphere(a, b, c, r, out) {
   return out.distanceToSquared(c) <= r * r;
 }
 
-function chainZap(from, first, dmg, chains, manual, weak, slow = 1) {
+function chainZap(from, first, dmg, chains, st, manual, weak, filter) {
   let src = from.clone();
   let cur = first;
   const hit = new Set();
@@ -699,14 +1062,13 @@ function chainZap(from, first, dmg, chains, manual, weak, slow = 1) {
     const c = cur.center.clone();
     beams.bolt(src, c);
     hit.add(cur);
-    cur.slowT = Math.max(cur.slowT, slow);
     const isWeak = weak && k === 0;
-    damageEnemy(cur, amount * (isWeak ? WEAK_MULT : 1), c, isWeak, manual);
+    hitEnemy(cur, amount, { st, manual: manual && k === 0, weak: isWeak, point: c });
     src = c;
     amount *= 0.7;
     let best = null, bd = 5.5;
     for (const e of G.enemies) {
-      if (hit.has(e)) continue;
+      if (hit.has(e) || !e.alive || (filter && !filter(e))) continue;
       const dd = e.center.distanceTo(src);
       if (dd < bd) { bd = dd; best = e; }
     }
@@ -715,7 +1077,7 @@ function chainZap(from, first, dmg, chains, manual, weak, slow = 1) {
   sfx('zap', 0.06);
 }
 
-function railShot(from, dir, len, dmg, manual) {
+function railShot(from, dir, len, dmg, st, manual) {
   const end = from.clone().addScaledVector(dir, len);
   if (dir.y < -1e-3) {
     const tg = -from.y / dir.y;
@@ -724,31 +1086,132 @@ function railShot(from, dir, len, dmg, manual) {
       sparks.emit(end, '#8fdcff', 14, 5, 0.4, 8, 0.4);
     }
   }
+  let any = false, anyWeak = false;
   for (const e of [...G.enemies]) {
+    if (!e.alive) continue;
     if (manual && segSphere(from, end, e.wpWorld, e.def.wpR * 1.15, _seg)) {
-      damageEnemy(e, dmg * WEAK_MULT, _seg.clone(), true, true);
+      hitEnemy(e, dmg, { st, manual: true, weak: true, point: _seg.clone() });
+      any = anyWeak = true;
     } else if (segSphere(from, end, e.center, e.def.radius, _seg)) {
-      damageEnemy(e, dmg, _seg.clone(), false, manual);
+      hitEnemy(e, dmg, { st, manual, point: _seg.clone() });
+      any = true;
     }
   }
+  if (manual) { if (any) comboHit(anyWeak); else comboMiss(); }
   beams.rail(from, end);
   sparks.emit(from, '#8fdcff', 10, 3, 0.25, 0, 0.1);
   sfx('rail', 0.1);
 }
 
-function explode(pos, radius, dmg, manual, direct, weak) {
+function flameTick(t, from, dir, range, dmg, st, manual) {
+  const cone = TURRETS.flame.cone;
   for (const e of [...G.enemies]) {
+    if (!e.alive) continue;
+    _tmp.subVectors(e.center, from);
+    const dist = _tmp.length();
+    if (dist > range + e.def.radius) continue;
+    const ang = _tmp.angleTo(dir);
+    if (ang > cone + e.def.radius / Math.max(dist, 1)) continue;
+    hitEnemy(e, dmg, { st, manual, quiet: true });
+  }
+  // visual: a spray of fire particles along the cone (kept away from the nozzle so FPV stays readable)
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const k = 0.18 + Math.random() * 0.82;
+    const p = from.clone().addScaledVector(dir, k * range);
+    p.x += (Math.random() - 0.5) * k * range * cone * 1.4;
+    p.y += (Math.random() - 0.5) * k * range * cone;
+    p.z += (Math.random() - 0.5) * k * range * cone * 1.4;
+    flames.emit(p, k < 0.4 ? '#ffe08a' : k < 0.75 ? '#ff8a1a' : '#c0301a', 1, 1, 0.3, -2, 0.3);
+  }
+  if (Math.random() < 0.15) smoke.emit(from.clone().addScaledVector(dir, range * 0.8), '#555', 1, 1, 0.8, -1, 0.5, 1);
+  if (st.napalm) {
+    t.napalmT = (t.napalmT || 0) - 0.1;
+    if (t.napalmT <= 0) {
+      t.napalmT = 0.6;
+      const spot = from.clone().addScaledVector(dir, range * 0.75).setY(0.1);
+      G.fires.push({ pos: spot, r: 1.8, t: 3, dps: 10 + st.burn, tick: 0 });
+    }
+  }
+  sfx('gatling', 0.12);
+}
+
+function laserTick(t, from, target, dmg, st, manual, weak) {
+  const L = manual ? G.laser : t;
+  const key = manual ? 'target' : 'beamTarget';
+  const timeKey = manual ? 't' : 'beamT';
+  if (L[key] === target) L[timeKey] += 0.1; else { L[key] = target; L[timeKey] = 0; }
+  const ramp = 1 + Math.min(L[timeKey] / 2.5, 1) * st.ramp;
+  const point = weak ? target.wpWorld.clone() : target.center.clone();
+  hitEnemy(target, dmg * ramp, { st, manual, weak, point, quiet: true });
+  const hot = Math.min(1, L[timeKey] / 2.5);
+  const col = new THREE.Color('#ff3d7f').lerp(new THREE.Color('#ffffff'), hot * 0.6);
+  beams.line(from, point, col, 0.05 + hot * 0.07, 0.12);
+  sparks.emit(point, '#ff7ab0', 2, 3, 0.2, 4, 0.3);
+  // prism: extra beams to nearby enemies
+  if (st.beams) {
+    let n = st.beams;
+    for (const e of G.enemies) {
+      if (n <= 0) break;
+      if (e === target || !e.alive || (!manual && !canTarget(t, st, e))) continue;
+      if (e.center.distanceTo(from) > st.range) continue;
+      hitEnemy(e, dmg * 0.6, { st, quiet: true });
+      beams.line(from, e.center, '#ff7ab0', 0.04, 0.12);
+      n--;
+    }
+  }
+  if (manual) $('ramp').textContent = `×${ramp.toFixed(1)}`;
+  sfx('zap', 0.25);
+}
+
+function explode(pos, radius, dmg, st, manual, direct, weak, groundOnly) {
+  for (const e of [...G.enemies]) {
+    if (!e.alive || (groundOnly && e.def.air)) continue;
     const d = Math.max(0, e.center.distanceTo(pos) - e.def.radius * 0.6);
     if (d > radius) continue;
     const isWeak = weak && e === direct;
     const f = 1 - 0.5 * (d / radius);
-    damageEnemy(e, dmg * f * (isWeak ? WEAK_MULT : 1), e.center.clone(), isWeak, manual && e === direct);
+    hitEnemy(e, dmg * f, { st, manual: manual && e === direct, weak: isWeak, point: e.center.clone(), quiet: e !== direct });
   }
-  sparks.emit(pos, '#ffb347', 45, 9, 0.6, 8, 0.6);
+  sparks.emit(pos, '#ffb347', Math.round(20 + radius * 8), 3 + radius * 2, 0.6, 8, 0.6);
   sparks.emit(pos, '#ff4a1a', 25, 6, 0.5, 6, 0.4);
   smoke.emit(pos, '#555', 10, 2.5, 1.2, -1, 0.6, 2.5);
   G.shake = Math.max(G.shake, manual ? 0.25 : 0.08);
   sfx('explode', 0.08);
+  if (st?.cluster) {
+    const n = st.cluster;
+    const sub = { ...st, cluster: 0 };
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.random();
+      const p = pos.clone().add(new V3(Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2)).setY(0.2);
+      G.timers.push({ t: 0.15 + i * 0.08, fn: () => explode(p, 1.8, dmg * 0.35, sub, false, null, false, groundOnly) });
+    }
+  }
+  if (st?.napalm) G.fires.push({ pos: pos.clone().setY(0.1), r: radius * 0.8, t: 3, dps: 10 + (st.burn || 0), tick: 0 });
+}
+
+function updateFires(dt) {
+  for (let i = G.fires.length - 1; i >= 0; i--) {
+    const f = G.fires[i];
+    f.t -= dt;
+    f.tick -= dt;
+    if (Math.random() < dt * 20) {
+      const p = f.pos.clone().add(new V3((Math.random() - 0.5) * f.r * 1.6, 0, (Math.random() - 0.5) * f.r * 1.6));
+      flames.emit(p, Math.random() < 0.5 ? '#ff8a1a' : '#ffd24a', 1, 1, 0.5, -3, 0.8);
+    }
+    if (f.tick <= 0) {
+      f.tick = 0.25;
+      for (const e of [...G.enemies]) {
+        if (e.alive && !e.def.air && e.center.distanceTo(f.pos) < f.r + e.def.radius * 0.5) applyRaw(e, f.dps * 0.25, null);
+      }
+    }
+    if (f.t <= 0) G.fires.splice(i, 1);
+  }
+  for (let i = G.timers.length - 1; i >= 0; i--) {
+    const tm = G.timers[i];
+    tm.t -= dt;
+    if (tm.t <= 0) { G.timers.splice(i, 1); tm.fn(); }
+  }
 }
 
 /* --------------------------------------------------------- Manual shooting */
@@ -756,10 +1219,10 @@ const _ray = new THREE.Ray();
 const _fwd = new V3();
 const _tmp = new V3();
 const _sphere = new THREE.Sphere();
-function aimPoint(out) {
+function aimPoint(out, maxT = 140) {
   camera.getWorldDirection(_fwd);
   _ray.set(camera.position, _fwd);
-  let bestT = 140;
+  let bestT = maxT;
   for (const e of G.enemies) {
     _sphere.set(e.center, e.def.radius);
     if (_ray.intersectSphere(_sphere, _tmp)) {
@@ -773,12 +1236,29 @@ function aimPoint(out) {
   }
   return out.copy(camera.position).addScaledVector(_fwd, bestT);
 }
+/** Ground point under the crosshair (for mortar / airstrike), clamped to a distance range. */
+function groundAim(out, minD, maxD) {
+  camera.getWorldDirection(_fwd);
+  const from = camera.position;
+  let d;
+  if (_fwd.y < -0.001) d = -from.y / _fwd.y;
+  else d = maxD;
+  out.copy(from).addScaledVector(_fwd, d).setY(0.1);
+  const flat = Math.hypot(out.x - from.x, out.z - from.z);
+  const want = THREE.MathUtils.clamp(flat, minD, maxD);
+  if (flat > 0.001 && want !== flat) {
+    out.x = from.x + (out.x - from.x) * (want / flat);
+    out.z = from.z + (out.z - from.z) * (want / flat);
+  }
+  return out;
+}
 /** First enemy along the crosshair ray (and whether its weak point was hit). */
 function rayEnemy(maxDist) {
   camera.getWorldDirection(_fwd);
   _ray.set(camera.position, _fwd);
   let best = null, bestT = maxDist, weak = false;
   for (const e of G.enemies) {
+    if (!e.alive) continue;
     _sphere.set(e.wpWorld, e.def.wpR * 1.3);
     if (_ray.intersectSphere(_sphere, _tmp)) {
       const tt = _tmp.distanceTo(camera.position);
@@ -796,90 +1276,248 @@ function rayEnemy(maxDist) {
 function manualShot() {
   const t = G.active;
   const d = TURRETS[t.type];
-  const st = manualStats(t);
+  const st = t.stats;
+  const ms = st.manual;
   const i = t.nextBarrel;
   t.nextBarrel = (t.nextBarrel + 1) % t.muzzles.length;
   t.root.updateMatrixWorld(true);
   muzzleWorld(t, i, _muzzle);
   aimPoint(_aim);
   _dir.subVectors(_aim, _muzzle).normalize();
-  jitter(_dir, G.spread);
+  const continuous = d.kind === 'flame' || d.kind === 'laser';
+  if (!continuous) jitter(_dir, G.spread);
   const b = t.barrels[Math.min(i, t.barrels.length - 1)];
-  if (d.kind === 'zap') {
-    const { enemy, weak } = rayEnemy(d.range * 1.6);
-    if (enemy) chainZap(_muzzle, enemy, st.damage, d.manual.chain, true, weak, d.slow);
-    else {
-      const end = _muzzle.clone().addScaledVector(_dir, Math.min(_aim.distanceTo(_muzzle), d.range * 1.6));
-      beams.bolt(_muzzle, end);
-      sparks.emit(end, '#c68bff', 8, 3, 0.3, 6, 0.3);
-      sfx('zap', 0.06);
+  if (!continuous) G.stats.shots++;
+  switch (d.kind) {
+    case 'zap': {
+      const { enemy, weak } = rayEnemy(d.range * 1.6);
+      if (enemy) { chainZap(_muzzle, enemy, ms.damage, ms.chain, st, true, weak); comboHit(weak); } else {
+        const end = _muzzle.clone().addScaledVector(_dir, Math.min(_aim.distanceTo(_muzzle), d.range * 1.6));
+        beams.bolt(_muzzle, end);
+        sparks.emit(end, '#c68bff', 8, 3, 0.3, 6, 0.3);
+        sfx('zap', 0.06);
+        comboMiss();
+      }
+      break;
     }
-  } else if (d.kind === 'rail') {
-    railShot(_muzzle, _dir, 80, st.damage, true);
-    b.recoil = 0.5;
-    G.shake = Math.max(G.shake, 0.4);
-  } else {
-    const kind = d.kind === 'shell' ? 'shellM' : d.kind;
-    projectiles.spawn(_muzzle, _dir, {
-      kind, speed: d.manual.speed, damage: st.damage, manual: true, splash: d.manual.splash, owner: t,
-    });
-    b.recoil = d.kind === 'bullet' ? 0.06 : 0.35;
-    sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : 'manual', 0.04);
+    case 'rail':
+      railShot(_muzzle, _dir, 80, ms.damage, st, true);
+      b.recoil = 0.5;
+      G.shake = Math.max(G.shake, 0.4);
+      break;
+    case 'flame':
+      camera.getWorldDirection(_fwd);
+      flameTick(t, _muzzle, _fwd.clone(), st.range * 1.1, ms.damage, st, true);
+      break;
+    case 'laser': {
+      const { enemy, weak } = rayEnemy(st.range * 1.8);
+      if (enemy) laserTick(t, _muzzle, enemy, ms.damage, st, true, weak);
+      else {
+        G.laser.target = null;
+        $('ramp').textContent = '×1.0';
+        beams.line(_muzzle, _aim, '#ff3d7f', 0.04, 0.12);
+      }
+      break;
+    }
+    case 'mortar': {
+      const target = groundAim(new V3(), d.minRange, st.range * 1.3);
+      lobShell(t, _muzzle, target, ms.damage, ms.splash, st, true);
+      b.recoil = 0.4;
+      sfx('rocket', 0.05);
+      break;
+    }
+    case 'sniper': {
+      // real ballistics: fired straight down the scope, drops with gravity -> lead + hold over
+      camera.getWorldDirection(_fwd);
+      const from = camera.position.clone().addScaledVector(_fwd, 0.6);
+      projectiles.spawn(from, _fwd.clone(), {
+        kind: 'sniper', speed: d.manual.speed, damage: ms.damage, manual: true, owner: t, st,
+        pierce: st.pierce, gravity: d.manual.gravity,
+      });
+      b.recoil = 0.5;
+      G.shake = Math.max(G.shake, 0.3);
+      sfx('rail', 0.1);
+      break;
+    }
+    default: {
+      const kind = d.kind === 'shell' ? 'shellM' : d.kind;
+      const shots = d.kind === 'shell' ? 1 : Math.max(1, st.shots - d.shots + 1);
+      for (let s = 0; s < shots; s++) {
+        const dir = s ? jitter(_dir.clone(), 0.02) : _dir;
+        projectiles.spawn(_muzzle, dir, {
+          kind, speed: d.manual.speed, damage: ms.damage, manual: true, splash: ms.splash, owner: t, st, pierce: st.pierce,
+          counted: s === 0,
+        });
+      }
+      b.recoil = d.kind === 'bullet' ? 0.06 : 0.35;
+      sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : 'manual', 0.04);
+    }
   }
   if (t.spinner) t.spin = 40;
-  sparks.emit(_muzzle, d.kind === 'zap' ? '#c68bff' : '#ffb050', d.kind === 'bullet' ? 4 : 10, 4, 0.15, 0, 0.1);
-  muzzleLight.position.copy(_muzzle);
-  muzzleLight.intensity = d.kind === 'bullet' ? 12 : 30;
-  G.heat += st.heat;
-  G.spread = Math.min(0.06, G.spread + (d.kind === 'bullet' ? 0.004 : 0.009));
-  G.shake = Math.max(G.shake, d.kind === 'bullet' ? 0.05 : 0.12);
+  if (!continuous) {
+    sparks.emit(_muzzle, d.kind === 'zap' ? '#c68bff' : '#ffb050', d.kind === 'bullet' ? 4 : 10, 4, 0.15, 0, 0.1);
+    muzzleLight.position.copy(_muzzle);
+    muzzleLight.intensity = d.kind === 'bullet' ? 12 : 30;
+    G.spread = Math.min(0.06, G.spread + (d.kind === 'bullet' ? 0.004 : 0.009));
+    G.shake = Math.max(G.shake, d.kind === 'bullet' ? 0.05 : 0.12);
+  }
+  G.heat += ms.heat;
   if (G.heat >= 100) { G.heat = 100; G.overheated = true; }
 }
 
 function updateManual(dt) {
   G.fireCd -= dt;
   const inFpv = G.view === 'FPV' || G.view === 'TO_FPV';
-  const firing = inFpv && G.active && G.fireHeld && !G.overheated;
+  const firing = inFpv && G.active && G.fireHeld && !G.overheated && !G.sheet;
   if (firing && G.fireCd <= 0) {
     manualShot();
-    G.fireCd = manualStats(G.active).interval;
+    G.fireCd = G.active.stats.manual.interval;
   }
+  if (!firing && G.active?.type === 'laser') G.laser.target = null;
   const cool = firing ? CFG.heatCool * 0.25 : CFG.heatCool * (G.overheated ? 1.1 : 1.4);
   G.heat = Math.max(0, G.heat - cool * dt);
   if (G.overheated && G.heat <= CFG.heatRecover) G.overheated = false;
-  const baseSpread = (G.active?.type === 'rail' ? 0.001 : 0.004) + (G.heat / 100) * 0.018;
+  const precise = G.active?.type === 'rail' || G.active?.type === 'sniper';
+  const baseSpread = (precise ? 0.0005 : 0.004) + (G.heat / 100) * (precise ? 0.004 : 0.018);
   G.spread += (baseSpread - G.spread) * Math.min(1, dt * 6);
   muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 400);
+  // mortar landing marker
+  if (G.view === 'FPV' && G.active?.type === 'mortar') {
+    groundAim(landRing.position, TURRETS.mortar.minRange, G.active.stats.range * 1.3);
+    landRing.position.y = 0.12;
+    const r = G.active.stats.manual.splash;
+    landRing.scale.set(r, 1, r);
+    landRing.visible = true;
+  } else landRing.visible = false;
 }
 
 /* --------------------------------------------------------- Projectile hits */
 const _closest = new V3();
 function projectileHit(p0, p1, proj) {
+  if (proj.kind === 'mortar' && proj.vel.y > 0) return false; // shells only hit on the way down
   for (const e of G.enemies) {
-    if (!e.alive) continue;
+    if (!e.alive || (proj.hits && proj.hits.has(e))) continue;
+    if (proj.groundOnly && e.def.air) continue;
     let weak = false;
     if (proj.manual && segSphere(p0, p1, e.wpWorld, e.def.wpR * 1.15, _closest)) weak = true;
     else if (!segSphere(p0, p1, e.center, e.def.radius, _closest)) continue;
     const point = _closest.clone();
-    if (proj.splash) explode(point, proj.splash, proj.damage, proj.manual, e, weak);
-    else damageEnemy(e, proj.damage * (weak ? WEAK_MULT : 1), point, weak, proj.manual);
+    if (proj.manual && !proj.didHit) { proj.didHit = true; if (proj.counted !== false) comboHit(weak); }
+    if (proj.splash) {
+      explode(point, proj.splash, proj.damage, proj.st, proj.manual, e, weak, proj.groundOnly);
+      return true;
+    }
+    hitEnemy(e, proj.damage, { st: proj.st, manual: proj.manual, weak, point });
+    if (proj.pierce > 0) {
+      proj.pierce--;
+      (proj.hits ||= new Set()).add(e);
+      proj.damage *= 0.85;
+      continue;
+    }
     return true;
   }
   return false;
 }
-function projectileGround(proj) {
+function projectileGround(proj, expired) {
+  if (proj.manual && !proj.didHit && proj.counted !== false && !proj.splash) comboMiss();
   const p = proj.pos.clone().setY(0.1);
-  if (proj.splash) { explode(p, proj.splash, proj.damage, proj.manual, null, false); return; }
+  if (proj.splash) {
+    if (proj.manual && !proj.didHit) {
+      // splash that still catches something counts as a hit
+      const caught = G.enemies.some((e) => e.alive && e.center.distanceTo(p) < proj.splash + e.def.radius * 0.6);
+      if (caught) comboHit(false); else comboMiss();
+    }
+    explode(p, proj.splash, proj.damage, proj.st, proj.manual, null, false, proj.groundOnly);
+    return;
+  }
+  if (expired) return;
   sparks.emit(p, '#c9a56a', proj.manual ? 8 : 4, 3, 0.4, 10, 0.5);
   if (proj.manual) smoke.emit(p, '#6b5a40', 2, 1, 0.6, -0.5, 0.4, 3);
 }
 function projectileTick(p, dt) {
-  if (p.kind !== 'rocket') return;
-  p.smokeT -= dt;
-  if (p.smokeT <= 0) {
-    p.smokeT = 0.03;
-    smoke.emit(p.pos, '#bdbdbd', 1, 0.4, 0.8, -0.6, 0.2, 2);
-    sparks.emit(p.pos, '#ff9a3a', 1, 0.5, 0.15, 0, 0);
+  if (p.kind === 'rocket') {
+    p.smokeT -= dt;
+    if (p.smokeT <= 0) {
+      p.smokeT = 0.03;
+      smoke.emit(p.pos, '#bdbdbd', 1, 0.4, 0.8, -0.6, 0.2, 2);
+      sparks.emit(p.pos, '#ff9a3a', 1, 0.5, 0.15, 0, 0);
+    }
+  } else if (p.kind === 'shard' && Math.random() < 0.5) {
+    sparks.emit(p.pos, '#bff0ff', 1, 0.5, 0.25, 0, 0);
+  }
+}
+
+/* --------------------------------------------------------------- Abilities */
+const abilityCd = (id) => ABILITIES[id].cooldown * (1 - 0.15 * perk('support'));
+function useAbility(id) {
+  if (!inGame() || G.state === STATE.IDLE && !G.enemies.length) { sfx('deny'); return; }
+  if (G.cd[id] > 0) { sfx('deny'); return; }
+  if (id === 'emp') {
+    G.cd.emp = abilityCd('emp');
+    for (const e of G.enemies) {
+      stunEnemy(e, ABILITIES.emp.stun, false);
+      if (e.shield > 0) { e.shield = 0; sparks.emit(e.center, '#5fd8ff', 20, 6, 0.5, 4, 0.5); }
+      e.revealT = Math.max(e.revealT, 4);
+    }
+    empRing.position.copy(world.base.position).setY(1);
+    empRing.visible = true;
+    empRing.userData.t = 0;
+    G.shake = 0.5;
+    banner('EMP', 'Enemies stunned, shields down');
+    sfx('boom');
+    return;
+  }
+  // airstrike: in FPV hit the crosshair, top-down asks for a tap
+  if (G.view === 'FPV') {
+    callStrike(groundAim(new V3(), 3, 45));
+  } else if (G.view === 'TOP') {
+    G.targeting = G.targeting === 'strike' ? null : 'strike';
+    document.body.classList.toggle('targeting', !!G.targeting);
+    if (G.targeting) floatyScreen('TAP THE GROUND TO STRIKE');
+  }
+}
+function callStrike(pos) {
+  G.cd.strike = abilityCd('strike');
+  G.targeting = null;
+  document.body.classList.remove('targeting');
+  strikeRing.position.copy(pos).setY(0.15);
+  strikeRing.scale.set(4, 1, 4);
+  strikeRing.visible = true;
+  sfx('whoosh');
+  const dmg = ABILITIES.strike.damage * (1 + 0.1 * G.wave);
+  const dirx = Math.random() < 0.5 ? 1 : -1;
+  jet.position.set(pos.x - dirx * 60, 14, pos.z);
+  jet.rotation.set(0, dirx > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
+  jet.visible = true;
+  jet.userData = { t: 0, from: jet.position.clone(), to: new V3(pos.x + dirx * 60, 14, pos.z) };
+  const strikeSt = { ...NO_STATS, burn: 6 };
+  for (let i = 0; i < 5; i++) {
+    const p = pos.clone().add(new V3((i - 2) * 1.8 * dirx, 0, (Math.random() - 0.5) * 1.2)).setY(0.2);
+    G.timers.push({ t: 1.2 + i * 0.09, fn: () => { explode(p, 3.2, dmg, strikeSt, false, null, false, false); G.shake = 0.6; } });
+  }
+  G.timers.push({ t: 1.8, fn: () => { strikeRing.visible = false; } });
+}
+function updateAbilities(dt) {
+  for (const id of Object.keys(G.cd)) G.cd[id] = Math.max(0, G.cd[id] - dt);
+  if (empRing.visible) {
+    empRing.userData.t += dt;
+    const k = empRing.userData.t / 0.7;
+    empRing.scale.setScalar(1 + k * 45);
+    empRing.material.opacity = Math.max(0, 0.9 * (1 - k));
+    if (k >= 1) empRing.visible = false;
+  }
+  if (jet.visible) {
+    jet.userData.t += dt / 2.2;
+    jet.position.lerpVectors(jet.userData.from, jet.userData.to, jet.userData.t);
+    if (jet.userData.t >= 1) jet.visible = false;
+  }
+  if (strikeRing.visible) strikeRing.material.opacity = 0.5 + 0.4 * Math.sin(G.time * 20);
+  for (const id of ['strike', 'emp']) {
+    const el = $(`ab-${id}`);
+    const frac = G.cd[id] / abilityCd(id);
+    el.style.setProperty('--cd', `${(frac * 360).toFixed(0)}deg`);
+    el.classList.toggle('ready', G.cd[id] <= 0);
+    el.classList.toggle('armed', id === 'strike' && G.targeting === 'strike');
   }
 }
 
@@ -902,27 +1540,34 @@ function updateHud(force) {
   setText('wave', hud.wave, G.mode === 'endless' ? `${G.wave}/∞` : `${G.wave}/${G.map.waves}`);
   setText('enemies', hud.enemies, String(G.enemies.length));
   const sw = $('start-wave');
-  const canStart = G.state === STATE.IDLE;
+  const early = canCallEarly();
+  const canStart = G.state === STATE.IDLE || early;
   sw.classList.toggle('hidden', !canStart);
-  if (canStart) setText('sw', sw, `START WAVE ${G.wave + 1}`);
-  const hint = G.state === STATE.WAVE
-    ? (G.turrets.length ? 'Tap a turret to jump in and aim it yourself' : 'Tap a glowing pad to build a turret!')
-    : 'Tap a glowing pad to build · Tap a turret to control or upgrade it';
+  if (canStart) setText('sw', sw, early ? `CALL WAVE ${G.wave + 1} EARLY · +${earlyBonus()}` : `START WAVE ${G.wave + 1}`);
+  $('wave-preview').classList.toggle('show', canStart && !!G.nextQueue);
+  const hint = G.targeting === 'strike' ? 'Tap the ground where the bombs should land'
+    : G.state === STATE.WAVE
+      ? (G.turrets.length ? 'Tap a turret to upgrade it or jump in and aim it yourself' : 'Tap a glowing pad to build a turret!')
+      : 'Tap a glowing pad to build · Tap a turret to upgrade or control it';
   setText('hint', $('hint'), hint);
   if (G.sheet?.kind === 'build') refreshBuildCard();
-  if (G.sheet?.kind === 'turret') refreshTurretCard();
+  if (G.sheet?.kind === 'turret') renderTreeSheet();
   updateFpvButtons();
+}
+
+function renderWavePreview() {
+  const el = $('wave-preview');
+  if (!G.nextQueue) { el.innerHTML = ''; return; }
+  const counts = {};
+  for (const q of G.nextQueue) counts[q.type] = (counts[q.type] || 0) + 1;
+  el.innerHTML = `<span class="wp-lbl">NEXT</span>` + Object.entries(counts).map(([t, n]) =>
+    `<span class="wp-e${t === 'boss' ? ' boss' : ''}" title="${ENEMIES[t].name}">${enemyIcon(t)}<b>${n}</b></span>`).join('');
 }
 
 function updateFpvButtons() {
   const t = G.active;
-  const up = $('fpv-upgrade');
-  if (t) {
-    const cost = upgradeCost(t);
-    setText('fpvcost', $('fpv-up-cost'), cost === Infinity ? 'MAX' : String(cost));
-    up.disabled = cost === Infinity || G.gold < cost;
-  }
-  const showWave = G.state === STATE.IDLE ? '' : 'none';
+  if (t) setText('fpvup', $('fpv-up-count'), `${upgradesOf(t)}/${MAX_UPGRADES}`);
+  const showWave = G.state === STATE.IDLE || canCallEarly() ? '' : 'none';
   if ($('fpv-wave').style.display !== showWave) $('fpv-wave').style.display = showWave;
   const showNext = G.turrets.length > 1 ? '' : 'none';
   if ($('next-turret').style.display !== showNext) $('next-turret').style.display = showNext;
@@ -938,6 +1583,11 @@ function updateFpvHud() {
   $('heat-fill').style.width = `${G.heat.toFixed(1)}%`;
   $('heat').classList.toggle('over', G.overheated);
   $('fire-btn').classList.toggle('cool', G.overheated);
+  const type = G.active?.type;
+  if (type === 'sniper' || type === 'mortar' || type === 'rail') {
+    const p = type === 'mortar' ? landRing.position : aimPoint(new V3(), 200);
+    setText('range', $('rangefinder'), `${Math.round(p.distanceTo(camera.position))} m`);
+  }
 }
 
 function bump(id) {
@@ -957,16 +1607,31 @@ function banner(title, sub) {
   bannerTimer = setTimeout(() => b.classList.remove('show'), 1900);
 }
 
+let tipTimer = 0;
+function showTip(type) {
+  const el = $('tip');
+  el.innerHTML = `<div class="tip-ico">${enemyIcon(type)}</div><div><b>NEW ENEMY — ${ENEMIES[type].name.toUpperCase()}</b><span>${ENEMY_TIPS[type]}</span></div>`;
+  el.classList.add('show');
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => el.classList.remove('show'), 6500);
+}
+
 const _proj = new V3();
 function floaty(worldPos, text, cls) {
   if (G.view === 'MENU') return;
   _proj.copy(worldPos).project(camera);
   if (_proj.z > 1) return;
+  spawnFloaty(((_proj.x + 1) / 2) * window.innerWidth, ((1 - _proj.y) / 2) * window.innerHeight, text, cls);
+}
+function floatyScreen(text, cls = 'center') {
+  spawnFloaty(window.innerWidth / 2, window.innerHeight * 0.38, text, `${cls} big`);
+}
+function spawnFloaty(x, y, text, cls) {
   const el = document.createElement('div');
   el.className = `floaty ${cls || ''}`;
   el.textContent = text;
-  el.style.left = `${((_proj.x + 1) / 2) * window.innerWidth}px`;
-  el.style.top = `${((1 - _proj.y) / 2) * window.innerHeight}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
   const layer = $('floaties');
   if (layer.childElementCount > 40) layer.firstElementChild.remove();
   layer.append(el);
@@ -981,6 +1646,55 @@ function hitMarker(weak) {
   h.classList.add('show');
 }
 
+/* --------------------------------------------- FPV markers above turrets/pads */
+let markers = [];
+function buildMarkers() {
+  const layer = $('markers');
+  layer.innerHTML = '';
+  markers = world.plots.map((plot) => {
+    const el = document.createElement('button');
+    el.className = 'marker';
+    el.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      unlockAudio();
+      if (plot.turret) enterFPV(plot.turret);
+      else openBuild(plot);
+    });
+    layer.append(el);
+    return { el, plot, kind: null };
+  });
+}
+const _mp = new V3();
+function updateMarkers() {
+  const show = G.view === 'FPV' && !G.paused;
+  document.body.classList.toggle('markers-on', show);
+  if (!show) return;
+  const cheapest = Math.min(...TURRET_ORDER.filter((k) => P.unlocked[k]).map((k) => TURRETS[k].cost));
+  for (const m of markers) {
+    const { plot, el } = m;
+    if (plot === G.active?.plot) { el.style.display = 'none'; continue; }
+    _mp.copy(plot.pos).setY(plot.turret ? 3.4 : 1.2).project(camera);
+    const x = ((_mp.x + 1) / 2) * window.innerWidth, y = ((1 - _mp.y) / 2) * window.innerHeight;
+    const dist = camera.position.distanceTo(plot.pos);
+    if (_mp.z > 1 || x < 24 || x > window.innerWidth - 24 || y < 70 || y > window.innerHeight - 30 || dist < 3) { el.style.display = 'none'; continue; }
+    el.style.display = '';
+    el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${THREE.MathUtils.clamp(14 / dist, 0.7, 1.15)})`;
+    const kind = plot.turret ? `t:${plot.turret.type}:${upgradesOf(plot.turret)}` : `p:${G.gold >= cheapest}`;
+    if (m.kind !== kind) {
+      m.kind = kind;
+      if (plot.turret) {
+        el.className = 'marker turret';
+        const n = upgradesOf(plot.turret);
+        el.innerHTML = `${turretIcon(plot.turret.type)}${n ? `<i>${n}</i>` : ''}`;
+      } else {
+        el.className = `marker pad${G.gold >= cheapest ? '' : ' poor'}`;
+        el.innerHTML = uiIcon('plus');
+      }
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ Sheets */
 function setSelected(plot) {
   for (const p of world.plots) p.selected = p === plot;
@@ -988,6 +1702,7 @@ function setSelected(plot) {
 function openBuild(plot) {
   G.sheet = { kind: 'build', plot };
   setSelected(plot);
+  releaseFire();
   $('turret-card').classList.remove('open');
   $('build-card').classList.add('open');
   document.body.classList.add('sheet-open');
@@ -1002,7 +1717,7 @@ function renderBuildOptions() {
     const b = document.createElement('button');
     b.className = `opt${G.buildType === id ? ' sel' : ''}${locked ? ' locked' : ''}`;
     b.dataset.type = id;
-    b.innerHTML = `<div class="t-icon">${turretIcon(id)}</div><div class="o-name">${d.name.split(' ').pop()}</div><div class="o-cost">${locked ? '🔒' : `<span class="ico gold sm"></span>${d.cost}`}</div>`;
+    b.innerHTML = `<div class="t-icon">${turretIcon(id)}</div><div class="o-name">${d.name.split(' ').pop()}</div><div class="o-cost">${locked ? uiIcon('lock') : `<span class="ico gold sm"></span>${d.cost}`}</div>`;
     b.addEventListener('click', () => { G.buildType = id; renderBuildOptions(); });
     box.append(b);
   }
@@ -1025,26 +1740,69 @@ function refreshBuildCard() {
 function openTurretCard(t) {
   G.sheet = { kind: 'turret', plot: t.plot, turret: t };
   setSelected(t.plot);
+  releaseFire();
   $('build-card').classList.remove('open');
   $('turret-card').classList.add('open');
   document.body.classList.add('sheet-open');
   $('tc-icon').innerHTML = turretIcon(t.type);
-  delete lastHud.tcTitle;
-  refreshTurretCard();
+  lastTree = '';
+  renderTreeSheet();
 }
-function refreshTurretCard() {
+let lastTree = '';
+let treeNodes = [];
+function renderTreeSheet() {
   const t = G.sheet?.turret;
   if (!t) return;
   const d = TURRETS[t.type];
   const st = t.stats;
-  $('tc-title').textContent = `${d.name} · Lv ${t.level}`;
-  const dmg = d.shots > 1 ? `${Math.round(st.damage)}×${d.shots}` : Math.round(st.damage);
-  $('tc-stats').textContent = `DMG ${dmg} · RNG ${st.range.toFixed(1)} m · every ${st.interval.toFixed(2)} s`;
-  const cost = upgradeCost(t);
-  const up = $('tc-upgrade');
-  up.textContent = cost === Infinity ? 'MAX LEVEL' : `⬆ LV ${t.level + 1} · ${cost}`;
-  up.disabled = cost === Infinity || G.gold < cost;
+  const inFpv = t === G.active;
+  const key = `${t.type}|${t.picks}|${t.targetMode}|${inFpv}`;
+  if (key === lastTree) {
+    // structure unchanged: only refresh affordability so taps are never lost to a re-render
+    for (const n of treeNodes) n.el.classList.toggle('poor', G.gold < n.cost);
+    return;
+  }
+  lastTree = key;
+  treeNodes = [];
+  $('tc-title').textContent = `${d.name} · ${upgradesOf(t)}/${MAX_UPGRADES} upgrades`;
+  const dmg = st.shots > 1 ? `${Math.round(st.damage)}×${st.shots}` : Math.round(st.damage * (d.kind === 'flame' || d.kind === 'laser' ? 10 : 1));
+  const extra = [];
+  if (st.splash) extra.push(`splash ${st.splash.toFixed(1)} m`);
+  if (st.chain) extra.push(`${st.chain} chains`);
+  if (st.pierce) extra.push(`pierce ${st.pierce}`);
+  if (st.slow) extra.push(`slow ${Math.round(st.slow * 100)}%`);
+  if (st.burn) extra.push(`burn ${st.burn}/s`);
+  if (st.detect) extra.push('detects cloak');
+  $('tc-stats').textContent = `${d.kind === 'flame' || d.kind === 'laser' ? 'DPS' : 'DMG'} ${dmg} · RNG ${st.range.toFixed(1)} m${d.kind === 'flame' || d.kind === 'laser' ? '' : ` · ${st.interval.toFixed(2)} s`}${extra.length ? ' · ' + extra.join(' · ') : ''}`;
   $('tc-sell').textContent = `SELL +${sellValue(t)}`;
+  $('tc-sell').style.display = inFpv ? 'none' : '';
+  $('tc-control').style.display = inFpv ? 'none' : '';
+  $('tc-target').textContent = `TARGET: ${t.targetMode.toUpperCase()}`;
+  const tree = $('tree');
+  tree.innerHTML = '';
+  TREES[t.type].forEach((branch, bi) => {
+    const col = document.createElement('div');
+    col.className = 'branch';
+    col.style.setProperty('--bc', branch.color);
+    col.innerHTML = `<div class="b-name">${branch.name}</div>`;
+    branch.nodes.forEach((node, ni) => {
+      const owned = ni < t.picks[bi];
+      const next = ni === t.picks[bi];
+      const why = next ? canBuy(t.picks, bi) : null;
+      const cost = next && !why ? nodeCost(t, bi) : 0;
+      const el = document.createElement('button');
+      el.className = `node${owned ? ' owned' : ''}${next && !why ? ' next' : ''}${next && !why && G.gold < cost ? ' poor' : ''}${ni === 4 ? ' ult' : ''}`;
+      el.disabled = !(next && !why);
+      el.innerHTML = `<span class="n-tier">${ni === 4 ? '★' : ni + 1}</span><span class="n-name">${node.name}</span><span class="n-desc">${node.desc}</span>`
+        + (owned ? '<span class="n-cost owned">✓</span>' : next && !why ? `<span class="n-cost"><span class="ico gold sm"></span>${cost}</span>` : next && why ? `<span class="n-cost why">${why === 'Only one branch can go past tier 3' ? 'LOCKED' : '—'}</span>` : '');
+      if (next && !why) {
+        el.addEventListener('click', () => { unlockAudio(); buyUpgrade(t, bi); });
+        treeNodes.push({ el, cost });
+      }
+      col.append(el);
+    });
+    tree.append(col);
+  });
 }
 function closeSheets() {
   G.sheet = null;
@@ -1065,7 +1823,6 @@ function pickPlot(clientX, clientY) {
   const list = own ? pickables.filter((g) => g !== own) : pickables;
   const hits = raycaster.intersectObjects(list, true);
   if (hits.length) return hits[0].object.userData.plot || null;
-  // forgiving touch: nearest plot to the ground hit point (tolerance grows with distance)
   const ground = new V3();
   if (raycaster.ray.intersectPlane(new THREE.Plane(UP, 0), ground)) {
     const dist = ground.distanceTo(camera.position);
@@ -1079,6 +1836,12 @@ function pickPlot(clientX, clientY) {
   }
   return null;
 }
+function groundAtScreen(x, y) {
+  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(_ndc, camera);
+  const g = new V3();
+  return raycaster.ray.intersectPlane(new THREE.Plane(UP, 0), g) ? g : null;
+}
 
 function inGame() {
   return G.view !== 'MENU' && !G.paused && G.state !== STATE.GAME_OVER && G.state !== STATE.VICTORY;
@@ -1086,13 +1849,18 @@ function inGame() {
 
 function onTopTap(x, y) {
   if (G.view !== 'TOP' || !inGame()) return;
+  if (G.targeting === 'strike') {
+    const g = groundAtScreen(x, y);
+    if (g) callStrike(g);
+    return;
+  }
   const plot = pickPlot(x, y);
   if (!plot) { closeSheets(); return; }
   if (plot.turret) openTurretCard(plot.turret);
   else openBuild(plot);
 }
 
-/** Tap while in FPV: another turret -> jump into it; empty pad -> build card. */
+/** Tap while in FPV (left half): another turret -> jump into it; empty pad -> build card. */
 function onFpvTap(x, y) {
   if (!inGame()) return false;
   const plot = pickPlot(x, y);
@@ -1121,6 +1889,7 @@ function aimBy(dx, dy, sens) {
   const zoom = camera.fov / 75;
   t.yaw = shortAngle(t.yaw - dx * sens * zoom);
   t.pitch = THREE.MathUtils.clamp(t.pitch - dy * sens * zoom, CFG.pitchMin, CFG.pitchMax);
+  if (Math.abs(dx) + Math.abs(dy) > 0.5) G.lastAim = G.time;
 }
 
 // ---- FPV left half: drag anywhere to aim, a quick tap picks a turret / pad
@@ -1146,7 +1915,7 @@ aimZone.addEventListener('pointermove', (ev) => {
 });
 const endAim = (ev) => {
   if (!aimPointer || ev.pointerId !== aimPointer.id) return;
-  const tap = Math.hypot(ev.clientX - aimPointer.sx, ev.clientY - aimPointer.sy) < 10 && performance.now() - aimPointer.t < 300;
+  const tap = Math.hypot(ev.clientX - aimPointer.sx, ev.clientY - aimPointer.sy) < 14 && performance.now() - aimPointer.t < 400;
   aimPointer = null;
   aimZone.classList.remove('active');
   ring.style.left = '';
@@ -1228,24 +1997,50 @@ document.addEventListener('mousemove', (ev) => {
 });
 
 /* ------------------------------------------------------------ UI buttons */
+function setSpeedIcon() {
+  $('btn-speed').innerHTML = uiIcon(G.speed === 2 ? 'speed2' : 'speed1') + `<small>${G.speed}×</small>`;
+}
+function fillIcons() {
+  $('btn-pause').innerHTML = uiIcon('pause');
+  setSpeedIcon();
+  $('exit-fpv').innerHTML = uiIcon('map') + '<small>MAP</small>';
+  $('next-turret').innerHTML = uiIcon('swap') + '<small>NEXT</small>';
+  $('fpv-wave').innerHTML = uiIcon('wave') + '<small>WAVE</small>';
+  $('fpv-upgrade').innerHTML = uiIcon('upgrade') + '<small id="fpv-up-count">0/10</small>';
+  $('ab-strike').innerHTML = uiIcon('strike') + '<small>STRIKE</small>';
+  $('ab-emp').innerHTML = uiIcon('emp') + '<small>EMP</small>';
+  document.querySelectorAll('[data-close]').forEach((b) => { b.innerHTML = uiIcon('close'); });
+}
+fillIcons();
+
 const on = (id, fn) => $(id).addEventListener('click', (ev) => { ev.stopPropagation(); unlockAudio(); fn(ev); });
 on('exit-fpv', () => exitFPV());
 on('next-turret', () => nextTurret());
-on('fpv-upgrade', () => upgradeTurret(G.active));
+on('fpv-upgrade', () => { if (G.active) openTurretCard(G.active); });
 on('fpv-wave', () => startWave());
 on('start-wave', () => startWave());
+on('ab-strike', () => useAbility('strike'));
+on('ab-emp', () => useAbility('emp'));
 on('build-confirm', () => {
   const plot = G.sheet?.plot;
   if (plot && buildTurret(plot, G.buildType)) closeSheets();
 });
 on('tc-control', () => { const t = G.sheet?.turret; if (t) enterFPV(t); });
-on('tc-upgrade', () => upgradeTurret(G.sheet?.turret));
 on('tc-sell', () => sellTurret(G.sheet?.turret));
+on('tc-target', () => {
+  const t = G.sheet?.turret;
+  if (!t) return;
+  t.targetMode = TARGET_MODES[(TARGET_MODES.indexOf(t.targetMode) + 1) % TARGET_MODES.length];
+  renderTreeSheet();
+});
 document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => closeSheets()));
+for (const id of ['build-card', 'turret-card', 'abilities', 'fpv-corner', 'hud-left']) {
+  $(id).addEventListener('pointerdown', (ev) => ev.stopPropagation());
+}
 
 on('btn-speed', () => {
   G.speed = G.speed === 1 ? 2 : 1;
-  $('btn-speed').textContent = `${G.speed}×`;
+  setSpeedIcon();
 });
 on('btn-pause', () => pauseGame(true));
 on('p-resume', () => pauseGame(false));
@@ -1266,9 +2061,12 @@ window.addEventListener('keydown', (ev) => {
   if (ev.code === 'Space' && fpv) { firePointers.set('key', {}); refreshFire(); ev.preventDefault(); }
   if ((ev.code === 'KeyE' || ev.code === 'Backspace') && fpv) exitFPV();
   if (ev.code === 'Tab' && fpv) { ev.preventDefault(); nextTurret(); }
-  if (ev.code === 'KeyU' && fpv) upgradeTurret(G.active);
+  if (ev.code === 'KeyU' && fpv && G.active) openTurretCard(G.active);
   if (ev.code === 'Enter' && G.view !== 'MENU') startWave();
   if (ev.code === 'KeyP' && G.view !== 'MENU') pauseGame(!G.paused);
+  if (ev.code === 'KeyQ' && G.view !== 'MENU') useAbility('strike');
+  if (ev.code === 'KeyR' && G.view !== 'MENU') useAbility('emp');
+  if (ev.code === 'Escape' && G.sheet) closeSheets();
 });
 window.addEventListener('keyup', (ev) => {
   if (ev.code === 'Space') { firePointers.delete('key'); refreshFire(); }
@@ -1303,7 +2101,8 @@ function showMenu() {
   G.paused = false;
   G.view = 'MENU';
   G.state = STATE.IDLE;
-  document.body.classList.remove('ingame');
+  G.targeting = null;
+  document.body.classList.remove('ingame', 'targeting');
   selectMenuMap(G.map.id);
   renderMenu();
   $('menu').classList.add('show');
@@ -1317,6 +2116,7 @@ function startMap(id, mode) {
   document.body.classList.add('ingame');
   G.view = 'TOP';
   applyTopPose();
+  renderCombo();
   banner(G.map.name.toUpperCase(), mode === 'endless' ? 'Endless — how long can you hold?' : `Build turrets, then start wave 1 · ${G.map.waves} waves`);
 }
 function pauseGame(p) {
@@ -1335,10 +2135,14 @@ function showResults(won, wavesDone, res) {
   $('r-kicker').textContent = `${G.map.name.toUpperCase()} · ${G.mode === 'endless' ? 'ENDLESS' : 'CAMPAIGN'}`;
   $('r-title').textContent = G.mode === 'endless' ? `WAVE ${wavesDone}` : won ? 'VICTORY' : 'BASE DESTROYED';
   $('r-stars').innerHTML = won && G.mode !== 'endless' ? starsHtml(res.stars) : '';
+  const s = G.stats;
+  const acc = s.shots ? `${Math.round((s.hits / s.shots) * 100)}% (${s.hits}/${s.shots})` : '—';
   const lines = [
     ['Waves survived', G.mode === 'endless' ? wavesDone : `${wavesDone} / ${G.map.waves}`],
     ['Hostiles destroyed', G.kills],
     ['Base HP left', `${G.baseHp} / ${G.maxHp}`],
+    ['Manual accuracy', acc],
+    ['Weak-point hits · best combo', `${s.weak} · ${s.bestCombo}×`],
     ['XP earned', `+${Math.round(G.xpEarned)}`],
     ['Commander level', P.level > G.levelStart ? `${G.levelStart} → ${P.level}` : `${P.level} (${P.xp}/${xpForLevel(P.level)} XP)`],
   ];
@@ -1381,11 +2185,14 @@ function update(dt) {
     updateTurrets(dt);
     updateManual(dt);
     projectiles.update(dt, projectileHit, projectileGround, projectileTick);
+    updateFires(dt);
+    updateAbilities(dt);
     checkWaveEnd();
   }
   beams.update(dt);
   sparks.update(dt);
   smoke.update(dt);
+  flames.update(dt);
   G.shake = Math.max(0, G.shake - dt * 1.5);
 }
 
@@ -1400,11 +2207,11 @@ function frame(now) {
     for (let i = 0; i < steps; i++) update(raw);
   }
   updateCamera(raw);
-  // keep fog density consistent when the camera sits further out (portrait / menu orbit)
   const extra = Math.max(0, camera.position.length() - 50);
   scene.fog.near = fogBase[0] + extra;
   scene.fog.far = fogBase[1] + extra;
   updateFpvHud();
+  updateMarkers();
   hudTick += raw;
   if (hudTick > 0.1 && G.view !== 'MENU') { hudTick = 0; updateHud(); }
   renderer.render(scene, camera);
@@ -1416,7 +2223,8 @@ requestAnimationFrame(frame);
 
 // Debug / automated-test handle
 window.__game = {
-  G, P, STATE, camera, startWave, buildTurret, upgradeTurret, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
+  G, P, STATE, camera, startWave, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
+  useAbility, callStrike, openTurretCard, statsFor,
   get plots() { return world.plots; },
   get world() { return world; },
   plotScreen(i) {

@@ -6,7 +6,7 @@ const TP_PER_LEVEL = 1;
 const TP_PER_STAR = 2;
 
 function fresh() {
-  return { xp: 0, level: 1, tp: 0, unlocked: { cannon: true }, perks: {}, maps: { valley: { unlocked: true, stars: 0, best: 0, cleared: false, endlessBest: 0 } }, lastMap: 'valley' };
+  return { xp: 0, level: 1, tp: 0, unlocked: { cannon: true, gatling: true, sniper: true }, perks: {}, maps: { valley: { unlocked: true, stars: 0, best: 0, cleared: false, endlessBest: 0 } }, lastMap: 'valley', seen: {} };
 }
 
 function load() {
