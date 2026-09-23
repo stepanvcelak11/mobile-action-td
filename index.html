@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Serpent Line — a 3D hybrid action tower defense. Build turrets, then jump into any of them and aim it yourself.">
+  <title>Serpent Line — Action Tower Defense</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Strategic HUD -->
+  <div id="hud">
+    <div class="pill" id="hud-gold"><span class="ico gold"></span><b id="gold">150</b></div>
+    <div class="pill hp">
+      <span class="ico heart"></span>
+      <div class="bar"><div id="hp-fill"></div></div>
+      <b id="hp">100</b>
+    </div>
+    <div class="pill"><span class="lbl">WAVE</span><b id="wave">0/8</b></div>
+    <div class="pill"><span class="ico skull"></span><b id="enemies">0</b></div>
+  </div>
+
+  <div id="top-ui">
+    <div id="hint">Tap a glowing pad to build · Tap a turret to take control</div>
+    <button id="start-wave" class="btn primary">START WAVE 1</button>
+  </div>
+
+  <div id="build-card" class="sheet">
+    <div class="sheet-row">
+      <div class="turret-icon"></div>
+      <div class="sheet-text">
+        <div class="sheet-title">Twin Cannon Turret</div>
+        <div class="sheet-sub">Auto-fires every 1.2 s · Range 11.5 m · Tap it later to aim manually (2× damage)</div>
+      </div>
+    </div>
+    <div class="sheet-row actions">
+      <button id="build-cancel" class="btn ghost">CANCEL</button>
+      <button id="build-confirm" class="btn primary">BUILD · <span class="ico gold sm"></span>100</button>
+    </div>
+  </div>
+
+  <!-- FPV HUD -->
+  <div id="fpv-ui">
+    <div id="aim-zone"><div class="zone-ring"></div><span>DRAG TO AIM</span></div>
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><em></em></div>
+    <div id="hitmark"></div>
+    <div id="heat"><div class="heat-label">BARREL HEAT</div><div class="heat-bar"><div id="heat-fill"></div></div></div>
+    <button id="exit-fpv" class="btn ghost">⤢ EXIT TO TOP-DOWN</button>
+    <button id="fire-btn">FIRE</button>
+    <div id="lock-hint">Click to lock mouse · Click to fire · E to exit</div>
+  </div>
+
+  <div id="floaties"></div>
+  <div id="banner"></div>
+  <div id="vignette"></div>
+
+  <div id="overlay" class="show">
+    <div class="panel">
+      <div class="kicker">3D ACTION TOWER DEFENSE</div>
+      <h1 id="ov-title">SERPENT LINE</h1>
+      <p id="ov-text">Hold the road for 8 waves. Build twin-cannon turrets on the glowing pads, then tap any turret to jump inside and aim it yourself — manual shots crit for 2× and can hit glowing weak points.</p>
+      <button id="ov-btn" class="btn primary big">DEPLOY</button>
+    </div>
+  </div>
+
+  <noscript>This game needs JavaScript and WebGL.</noscript>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
