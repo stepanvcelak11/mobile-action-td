@@ -2,7 +2,11 @@
 // Tech points were folded into coins (E5): levels and new stars pay coins, perks and unlocks cost coins.
 import { MAPS, PERKS, TURRETS } from './config.js';
 
-const KEY = 'serpentline.save.v1';
+// Test mode keeps its own save with everything unlocked; the real progress stays untouched.
+let sandbox = false;
+try { sandbox = localStorage.getItem('serpentline.mode') === 'sandbox'; } catch { /* private mode */ }
+export const SANDBOX = sandbox;
+const KEY = SANDBOX ? 'serpentline.sandbox.v1' : 'serpentline.save.v1';
 const COINS_PER_LEVEL = 120;
 const COINS_PER_STAR = 60;
 export const PERK_COIN = 250;           // perk level n+1 costs (n+1) × PERK_COIN

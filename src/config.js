@@ -9,121 +9,121 @@
  */
 export const TURRETS = {
   cannon: {
-    name: 'Twin Cannon', cost: 100, unlockTP: 0, color: '#f0a020',
+    name: 'Twin Cannon', rarity: 'common', cost: 100, unlockTP: 0, color: '#f0a020',
     desc: 'Balanced twin shells. Reliable all-rounder.',
     range: 11.5, interval: 1.2, damage: 12, shots: 2, speed: 55, kind: 'shell',
     manual: { interval: 0.5, damage: 17, heat: 12, speed: 120 }, fov: 75,
   },
   gatling: {
-    name: 'Gatling', cost: 120, unlockTP: 0, color: '#46d46a',
+    name: 'Gatling', rarity: 'common', cost: 120, unlockTP: 0, color: '#46d46a',
     desc: 'Shreds swarms and drones at short range.',
     range: 9, interval: 0.14, damage: 4, shots: 1, speed: 75, kind: 'bullet', spread: 0.035,
     manual: { interval: 0.1, damage: 5, heat: 2.4, speed: 130 }, fov: 75,
   },
   sniper: {
-    name: 'Sniper', cost: 150, unlockTP: 0, color: '#e8e0c8',
+    name: 'Sniper', rarity: 'common', cost: 150, unlockTP: 0, color: '#e8e0c8',
     desc: 'Huge range. Manual shots drop and fly — lead your target. Weak points ×3.',
     range: 26, interval: 2.6, damage: 45, shots: 1, speed: 160, kind: 'sniper', target: 'strong', weakBonus: 1.25,
     manual: { interval: 1.3, damage: 150, heat: 22, speed: 150, gravity: 18 }, fov: 20, scope: true,
   },
   cryo: {
-    name: 'Cryo Lance', cost: 150, unlockTP: 2, color: '#8fe3ff',
+    name: 'Cryo Lance', rarity: 'common', cost: 150, unlockTP: 2, color: '#8fe3ff',
     desc: 'Ice shards that slow enemies. Upgrades freeze and shatter.',
     range: 10, interval: 1.0, damage: 9, shots: 1, speed: 45, kind: 'shard', slow: 0.45,
     manual: { interval: 0.35, damage: 15, heat: 8, speed: 90 }, fov: 75,
   },
   flame: {
-    name: 'Flamethrower', cost: 160, unlockTP: 3, color: '#ff7a1a',
+    name: 'Flamethrower', rarity: 'common', cost: 160, unlockTP: 3, color: '#ff7a1a',
     desc: 'Short-range cone that sets everything on fire.',
     range: 6.5, interval: 0.1, damage: 3.2, shots: 1, kind: 'flame', burn: 5, cone: 0.35,
     manual: { interval: 0.1, damage: 5.5, heat: 2.2 }, fov: 75,
   },
   rocket: {
-    name: 'Rocket Pod', cost: 175, unlockTP: 4, color: '#ff4a3a',
+    name: 'Rocket Pod', rarity: 'rare', cost: 175, unlockTP: 4, color: '#ff4a3a',
     desc: 'Long-range homing rockets with splash damage. Hits air.',
     range: 15, interval: 2.4, damage: 40, shots: 2, speed: 22, kind: 'rocket', splash: 3.0, homing: 3.5,
     manual: { interval: 1.0, damage: 55, heat: 20, speed: 42, splash: 3.2 }, fov: 75,
   },
   mortar: {
-    name: 'Mortar', cost: 190, unlockTP: 5, color: '#b0a070',
+    name: 'Mortar', rarity: 'common', cost: 190, unlockTP: 5, color: '#b0a070',
     desc: 'Lobbed shells with a big blast. Ground only — aim ahead of the target.',
     range: 21, minRange: 4, interval: 3.0, damage: 55, shots: 1, kind: 'mortar', splash: 3.4, groundOnly: true,
     manual: { interval: 1.5, damage: 80, heat: 20, splash: 3.6 }, fov: 70,
   },
   tesla: {
-    name: 'Tesla Coil', cost: 200, unlockTP: 6, color: '#b46bff',
+    name: 'Tesla Coil', rarity: 'rare', cost: 200, unlockTP: 6, color: '#b46bff',
     desc: 'Lightning chains between enemies and slows them.',
     range: 8.5, interval: 0.9, damage: 20, shots: 1, kind: 'zap', chain: 3, slow: 0.45,
     manual: { interval: 0.6, damage: 26, heat: 14, chain: 3 }, fov: 75,
   },
   laser: {
-    name: 'Laser', cost: 220, unlockTP: 7, color: '#ff3d7f',
+    name: 'Laser', rarity: 'epic', cost: 220, unlockTP: 7, color: '#ff3d7f',
     desc: 'Continuous beam that ramps up the longer it stays on one target.',
     range: 12, interval: 0.1, damage: 2.4, shots: 1, kind: 'laser', ramp: 1.5,
     manual: { interval: 0.1, damage: 4, heat: 1.6 }, fov: 75,
   },
   rail: {
-    name: 'Railgun', cost: 250, unlockTP: 8, color: '#4fc3ff',
+    name: 'Railgun', rarity: 'mythic', cost: 250, unlockTP: 8, color: '#4fc3ff',
     desc: 'Pierces every enemy in a line. Zoom scope in FPV.',
     range: 22, interval: 3.0, damage: 130, shots: 1, kind: 'rail', target: 'strong',
     manual: { interval: 2.0, damage: 160, heat: 34 }, fov: 42, scope: true,
   },
   scatter: {
-    name: 'Scatter Cannon', cost: 140, unlockTP: 3, color: '#ffa05a',
+    name: 'Scatter Cannon', rarity: 'common', cost: 140, unlockTP: 3, color: '#ffa05a',
     desc: 'A shotgun: 7 pellets per blast. Devastating up close, weak far away.',
     range: 7.5, interval: 1.1, damage: 6, shots: 7, speed: 60, kind: 'bullet', spread: 0.12,
     manual: { interval: 0.55, damage: 8, heat: 14, speed: 110, pellets: 7 }, fov: 80,
   },
   venom: {
-    name: 'Venom Sprayer', cost: 160, unlockTP: 4, color: '#7fe04a',
+    name: 'Venom Sprayer', rarity: 'rare', cost: 160, unlockTP: 4, color: '#7fe04a',
     desc: 'Toxic globs: poison damage over time plus a slow. Stack it on tough enemies.',
     range: 10, interval: 0.9, damage: 5, shots: 1, speed: 40, kind: 'venom', burn: 8, slow: 0.25,
     manual: { interval: 0.3, damage: 7, heat: 7, speed: 70 }, fov: 78,
   },
   bouncer: {
-    name: 'Grenadier', cost: 170, unlockTP: 5, color: '#c8a040',
+    name: 'Grenadier', rarity: 'rare', cost: 170, unlockTP: 5, color: '#c8a040',
     desc: 'Fast lobbed grenades with a small blast. Ground only — lead the target.',
     range: 13, minRange: 3, interval: 1.4, damage: 24, shots: 1, kind: 'mortar', splash: 2.2, groundOnly: true, lob: 0.6,
     manual: { interval: 0.7, damage: 34, heat: 12, splash: 2.4 }, fov: 75,
   },
   harpoon: {
-    name: 'Harpoon', cost: 200, unlockTP: 6, color: '#5aa0c8',
+    name: 'Harpoon', rarity: 'rare', cost: 200, unlockTP: 6, color: '#5aa0c8',
     desc: 'A heavy spear that pierces enemies and pins them (big slow).',
     range: 16, interval: 2.2, damage: 60, shots: 1, speed: 70, kind: 'harpoon', pierce: 2, slow: 0.6, target: 'strong',
     manual: { interval: 1.2, damage: 90, heat: 20, speed: 90 }, fov: 70,
   },
   sonic: {
-    name: 'Sonic Emitter', cost: 210, unlockTP: 7, color: '#ff66cc',
+    name: 'Sonic Emitter', rarity: 'epic', cost: 210, unlockTP: 7, color: '#ff66cc',
     desc: 'Shockwave pulses hit every enemy around it and stagger them. Manual: aimed sonic blast.',
     range: 7.5, interval: 1.6, damage: 16, shots: 1, kind: 'pulse', slow: 0.3, stun: 0.1,
     manual: { interval: 0.8, damage: 30, heat: 14 }, fov: 80,
   },
   plasma: {
-    name: 'Plasma Orb', cost: 230, unlockTP: 8, color: '#6af0ff',
+    name: 'Plasma Orb', rarity: 'epic', cost: 230, unlockTP: 8, color: '#6af0ff',
     desc: 'Slow plasma orbs that burn through everything in their path.',
     range: 14, interval: 2.0, damage: 28, shots: 1, speed: 14, kind: 'orb', pierce: 99,
     manual: { interval: 1.0, damage: 40, heat: 18, speed: 22 }, fov: 75,
   },
   storm: {
-    name: 'Storm Spire', cost: 240, unlockTP: 9, color: '#9ab0ff',
+    name: 'Storm Spire', rarity: 'epic', cost: 240, unlockTP: 9, color: '#9ab0ff',
     desc: 'Calls lightning from the sky onto enemies anywhere in range.',
     range: 18, interval: 1.8, damage: 45, shots: 1, kind: 'zap', sky: true, chain: 2,
     manual: { interval: 0.9, damage: 55, heat: 18, chain: 2 }, fov: 75,
   },
   silo: {
-    name: 'Hellfire Silo', cost: 260, unlockTP: 10, color: '#ff5a3a',
+    name: 'Hellfire Silo', rarity: 'mythic', cost: 260, unlockTP: 10, color: '#ff5a3a',
     desc: 'Vertical missile salvos that hunt the toughest enemy on the field.',
     range: 24, interval: 3.2, damage: 70, shots: 3, speed: 20, kind: 'rocket', splash: 2.6, homing: 6, silo: true, target: 'strong',
     manual: { interval: 1.4, damage: 80, heat: 24, speed: 34, splash: 2.8 }, fov: 75,
   },
   prism: {
-    name: 'Prism Tower', cost: 260, unlockTP: 10, color: '#ffe066',
+    name: 'Prism Tower', rarity: 'legendary', cost: 260, unlockTP: 10, color: '#ffe066',
     desc: 'Refracted beams hit three enemies at once and ramp up.',
     range: 11, interval: 0.1, damage: 1.6, shots: 1, kind: 'laser', ramp: 1.0, beams: 2,
     manual: { interval: 0.1, damage: 2.8, heat: 1.8 }, fov: 75,
   },
   howitzer: {
-    name: 'Howitzer', cost: 280, unlockTP: 11, color: '#8a9a6a',
+    name: 'Howitzer', rarity: 'legendary', cost: 280, unlockTP: 11, color: '#8a9a6a',
     desc: 'Extreme-range artillery with a huge blast. Ground only — shells take a while to land.',
     range: 32, minRange: 8, interval: 4.2, damage: 120, shots: 1, kind: 'mortar', splash: 4.6, groundOnly: true, lob: 1.4,
     manual: { interval: 2.2, damage: 170, heat: 30, splash: 5 }, fov: 65,
@@ -131,19 +131,19 @@ export const TURRETS = {
   // Army towers (src/army.js): they deploy units instead of shooting. interval = seconds between
   // squads, damage/range scale the units, shots = squad size bonus from upgrades.
   barracks: {
-    name: 'Barracks', cost: 150, unlockTP: 6, color: '#5a8ad8',
+    name: 'Barracks', rarity: 'rare', cost: 150, unlockTP: 6, color: '#5a8ad8',
     desc: 'Sends riflemen down the road. They block enemies and fight. Fire to drop a squad where you aim, or take control of a soldier.',
     range: 12, interval: 11, damage: 10, shots: 1, kind: 'deploy', unit: 'soldier',
     manual: { interval: 0.6, damage: 10, heat: 12 }, fov: 80,
   },
   factory: {
-    name: 'Tank Factory', cost: 260, unlockTP: 10, color: '#4a7ab8',
+    name: 'Tank Factory', rarity: 'mythic', cost: 260, unlockTP: 10, color: '#4a7ab8',
     desc: 'Builds light tanks that hold the road and shell groups. Fire to drop a tank, or drive one yourself.',
     range: 14, interval: 16, damage: 50, shots: 1, kind: 'deploy', unit: 'tank',
     manual: { interval: 0.6, damage: 50, heat: 12 }, fov: 80,
   },
   helipad: {
-    name: 'Helipad', cost: 240, unlockTP: 9, color: '#6ab0e8',
+    name: 'Helipad', rarity: 'epic', cost: 240, unlockTP: 9, color: '#6ab0e8',
     desc: 'Launches gunships that circle the fight and fire rockets — they hit flyers too. Fire to send them where you aim, or fly one.',
     range: 15, interval: 16, damage: 24, shots: 1, kind: 'deploy', unit: 'heli',
     manual: { interval: 0.6, damage: 24, heat: 12 }, fov: 80,
@@ -279,12 +279,21 @@ export const SKINS = {
   royal: { name: 'Royal Guard', rarity: 'legendary', price: 260, steel: '#a8203a', dark: '#4a0a18', light: '#e8c070', band: '#ffd24a', acc: 'banners', fx: { tracer: '#ffe08a', trail: '#ff3a4a', spark: '#ffd24a' }, desc: 'Crimson armour, gold trim and royal banners.' },
   neon: { name: 'Neon Night', rarity: 'legendary', price: 300, steel: '#2a2a3c', dark: '#14141e', light: '#44446a', band: '#ff3d9f', glow: '#ff3d9f', acc: 'neon', fx: { tracer: '#ffffff', trail: '#ff3d9f', spark: '#3af0ff' }, desc: 'Neon tubes and hot-pink laser tracers.' },
   gold: { name: 'Solid Gold', rarity: 'legendary', price: 300, steel: '#ffc93a', dark: '#c08a1a', light: '#fff0a8', band: '#ffffff', metal: 0.55, glow: '#ffb020', acc: 'crown', fx: { tracer: '#fff4c0', trail: '#ffb020', spark: '#ffe066' }, desc: 'Gold plating and a crown. Shoots gold.' },
+  sandstone: { name: 'Sandstone', rarity: 'common', price: 30, steel: '#b8a27a', dark: '#6e5e44', light: '#e2d2ae', band: '#8a6a3a', acc: null, fx: null, desc: 'Warm sandy plates.' },
+  forest: { name: 'Forest', rarity: 'common', price: 30, steel: '#4e6a44', dark: '#27351f', light: '#86a070', band: '#b8c870', acc: null, fx: null, desc: 'Green paint with lime trim.' },
+  navy: { name: 'Navy', rarity: 'common', price: 30, steel: '#3a4e74', dark: '#1a2438', light: '#7a94c0', band: '#ffffff', acc: null, fx: null, desc: 'Deep blue with white stripes.' },
+  rust: { name: 'Rust Bucket', rarity: 'common', price: 30, steel: '#8a5a3a', dark: '#4a2e1c', light: '#c08a60', band: '#d8b060', acc: null, fx: null, desc: 'Old, rusty, still shooting.' },
+  crimson: { name: 'Crimson', rarity: 'common', price: 30, steel: '#9a3a3a', dark: '#4a1a1a', light: '#d07070', band: '#ffd24a', acc: null, fx: null, desc: 'Bold red with gold trim.' },
+  mint: { name: 'Mint', rarity: 'common', price: 30, steel: '#6ac0a8', dark: '#2a5a4e', light: '#b0ecd8', band: '#ffffff', acc: null, fx: null, desc: 'Fresh mint paint.' },
+  tiger: { name: 'Tiger Stripe', rarity: 'rare', price: 80, steel: '#d08a3a', dark: '#2a1a0a', light: '#f0c080', band: '#1a1208', acc: 'sandbags', fx: { tracer: '#ffd08a', trail: '#ff8a1a', spark: '#ffb050' }, desc: 'Orange stripes and amber shots.' },
+  frostbite: { name: 'Frostbite', rarity: 'rare', price: 80, steel: '#8ab0d0', dark: '#3a5070', light: '#d8ecff', band: '#8fe3ff', acc: 'icicles', fx: { tracer: '#e8f8ff', trail: '#8fd8ff', spark: '#c8f0ff' }, desc: 'Frosted plates and pale blue shots.' },
   camo: { name: 'Jungle Camo', rarity: 'epic', price: 170, steel: '#4a5a32', dark: '#2a3420', light: '#7a8a4a', band: '#c8a24a', acc: 'sandbags', fx: { tracer: '#f0e0a0', trail: '#8ab04a', spark: '#d8c070' }, desc: 'Season 2 · Leaf camouflage, sandbags and olive tracers.' },
   tempest: { name: 'Tempest', rarity: 'legendary', price: 320, steel: '#34405a', dark: '#161c2a', light: '#6a88c0', band: '#8fd8ff', glow: '#5ac8ff', acc: 'crystals', fx: { tracer: '#e8f8ff', trail: '#5ac8ff', spark: '#bfe8ff' }, desc: 'Season 2 · Storm crystals and lightning-blue shots.' },
   void: { name: 'Void Walker', rarity: 'legendary', price: 340, steel: '#2a1a3a', dark: '#0a0612', light: '#5a3a8a', band: '#b46bff', glow: '#9a4aff', acc: 'halo', fx: { tracer: '#f0d8ff', trail: '#9a4aff', spark: '#c48bff' }, desc: 'A floating void halo and purple rift shots.' },
 };
-export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'crystal', 'royal', 'neon', 'gold', 'void', 'camo', 'tempest'];
-export const RARITY_COLORS = { common: '#9aa7b4', rare: '#4fa8ff', epic: '#b46bff', legendary: '#ffb020' };
+export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'crystal', 'royal', 'neon', 'gold', 'void', 'camo', 'tempest', 'sandstone', 'forest', 'navy', 'rust', 'crimson', 'mint', 'tiger', 'frostbite'];
+export const RARITY_COLORS = { common: '#9aa7b4', rare: '#4fa8ff', epic: '#b46bff', mythic: '#ff4a6a', legendary: '#ffb020' };
+export const RARITY_ORDER = ['common', 'rare', 'epic', 'mythic', 'legendary'];
 
 export const THEMES = {
   grass: {

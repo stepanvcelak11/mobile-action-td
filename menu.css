@@ -261,3 +261,47 @@ body.army-ctl #fpv-ui, body.army-ctl #army-take, body.army-ctl #abilities, body.
 @media (orientation: landscape) {
   .bottomnav { padding-bottom: calc(2px + max(0px, var(--sab) - 16px)) !important; }
 }
+
+/* Turret rarity labels + test mode badge */
+.tcard { position: relative; border-color: color-mix(in srgb, var(--rc) 70%, transparent) !important; }
+.tc-rar { position: absolute; left: 6px; top: 6px; z-index: 1; font-size: 8.5px; font-weight: 900; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 6px; background: var(--rc); color: #10151c; }
+.bs-rar { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; letter-spacing: 0.12em; background: var(--rc); color: #10151c; vertical-align: 1px; }
+body.sandbox #menu .pname::after { content: " · TEST MODE"; color: #ff9a3a; }
+
+/* Build sheets as a compact dialog over the showcase instead of a half-screen panel */
+.bs-sheet { top: 50% !important; left: 50% !important; right: auto !important; bottom: auto !important; transform: translate(-50%, -50%);
+  width: min(520px, calc(100% - 32px)) !important; height: auto !important; max-height: min(78%, 560px); border-radius: 20px !important;
+  border: 2px solid color-mix(in srgb, var(--tc) 55%, rgba(255, 255, 255, 0.15)) !important; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 100vmax rgba(5, 8, 12, 0.55) !important;
+  padding: 12px 14px 14px !important; animation: bsPop 0.22s cubic-bezier(.2, 1.4, .4, 1) both !important; }
+@keyframes bsPop { from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.bs-sheet-head { padding-right: 0 !important; }
+.bs-sheet-head b { font-size: 16px; }
+.pw-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+.pw { padding: 10px 8px; gap: 4px; border-radius: 14px; }
+.pw-plate { width: 54px; height: 54px; border-radius: 16px; }
+.pw-plate svg { width: 40px; height: 40px; }
+.pw-name { font-size: 14px; }
+.pw-desc { font-size: 12px; }
+.pw-intro { font-size: 12px; margin-bottom: 8px; }
+.mod-slots { gap: 6px; margin-bottom: 8px; }
+.mod-slot { padding: 6px 8px; gap: 6px; }
+.mod-slot svg { width: 26px; height: 26px; }
+.mod-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.mod { padding: 6px 4px; }
+.mod svg { width: 28px; height: 28px; }
+.mod b { font-size: 11.5px; }
+.mod small { font-size: 10px; }
+.ovl { padding: 10px; gap: 12px; }
+.ovl-core { width: 64px; height: 64px; }
+.ovl-core svg { width: 40px; height: 40px; }
+.ovl-main b { font-size: 16px; }
+.ovl-main p { font-size: 12px; }
+.bs-sheet .skins { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.ht-demo canvas { height: 150px; }
+@media (orientation: landscape) and (max-height: 430px) {
+  .bs-sheet { max-height: calc(100% - 20px); }
+  .mod-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (orientation: portrait) {
+  .mod-grid { grid-template-columns: repeat(2, 1fr); }
+}

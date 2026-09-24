@@ -1,6 +1,6 @@
 // Meta game: currencies, turret cards & levels, chests, trophy road, battle pass, daily quests, shop, skins, settings.
-import { P, save } from './progress.js';
-import { TURRETS, TURRET_ORDER, ABILITIES, ABILITY_ORDER, SKINS, SKIN_ORDER } from './config.js';
+import { P, save, SANDBOX } from './progress.js';
+import { TURRETS, TURRET_ORDER, ABILITIES, ABILITY_ORDER, SKINS, SKIN_ORDER, MAPS } from './config.js';
 import { TURRET_POWERS, POWER_UNLOCK, POWER_PRICE, GEARS } from './powers.js';
 
 /* ----------------------------------------------------------------- defaults */
@@ -35,6 +35,7 @@ export function ensureMeta() {
   P.best ??= {};
   for (const t of TURRET_ORDER) if (P.unlocked[t]) P.tlevel[t] ??= 1;
   rollSeason(); // after every other field exists: rolling over grants rewards
+  if (SANDBOX) maxEverything();
   refreshDaily();
 }
 
@@ -204,6 +205,24 @@ export const CHESTS = {
   epic: { name: 'Epic Chest', color: '#b46bff', coins: [700, 1000], cards: 100, kinds: 5, charges: [3, 5], gems: [0.7, 20, 40], skin: 0.12, locked: 0.5 },
 };
 
+/* --------------------------------------------------------- test mode */
+function maxEverything() {
+  P.tutorialDone = true;
+  P.wins = Math.max(P.wins || 0, 99);
+  P.level = Math.max(P.level || 1, 30);
+  P.coins = Math.max(P.coins, 999999);
+  P.gems = Math.max(P.gems, 99999);
+  for (const t of TURRET_ORDER) {
+    P.unlocked[t] = true;
+    P.tlevel[t] = MAX_TLEVEL;
+    P.powers[t] = { gadgets: [true, true], gadget: P.powers[t]?.gadget ?? 0, stars: [true, true], star: P.powers[t]?.star ?? 0, gears: P.powers[t]?.gears?.[0] ? P.powers[t].gears : ['damage', 'speed'], hyper: true };
+  }
+  for (const s of SKIN_ORDER) P.skins[s] = true;
+  for (const a of ABILITY_ORDER) { P.abilities[a] = Math.max(P.abilities[a] || 0, 99); P.abLv[a] = 5; }
+  for (const m of MAPS) P.maps[m.id] = { ...(P.maps[m.id] || {}), unlocked: true, stars: 3, cleared: true, best: m.waves, endlessBest: P.maps[m.id]?.endlessBest || 0 };
+  P.pass.premium = true;
+}
+
 /* ------------------------------------------------------- ability levels */
 // Abilities level 1..5 with ability cards (from chests) + coins. Each level: +15 % power
 // (damage, heal, duration, radius) and −5 % cooldown — applied in main.js via abilityLevel().
@@ -227,16 +246,27 @@ export function levelAbility(id) {
   return true;
 }
 
+// chance per chest to find a new turret of each rarity (like the old Brawl Boxes)
+export const TURRET_DROP = {
+  wood: { common: 0.08, rare: 0.03, epic: 0.01, mythic: 0.003, legendary: 0.001 },
+  iron: { common: 0.15, rare: 0.08, epic: 0.03, mythic: 0.01, legendary: 0.004 },
+  gold: { common: 0.3, rare: 0.18, epic: 0.08, mythic: 0.03, legendary: 0.012 },
+  epic: { common: 0.5, rare: 0.35, epic: 0.18, mythic: 0.07, legendary: 0.03 },
+};
+export const SKIN_WEIGHT = { common: 60, rare: 25, epic: 10, legendary: 4 };
+
 export function rollChest(kind) {
   const c = CHESTS[kind];
   const r = Math.random;
   const out = { kind, coins: Math.round(c.coins[0] + r() * (c.coins[1] - c.coins[0])), gems: 0, cards: {}, abilities: {}, skin: null, unlocked: [] };
   const owned = TURRET_ORDER.filter((t) => P.unlocked[t]);
-  const locked = TURRET_ORDER.filter((t) => !P.unlocked[t]);
   const types = [];
-  for (let i = 0; i < c.kinds; i++) {
-    if (locked.length && r() < (c.locked || 0.05)) types.push(locked[Math.floor(r() * locked.length)]);
-    else types.push(owned[Math.floor(r() * owned.length)]);
+  for (let i = 0; i < c.kinds; i++) types.push(owned[Math.floor(r() * owned.length)]);
+  // Brawl-box style: a chance to find a NEW turret, rarest first
+  const odds = TURRET_DROP[kind] || {};
+  for (const rar of ['legendary', 'mythic', 'epic', 'rare', 'common']) {
+    const pool = TURRET_ORDER.filter((t) => !P.unlocked[t] && (TURRETS[t].rarity || 'common') === rar);
+    if (pool.length && r() < (odds[rar] || 0)) { out.newTurret = pool[Math.floor(r() * pool.length)]; out.cards[out.newTurret] = 1; break; }
   }
   const uniq = [...new Set(types)];
   let left = c.cards;
@@ -262,8 +292,11 @@ export function rollChest(kind) {
     abLeft -= n;
   }
   if (r() < c.skin) {
+    // common skins drop far more often than rare ones
     const missing = SKIN_ORDER.filter((s) => !P.skins[s]);
-    if (missing.length) out.skin = missing[Math.floor(r() * missing.length)];
+    const total = missing.reduce((a, s) => a + (SKIN_WEIGHT[SKINS[s].rarity] || 1), 0);
+    let roll = r() * total;
+    for (const s of missing) { roll -= SKIN_WEIGHT[SKINS[s].rarity] || 1; if (roll <= 0) { out.skin = s; break; } }
   }
   return out;
 }

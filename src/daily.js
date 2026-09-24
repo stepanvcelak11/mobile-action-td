@@ -52,7 +52,7 @@ function weekIndex(d = new Date()) { return Math.floor((Date.UTC(d.getUTCFullYea
 
 async function api(path, body) {
   // Automated browsers (tests) never touch the real leaderboard.
-  if (!LEADERBOARD_URL || navigator.webdriver) return null;
+  if (!LEADERBOARD_URL || navigator.webdriver || localStorage.getItem('serpentline.mode') === 'sandbox') return null;
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 5000);

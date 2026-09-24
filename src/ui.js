@@ -3,6 +3,7 @@
 import { MAPS, THEMES, TURRETS, TURRET_ORDER, TURRET_TIPS, PERKS, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, SKINS, SKIN_ORDER, RARITY_COLORS } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, GEAR_ORDER, TURRET_POWERS, POWER_UNLOCK, POWER_PRICE, HYPER_KILLS } from './powers.js';
 import { TREES } from './trees.js';
+import { SANDBOX } from './progress.js';
 import { P, save, xpForLevel, mapState, perk, perkCost, buyPerk, unlockTurret, unlockCost, resetProgress } from './progress.js';
 import {
   tlevel, levelBonus, canLevel, levelUp, CARD_NEED, COIN_NEED, MAX_TLEVEL, CHESTS, rollChest, grant,
@@ -128,6 +129,7 @@ export function initMenu(h) {
 export function selectMenuMap(id) { selectedMap = id; }
 
 function renderTop() {
+  document.body.classList.toggle('sandbox', SANDBOX);
   $('m-level').textContent = P.level;
   const pn = document.querySelector('#menu .pname');
   if (pn) pn.textContent = (ach.title || 'Serpent Line').toUpperCase();
@@ -361,7 +363,8 @@ function renderArmory(c) {
       const L = tlevel(id);
       const need = CARD_NEED[L - 1];
       const have = P.cards[id] || 0;
-      return `<button class="tcard${owned ? '' : ' locked'}${canLevel(id) ? ' can' : ''}" data-t="${id}" style="--tc:${t.color}">
+      return `<button class="tcard${owned ? '' : ' locked'}${canLevel(id) ? ' can' : ''}" data-t="${id}" style="--tc:${t.color};--rc:${RARITY_COLORS[t.rarity || 'common']}">
+        <span class="tc-rar">${(t.rarity || 'common').toUpperCase()}</span>
         <div class="tc-pic">${pic(turretPortrait(id, skinOf(id)))}</div>
         <div class="tc-name">${t.name}</div>
         ${owned ? `<div class="tc-lvl">LV ${L}${powerDots(id)}</div>
@@ -500,7 +503,7 @@ function openTurretDetail(id, sheet = detailSheet) {
 
   const html = `<div class="bs" style="--tc:${t.color}">
     <div class="bs-left">
-      <div class="bs-name"><small>${deploy ? 'ARMY TOWER' : `${t.kind.toUpperCase()} TURRET`}${owned ? ` · LEVEL ${L}` : ' · LOCKED'}</small><h2>${t.name}</h2></div>
+      <div class="bs-name"><span class="bs-rar" style="--rc:${RARITY_COLORS[t.rarity || 'common']}">${(t.rarity || 'common').toUpperCase()}</span><small>${deploy ? 'ARMY TOWER' : `${t.kind.toUpperCase()} TURRET`}${owned ? ` · LEVEL ${L}` : ' · LOCKED'}</small><h2>${t.name}</h2></div>
       <canvas class="bs-3d" id="bs-3d" aria-label="${t.name} — drag to turn"></canvas>
       ${levelBlock}
     </div>
@@ -911,7 +914,8 @@ export function openChest(kind) {
     for (const [a, n] of Object.entries(rw.abCards || {})) list.push({ tier: 2, color: ABILITIES[a].color, art: abilityIcon(a), n, prefix: '×', label: `${ABILITIES[a].name} cards` });
     for (const [t, n] of Object.entries(rw.cards)) {
       const isNew = rw.unlocked.includes(t);
-      list.push({ tier: isNew ? 3 : 2, color: TURRETS[t].color, art: pic(turretPortrait(t, skinOf(t))) || turretIcon(t), n, prefix: '×', label: isNew ? `NEW TURRET · ${TURRETS[t].name}` : `${TURRETS[t].name} cards`, isNew });
+      const rar = TURRETS[t].rarity || 'common';
+      list.push({ tier: isNew ? 3 : 2, color: isNew ? RARITY_COLORS[rar] : TURRETS[t].color, art: pic(turretPortrait(t, skinOf(t))) || turretIcon(t), n, prefix: '×', label: isNew ? `NEW ${rar.toUpperCase()} TURRET · ${TURRETS[t].name}` : `${TURRETS[t].name} cards`, isNew });
     }
     if (rw.skin) list.push({ tier: 3, color: RARITY_COLORS[SKINS[rw.skin].rarity], art: pic(turretPortrait('cannon', rw.skin)), n: 1, prefix: '', label: `${SKINS[rw.skin].rarity.toUpperCase()} SKIN · ${SKINS[rw.skin].name}`, skin: true });
     // Save the best for last.
@@ -1067,6 +1071,7 @@ function openSettings() {
       <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
       <div class="set-row"><span>Graphics</span>${seg('quality', [['auto', 'AUTO'], ['low', 'LOW'], ['medium', 'MID'], ['high', 'HIGH']])}<small>Auto lowers the resolution when your phone struggles</small></div>
       <div class="set-row"><span>Glow</span>${seg('glow', [['auto', 'AUTO'], ['on', 'ON'], ['off', 'OFF']])}<small>Bloom on lights and explosions. Auto = only on High graphics.</small></div>
+      <div class="set-row"><span>Test mode</span><button class="btn ${SANDBOX ? 'primary' : ''}" id="set-sandbox">${SANDBOX ? 'ON · BACK TO MY PROGRESS' : 'OFF · UNLOCK EVERYTHING'}</button><small>Everything unlocked and maxed to try it all. Uses a separate save — your real progress stays untouched.</small></div>
       <div class="set-row"><span>Highlight clips</span>${seg('clips', [[true, 'ON'], [false, 'OFF']])}<small>Keeps the last seconds of great shots so you can save and share them</small></div>
       <div class="set-row"><span>FPS meter</span>${seg('fps', [[false, 'OFF'], [true, 'ON']])}</div>
       <div class="set-row"><span>Left-handed</span>${seg('leftHanded', [[false, 'OFF'], [true, 'ON']])}<small>FIRE on the left, aim on the right</small></div>
@@ -1092,6 +1097,7 @@ function openSettings() {
     handlers.settings?.();
   }));
   $('set-layout').addEventListener('click', () => { closeOverlay(); startLayoutEdit(); });
+  $('set-sandbox')?.addEventListener('click', () => { try { if (SANDBOX) localStorage.removeItem('serpentline.mode'); else localStorage.setItem('serpentline.mode', 'sandbox'); } catch { /* ignore */ } location.reload(); });
   $('set-layout-reset').addEventListener('click', () => { P.settings.layout = {}; save(); applySettings(); toast('Layout reset'); });
   $('set-reset').addEventListener('click', () => {
     if (confirm('Reset ALL progress (levels, cards, currencies, stars)?')) { resetProgress(); location.reload(); }
