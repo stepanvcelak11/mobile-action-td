@@ -90,6 +90,7 @@ function ensureCss() {
   #cp-talk .tap{position:absolute;right:6px;top:6px;pointer-events:auto;border:0;background:var(--panel-2,#fff1);color:var(--muted,#9aa);font-weight:800;font-size:12px;border-radius:9px;padding:6px 10px;cursor:pointer}
   @media (orientation:landscape){#cp-talk{top:calc(var(--sat,0px) + 70px)}}
   #result.show ~ #cp-talk,#cp-talk.on-result{top:calc(var(--sat,0px) + 12px)}
+  body.radio-on #coach{opacity:0!important;pointer-events:none}
   @keyframes cpIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}`;
   document.head.appendChild(s);
 }
@@ -178,7 +179,7 @@ export const campaign = {
       const next = () => {
         clearTimeout(timer);
         i++;
-        if (i >= lines.length) { box.remove(); resolve(); return; }
+        if (i >= lines.length) { box.remove(); document.body.classList.remove('radio-on'); resolve(); return; }
         show();
         timer = setTimeout(next, 5500);
       };
@@ -186,6 +187,7 @@ export const campaign = {
       box.addEventListener('click', (e) => { if (!e.target.closest('.tap')) return; e.stopPropagation(); next(); });
       document.getElementById('cp-talk')?.remove();
       document.body.appendChild(box);
+      document.body.classList.add('radio-on');
       show();
       timer = setTimeout(next, when === 'boss' ? 3000 : 5500);
     });
