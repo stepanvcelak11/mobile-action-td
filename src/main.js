@@ -899,7 +899,7 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   e.lastHitT = G.time;
   if (zone === 'head') dmg *= HEADSHOT_MULT + 0.15 * perk('headhunter') + (st.headBonus || 0);
   if (st.crushing && ((e.def.armor || 0) > 0 || e.type === 'boss')) dmg *= 1 + st.crushing;
-  if (e.markT > 0) dmg *= 1.3;
+  if (e.markT > 0) dmg *= 1.4;
   if (st.crit && Math.random() < st.crit) { dmg *= 2; crit = true; }
   if (e.type === 'boss') dmg *= 1 + (st.bossDmg || 0);
   if (st.shatter && e.stunT > 0) dmg *= 1.5;
@@ -1197,7 +1197,7 @@ function statsFor(t) {
   const sp = t.powers?.star;
   if (sp === 'longshot') addFx({ range: 0.2 });
   if (sp === 'bounty') addFx({ bounty: 3 });
-  if (sp === 'venomrounds') addFx({ burn: 6 });
+  if (sp === 'venomrounds') addFx({ burn: 12 });
   if (t.hyperT > 0 && t.powers?.hyper) addFx({ dmg: 0.4, rate: 0.4, range: 0.2, ...t.powers.hyper.fx });
   const g = (k) => f[k] || 0;
   const servo = 1 + 0.08 * perk('servo');
@@ -1234,7 +1234,7 @@ function statsFor(t) {
     crushing: sp === 'crushing' ? 0.3 : 0,
     ricochet: sp === 'ricochet',
     explosive: sp === 'explosive',
-    doubletap: sp === 'doubletap' ? 0.15 : 0,
+    doubletap: sp === 'doubletap' ? 0.25 : 0,
     tint: t.hyperT > 0 ? { tracer: '#ffffff', trail: '#ff3dff', spark: '#ff9aff' } : t.skinFx,
   };
   st.sparkColor = st.tint?.spark;
@@ -1879,8 +1879,18 @@ function manualShot() {
     G.spread = Math.min(0.06, G.spread + (d.kind === 'bullet' ? 0.004 : 0.009));
     G.shake = Math.max(G.shake, d.kind === 'bullet' ? 0.05 : 0.12);
   }
-  if (G.coolantT <= 0) G.heat += ms.heat;
+  const heatMul = (t.overdriveT > 0 ? 0 : 1) * (t.hyperT > 0 ? 0.3 : 1) * (G.echoShot ? 0 : 1);
+  if (G.coolantT <= 0) G.heat += ms.heat * heatMul;
   if (G.heat >= 100) { G.heat = 100; if (!G.overheated) startVent(); G.overheated = true; }
+  // Double Tap trait works when you aim too: a free echo shot right after this one
+  if (!G.echoShot && !continuous && st.doubletap && Math.random() < st.doubletap) {
+    G.timers.push({ t: 0.07, fn: () => {
+      if (G.active !== t || G.view !== 'FPV') return;
+      G.echoShot = true;
+      manualShot();
+      G.echoShot = false;
+    } });
+  }
 }
 
 function updateManual(dt) {
@@ -3181,7 +3191,7 @@ function setCoach(text) {
 /* ------------------------------------------- Turret powers: gadget + hypercharge */
 /** Fire-rate multiplier from Overdrive gadget and the Overclock ability. */
 function rateBoost(t) {
-  return (t.overdriveT > 0 ? 2 : 1) * (G.overclockT > 0 ? 1.5 : 1);
+  return (t.overdriveT > 0 ? 2 : 1) * (G.overclockT > 0 ? 1.5 : 1) * (G.coolantT > 0 && t === G.active ? 1.2 : 1);
 }
 
 function tickPowers(t, dt) {
@@ -3222,11 +3232,13 @@ function useGadget(t) {
     case 'overdrive':
       t.overdriveT = 5;
       break;
-    case 'nova':
-      rings.pulse(pos, 5, color, 0.5);
-      for (const e of inRange) if (e.center.distanceTo(pos) < 5.5) hitEnemy(e, base * 4, { st, quiet: true });
+    case 'nova': {
+      const nr = Math.max(7, st.range * 0.6);
+      rings.pulse(pos, nr, color, 0.5);
+      for (const e of G.enemies) if (e.alive && !e.buried && e.center.distanceTo(pos) < nr) { hitEnemy(e, base * 5, { st, quiet: true }); stunEnemy(e, 0.6, false); }
       G.shake = 0.5;
       break;
+    }
     case 'barrage':
       for (let i = 0; i < 6; i++) {
         const target = inRange[i % Math.max(1, inRange.length)];

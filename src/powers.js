@@ -2,12 +2,12 @@
 // and Overload (a reactor mode charged by kills). Internally still called gadget/star/gear/hyper. Unlocked by turret level (cards), bought with coins.
 
 export const GADGETS = {
-  overdrive: { name: 'Overdrive', desc: 'Doubles fire rate for 5 s.', color: '#ff9a3a' },
-  nova: { name: 'Nova Blast', desc: 'A shockwave around the turret deals 4× damage.', color: '#ffcf5a' },
+  overdrive: { name: 'Overdrive', desc: 'Double fire rate for 5 s — and no heat builds up meanwhile.', color: '#ff9a3a' },
+  nova: { name: 'Nova Blast', desc: 'Shockwave (7 m or more) deals 5× damage and staggers everything it hits.', color: '#ffcf5a' },
   barrage: { name: 'Missile Barrage', desc: 'Launches 6 homing missiles at enemies in range.', color: '#ff5a3a' },
   frostnova: { name: 'Frost Nova', desc: 'Freezes every enemy in range for 2.5 s.', color: '#8fe3ff' },
-  reveal: { name: 'Target Painter', desc: 'Reveals and marks enemies in range: +30% damage taken for 8 s.', color: '#ff3d7f' },
-  coolant: { name: 'Coolant Flush', desc: 'Resets heat and removes overheating for 6 s.', color: '#4fc3ff' },
+  reveal: { name: 'Target Painter', desc: 'Reveals cloaked enemies in range and marks them: +40% damage taken for 8 s.', color: '#ff3d7f' },
+  coolant: { name: 'Coolant Flush', desc: 'Heat to zero, no heat and +20% fire rate for 6 s.', color: '#4fc3ff' },
   snipe: { name: 'Precision Shot', desc: 'Instantly hits the strongest enemy on the map for 6× damage.', color: '#e8e0c8' },
   slowfield: { name: 'Stasis Field', desc: 'Slows enemies in range by 60% for 5 s.', color: '#b46bff' },
 };
@@ -17,20 +17,20 @@ export const STAR_POWERS = {
   bounty: { name: 'Bounty', desc: '+3 gold per kill from this turret.' },
   ricochet: { name: 'Ricochet', desc: 'Hits bounce to a nearby enemy for 50% damage.' },
   explosive: { name: 'Volatile Kills', desc: 'Enemies killed by this turret explode (2× damage, 2 m).' },
-  doubletap: { name: 'Double Tap', desc: '15% chance to fire twice.' },
-  venomrounds: { name: 'Venom Rounds', desc: 'Hits poison enemies (+6 burn/s).' },
+  doubletap: { name: 'Double Tap', desc: '25% of shots fire a free second shot — also when you aim.' },
+  venomrounds: { name: 'Venom Rounds', desc: 'Every hit poisons: +12 damage per second for 3 s.' },
   longshot: { name: 'Long Shot', desc: '+20% range.' },
   crushing: { name: 'Crusher', desc: '+30% damage to armoured enemies and bosses.' },
 };
 
 export const GEARS = {
-  damage: { name: 'Damage Mod', desc: '+10% damage', fx: { dmg: 0.1 }, color: '#ff5a3a' },
-  speed: { name: 'Rate Mod', desc: '+10% fire rate', fx: { rate: 0.1 }, color: '#ffcf5a' },
-  range: { name: 'Optics Mod', desc: '+8% range', fx: { range: 0.08 }, color: '#4fc3ff' },
-  cooling: { name: 'Cryo Mod', desc: '−20% barrel heat', fx: { heat: 0.2 }, color: '#8fe3ff' },
-  gold: { name: 'Salvage Mod', desc: '+2 gold per kill', fx: { bounty: 2 }, color: '#ffc62e' },
+  damage: { name: 'Damage Mod', desc: '+15% damage', fx: { dmg: 0.15 }, color: '#ff5a3a' },
+  speed: { name: 'Rate Mod', desc: '+15% fire rate', fx: { rate: 0.15 }, color: '#ffcf5a' },
+  range: { name: 'Optics Mod', desc: '+12% range', fx: { range: 0.12 }, color: '#4fc3ff' },
+  cooling: { name: 'Cryo Mod', desc: '−30% heat per shot', fx: { heat: 0.3 }, color: '#8fe3ff' },
+  gold: { name: 'Salvage Mod', desc: '+3 gold per kill', fx: { bounty: 3 }, color: '#ffc62e' },
   pierce: { name: 'Pierce Mod', desc: 'Projectiles pierce +1', fx: { pierce: 1 }, color: '#e8e0c8' },
-  crit: { name: 'Crit Mod', desc: '+8% crit chance', fx: { crit: 0.08 }, color: '#ff3d9f' },
+  crit: { name: 'Crit Mod', desc: '+12% chance of double damage', fx: { crit: 0.12 }, color: '#ff3d9f' },
   vision: { name: 'Sensor Mod', desc: 'Detects cloaked enemies', fx: { detect: 1 }, color: '#7affc0' },
 };
 export const GEAR_ORDER = Object.keys(GEARS);
