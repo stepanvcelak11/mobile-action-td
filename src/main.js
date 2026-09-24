@@ -52,11 +52,14 @@ const canvas = $('game');
 // Screen size comes from the canvas: on iPhone home-screen apps viewport.js can make it larger than the window.
 const viewW = () => canvas.clientWidth || window.innerWidth;
 const viewH = () => canvas.clientHeight || window.innerHeight;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// dense phone screens (DPR ≥ 2) hide jaggies on their own, so skip the costly multisampling there
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 2, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCoarse ? 1.75 : 2));
 renderer.setSize(viewW(), viewH(), false);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = isCoarse ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+// shadows are redrawn at most every other frame (see frame())
+renderer.shadowMap.autoUpdate = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -3038,7 +3041,7 @@ army.init({
 });
 
 initMenu({
-  gyro: () => requestGyro(),
+  gyro: () => requestMotion(),
   play: (id, mode, hard) => startMap(id, mode, hard),
   preview: (id) => loadMap(id),
   click: () => unlockAudio(),
@@ -3092,8 +3095,16 @@ function update(dt) {
 
 let last = performance.now();
 let hudTick = 0;
+// 120 Hz phones (iPhone Pro) would otherwise render twice as many frames as the game needs:
+// cap at 60 fps in play and 30 fps in the menu. Shadows update on every other drawn frame.
+let lastDraw = 0, shadowFlip = false;
 function frame(now) {
   requestAnimationFrame(frame);
+  const cap = G.view === 'MENU' ? 1000 / 30 : 1000 / 60;
+  if (now - lastDraw < cap - 2) return;
+  lastDraw = now;
+  shadowFlip = !shadowFlip;
+  if (shadowFlip || G.view === 'MENU') renderer.shadowMap.needsUpdate = true;
   const raw = Math.min(0.05, (now - last) / 1000);
   last = now;
   perf.frame(now);
@@ -3558,18 +3569,44 @@ function screenAngle() {
   const a = screen.orientation?.angle ?? window.orientation ?? 0;
   return ((a % 360) + 360) % 360;
 }
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// Back tap: a knock on the back of the phone is a short, sharp jolt along the screen normal.
+let tapHp = 0, tapPrev = 0, tapLast = 0;
+function detectBackTap(ev) {
+  const a = ev.acceleration || null;
+  const g = ev.accelerationIncludingGravity || {};
+  // prefer gravity-free acceleration; otherwise high-pass the raw z
+  let z;
+  if (a && a.z != null) z = a.z;
+  else { const raw = g.z || 0; tapHp = 0.8 * (tapHp + raw - tapPrev); tapPrev = raw; z = tapHp; }
+  const side = a ? Math.hypot(a.x || 0, a.y || 0) : 0;
+  const now = performance.now();
+  const need = 3.2 / (P.settings.backTapSens || 1);
+  if (Math.abs(z) > need && side < Math.abs(z) * 0.8 && now - tapLast > 140) {
+    tapLast = now;
+    if (G.overheated && tryVent()) return;
+    firePointers.set('backtap', {});
+    refreshFire();
+    setTimeout(() => { firePointers.delete('backtap'); refreshFire(); }, 170);
+  }
+}
 function onMotion(ev) {
+  if (P.settings.backTap && G.view === 'FPV' && !G.paused) detectBackTap(ev);
   const r = ev.rotationRate;
   if (!r || !P.settings.gyro || G.view !== 'FPV' || G.paused) return;
   const now = performance.now();
   const dt = Math.min(0.05, (now - (onMotion.last || now)) / 1000);
   onMotion.last = now;
   const a = screenAngle();
-  const alpha = r.beta || 0, gamma = r.gamma || 0;       // deg/s around the device x / y axes
+  // rate around the device x axis (across the screen) and y axis (along it), deg/s.
+  // Safari on iPhone/iPad reports rotationRate with alpha = x and beta = y; the W3C order is beta = x, gamma = y.
+  const xr = (IS_IOS ? r.alpha : r.beta) || 0, yr = (IS_IOS ? r.beta : r.gamma) || 0;
   let yawRate, pitchRate;
-  if (a === 90) { yawRate = alpha; pitchRate = -gamma; }
-  else if (a === 270) { yawRate = -alpha; pitchRate = gamma; }
-  else { yawRate = gamma; pitchRate = alpha; }
+  if (a === 90) { yawRate = xr; pitchRate = -yr; }
+  else if (a === 270) { yawRate = -xr; pitchRate = yr; }
+  else { yawRate = yr; pitchRate = xr; }
+  if (P.settings.gyroInvX) yawRate = -yawRate;
+  if (P.settings.gyroInvY) pitchRate = -pitchRate;
   const dead = (v) => (Math.abs(v) < 0.6 ? 0 : v);
   const k = THREE.MathUtils.degToRad(1) * dt * (P.settings.gyroSens || 1) * (camera.fov / 75) * aimFriction();
   const t = G.active;
@@ -3584,6 +3621,7 @@ function startGyro() {
   window.addEventListener('devicemotion', onMotion);
 }
 /** Called from the settings tap: iPhone needs the permission request inside that gesture. */
+function requestMotion() { requestGyro(); }
 function requestGyro() {
   const DM = window.DeviceMotionEvent;
   if (DM && typeof DM.requestPermission === 'function') {
@@ -3595,7 +3633,7 @@ function requestGyro() {
   else { P.settings.gyro = false; save(); toastMsg('This device has no motion sensor'); }
 }
 function toastMsg(text) { floatyScreen(text, 'miss'); }
-if (P.settings.gyro && !(window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')) startGyro();
+if ((P.settings.gyro || P.settings.backTap) && !(window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')) startGyro();
 
 /* ================================================================ Active cooldown (B1) */
 // When the barrel overheats a needle sweeps a bar; FIRE inside the bright window vents instantly
