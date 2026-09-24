@@ -1094,3 +1094,12 @@ body.fpv #btn-zoom { display: none; }
 .bb-mark { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #fff; opacity: 0.7; }
 @media (orientation: portrait) { #bossbar { top: calc(100px + var(--sat)); width: calc(100vw - 120px); } }
 body.fpv #bossbar { top: calc(46px + var(--sat)); }
+
+/* ------------------------------------------------------------ D3 details */
+/* tutorial bubble in first person: off the crosshair, top-left under the HUD */
+body.fpv #coach { left: calc(12px + var(--sal)); right: auto; transform: translateY(-12px); width: min(380px, 42vw); top: calc(56px + var(--sat)); }
+body.fpv #coach.show { transform: none; }
+/* menu headings stay readable over the 3D background in both themes */
+.m-content h3 { color: var(--text); text-shadow: 0 1px 6px var(--ground-shadow, rgba(0, 0, 0, 0.55)); }
+body[data-theme="light"] .m-content h3 { --ground-shadow: rgba(255, 255, 255, 0.9); }
+.m-content h3 small { color: var(--muted); }

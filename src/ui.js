@@ -890,6 +890,7 @@ function openSettings() {
       <div class="set-row"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-range="volume"><b id="v-volume">${Math.round(s.volume * 100)}%</b></div>
       <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
       <div class="set-row"><span>Graphics</span>${seg('quality', [['auto', 'AUTO'], ['low', 'LOW'], ['medium', 'MID'], ['high', 'HIGH']])}<small>Auto lowers the resolution when your phone struggles</small></div>
+      <div class="set-row"><span>Glow</span>${seg('glow', [['auto', 'AUTO'], ['on', 'ON'], ['off', 'OFF']])}<small>Bloom on lights and explosions. Auto = only on High graphics.</small></div>
       <div class="set-row"><span>FPS meter</span>${seg('fps', [[false, 'OFF'], [true, 'ON']])}</div>
       <div class="set-row"><span>Left-handed</span>${seg('leftHanded', [[false, 'OFF'], [true, 'ON']])}<small>FIRE on the left, aim on the right</small></div>
       <div class="set-row"><span>Button layout</span><button class="btn" id="set-layout">CUSTOMIZE</button><button class="btn ghost" id="set-layout-reset">RESET</button></div>

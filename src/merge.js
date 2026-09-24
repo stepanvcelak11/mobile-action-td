@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 
 function mergeGeometries(geos) {
-  const names = ['position', 'normal', 'uv'].filter((n) => geos.every((g) => g.attributes[n]));
+  const names = ['position', 'normal', 'uv', 'color'].filter((n) => geos.every((g) => g.attributes[n]));
   const total = geos.reduce((a, g) => a + g.attributes.position.count, 0);
   const out = new THREE.BufferGeometry();
   for (const n of names) {

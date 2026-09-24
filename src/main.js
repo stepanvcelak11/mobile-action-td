@@ -6,6 +6,7 @@ import { Particles, Projectiles, Beams, AmbientFx, Rings } from './effects.js';
 import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph } from './audio.js';
 import { music } from './music.js';
 import { createPerf } from './perf.js';
+import { createPost } from './post.js';
 import { skill } from './skill.js';
 import { run } from './roguelite.js';
 import { daily } from './daily.js';
@@ -339,7 +340,18 @@ function clampPan() {
   CAM.pan.z = THREE.MathUtils.clamp(CAM.pan.z, -hz, hz);
   CAM.pan.y = 0;
 }
-function resetCam() { CAM.zoom = 1; CAM.pan.set(0, 0, 0); CAM.fit = null; updateZoomBtn(); }
+function resetCam() {
+  CAM.zoom = 1; CAM.pan.set(0, 0, 0); CAM.fit = null; updateZoomBtn();
+  // tight shadow box around this map = sharper shadows from the same shadow map
+  computeFit();
+  const b = CAM.fit.box, c = b.getCenter(new V3());
+  const r = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) / 2 + 8;
+  sun.target.position.set(c.x, 0, c.z);
+  sun.position.set(c.x + 28, 48, c.z + 22);
+  scene.add(sun.target);
+  Object.assign(sun.shadow.camera, { left: -r, right: r, top: r, bottom: -r, near: 5, far: 140 });
+  sun.shadow.camera.updateProjectionMatrix();
+}
 function topPose() {
   if (!CAM.fit) computeFit();
   const f = CAM.fit;
@@ -770,16 +782,8 @@ function updateEnemies(dt) {
       e.body.scale.setScalar(1 + Math.max(0, e.flash) * 0.6);
     }
     if (e.slowT > 0 && !e.frozen && Math.random() < dt * 6) sparks.emit(e.center, '#8fe3ff', 1, 1.5, 0.4, -1, 0.5);
-    e.bar.position.set(e.group.position.x, e.def.barY + (e.gait === 'fly' || e.gait === 'flyspin' ? e.body.position.y : 0), e.group.position.z);
-    e.bar.visible = !e.buried;
-    e.bar.quaternion.copy(camera.quaternion);
-    const f = Math.max(0, e.hp / e.maxHp);
-    e.fill.scale.x = Math.max(0.001, f);
-    e.fillM.color.setHSL(f * 0.33, 0.85, 0.5);
-    if (e.shieldFill) {
-      e.shieldFill.visible = e.shield > 0;
-      e.shieldFill.scale.x = Math.max(0.001, e.shield / e.maxShield);
-    }
+    e.bar.visible = false;          // drawn by the instanced bars in updateBars()
+    e.barLift = e.gait === 'fly' || e.gait === 'flyspin' ? e.body.position.y : 0;
   }
 }
 
@@ -3040,7 +3044,8 @@ function frame(now) {
   updateFpvHud();
   hudTick += raw;
   if (hudTick > 0.1 && G.view !== 'MENU') { hudTick = 0; updateHud(); }
-  renderer.render(scene, camera);
+  if (glowOn()) post.render(scene, camera);
+  else renderer.render(scene, camera);
 }
 
 const loaderStep = (frac, tip) => {
@@ -3384,6 +3389,7 @@ function updateReadability(dt) {
   updateWaveArrows(dt, top);
   updateThreats();
   updateBossBar();
+  updateBars();
 }
 
 // Chevrons flowing from each spawn along the road while the next wave waits.
@@ -3663,4 +3669,62 @@ function updateBossBar() {
     bar.classList.toggle('p2', boss.phase === 2);
   }
   bar.querySelector('.bb-fill').style.width = `${Math.max(0, boss.hp / boss.maxHp) * 100}%`;
+}
+
+
+/* ================================================================ Look (D1) + health bars */
+const post = createPost(renderer);
+/** Bloom runs on the High preset, or always / never when the player says so. */
+function glowOn() {
+  const g = P.settings.glow || 'auto';
+  if (g === 'off') return false;
+  if (g === 'on') return true;
+  return (P.settings.quality || 'auto') === 'high';
+}
+
+// Instanced health bars: shown once an enemy is hurt (bosses use the big bar at the top).
+const BAR_MAX = 160;
+const barGeo = new THREE.PlaneGeometry(1, 1);
+const mkBar = (opacity, order) => {
+  const m = new THREE.InstancedMesh(barGeo, new THREE.MeshBasicMaterial({ transparent: true, opacity, depthWrite: false, toneMapped: false }), BAR_MAX);
+  m.frustumCulled = false;
+  m.renderOrder = order;
+  scene.add(m);
+  return m;
+};
+const barBg = mkBar(0.78, 10), barFill = mkBar(1, 11), barShield = mkBar(1, 12);
+const _bq = new THREE.Quaternion(), _bs = new V3(), _bp = new V3(), _br = new V3(), _bc = new THREE.Color();
+const _bm = new THREE.Matrix4();
+function updateBars() {
+  let n = 0, ns = 0;
+  if (G.view !== 'MENU') {
+    _bq.copy(camera.quaternion);
+    _br.set(1, 0, 0).applyQuaternion(_bq);
+    for (const e of G.enemies) {
+      if (!e.alive || e.buried || e.type === 'boss' || n >= BAR_MAX) continue;
+      const hurt = e.hp < e.maxHp - 0.5 || (e.maxShield && e.shield < e.maxShield);
+      if (!hurt && !e.elite) continue;
+      const k = G.enemyScale * (e.def.scale || 1);
+      const w = e.def.barW * Math.min(1.3, k), h = 0.2 * Math.min(1.3, k);
+      _bp.set(e.group.position.x, e.def.barY * k + (e.barLift || 0), e.group.position.z);
+      _bm.compose(_bp, _bq, _bs.set(w + 0.1, h + 0.1, 1));
+      barBg.setMatrixAt(n, _bm);
+      barBg.setColorAt(n, _bc.set(e.elite ? e.elite.color : '#0b0d10').multiplyScalar(e.elite ? 0.55 : 1));
+      const f = Math.max(0.001, e.hp / e.maxHp);
+      _bm.compose(_bp.clone().addScaledVector(_br, -(1 - f) * w / 2), _bq, _bs.set(w * f, h, 1));
+      barFill.setMatrixAt(n, _bm);
+      barFill.setColorAt(n, _bc.setHSL(f * 0.33, 0.85, 0.5));
+      if (e.maxShield && e.shield > 0) {
+        const fs = e.shield / e.maxShield;
+        _bm.compose(_bp.clone().addScaledVector(_br, -(1 - fs) * w / 2).add(new V3(0, h * 0.85, 0).applyQuaternion(_bq)), _bq, _bs.set(w * fs, h * 0.55, 1));
+        barShield.setMatrixAt(ns, _bm);
+        barShield.setColorAt(ns, _bc.set('#5fd8ff'));
+        ns++;
+      }
+      n++;
+    }
+  }
+  barBg.count = barFill.count = n;
+  barShield.count = ns;
+  for (const m of [barBg, barFill, barShield]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
 }
