@@ -17,6 +17,7 @@ import { daily } from './daily.js';
 import { campaign } from './campaign.js';
 import { skill } from './skill.js';
 import { ach } from './achievements.js';
+import { showcase, stopShowcase } from './showcase.js';
 import { turretIcon, uiIcon, enemyIcon, abilityIcon, coinIcon, gemIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, starPowerIcon, gearIcon, navIcon, settingsIcon } from './icons.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -365,7 +366,7 @@ function renderArmory(c) {
         : `<div class="tc-lock">${uiIcon('lock')} ${coinIcon()}${unlockCost(id)} or a card</div>`}
       </button>`;
     }).join('')}</div><p class="menu-note">Collect turret cards from chests, then level turrets up with coins: +7% damage and +1.5% range per level. Level ${POWER_UNLOCK.gadget} unlocks Tactics, ${POWER_UNLOCK.star} Traits, ${POWER_UNLOCK.gear1} and ${POWER_UNLOCK.gear2} Mod chips, ${POWER_UNLOCK.hyper} Overload.</p>`;
-    body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t); }));
+    body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t, null); }));
     $('a-deck').addEventListener('click', () => openDeck());
   } else if (armoryTab === 'abilities') {
     body.innerHTML = `${loadoutHtml('a-loadout')}<div class="grid">${ABILITY_ORDER.map((a) => `<div class="card"><div class="card-row">
@@ -416,119 +417,119 @@ const KIND_TEXT = {
   pulse: 'Sonic waves in a cone — hits everything in front of it and staggers.',
   orb: 'Slow plasma orbs with a big blast radius.',
 };
-const TABS = [['info', 'HOW IT WORKS'], ['powers', 'POWERS'], ['tree', 'UPGRADES'], ['skins', 'SKINS']];
 
-function openTurretDetail(id) {
+/* -------------------------------------------------------- turret detail (I2)
+   Brawl-Stars-style showcase: live 3D turret on the left, level + stats + a build of four
+   power tiles on the right; tapping a tile (or Upgrades / Skins / How to play) slides in a sheet. */
+let detailSheet = null;
+const STAT_MAX = (() => {
+  const vals = Object.values(TURRETS).filter((t) => t.kind !== 'deploy');
+  return {
+    dmg: Math.max(...vals.map((t) => t.damage * (t.shots || 1))),
+    rate: Math.max(...vals.map((t) => 1 / t.interval)),
+    range: Math.max(...vals.map((t) => t.range)),
+  };
+})();
+function statBar(label, val, max, text, color) {
+  const w = Math.max(6, Math.min(100, (val / max) * 100));
+  return `<div class="bs-stat"><span>${label}</span><div class="bs-sbar"><i style="width:${w}%;background:${color}"></i></div><b>${text}</b></div>`;
+}
+function openTurretDetail(id, sheet = detailSheet) {
+  detailSheet = sheet;
   const t = TURRETS[id];
   const owned = !!P.unlocked[id];
   const L = tlevel(id);
   const lb = levelBonus(id);
   const need = CARD_NEED[L - 1], coins = COIN_NEED[L - 1];
-  const rate = (1 / t.interval).toFixed(t.interval < 0.5 ? 0 : 1);
-  const mrate = (1 / t.manual.interval).toFixed(t.manual.interval < 0.5 ? 0 : 1);
-  const head = `
-    <div class="detail" style="--tc:${t.color}">
-      <div class="d-pic">${pic(turretPortrait(id, skinOf(id)))}</div>
-      <div class="d-main">
-        <div class="kicker">${owned ? `LEVEL ${L} / ${MAX_TLEVEL}` : 'LOCKED'}</div>
-        <h2>${t.name}</h2>
-        <p>${t.desc}</p>
-        ${owned ? (L < MAX_TLEVEL ? `<div class="bar lvbar"><i style="width:${Math.min(100, ((P.cards[id] || 0) / need) * 100)}%"></i><span>${P.cards[id] || 0}/${need} cards</span></div>
-          <button class="btn ${canLevel(id) ? 'primary' : ''}" id="d-level" ${canLevel(id) ? '' : 'disabled'}>LEVEL UP → ${L + 1} · ${coinIcon()}${coins}</button>` : '<div class="lock-note">MAX LEVEL</div>')
-          : `<button class="btn ${P.coins >= unlockCost(id) ? 'primary' : ''}" id="d-unlock" ${P.coins >= unlockCost(id) ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${unlockCost(id)}</button><small class="menu-note">…or find its card in a chest.</small>`}
+  const ps = powerState(id);
+  const tp = TURRET_POWERS[id];
+  const deploy = t.kind === 'deploy';
+  const dmg = Math.round(t.damage * lb.dmg);
+  const rate = 1 / t.interval;
+  // ----- power tiles
+  const eqG = ps.gadget != null && ps.gadgets[ps.gadget] ? tp.gadgets[ps.gadget] : null;
+  const eqS = ps.star != null && ps.stars[ps.star] ? tp.stars[ps.star] : null;
+  const tile = (key, label, lv, icon, name, color) => {
+    const locked = !owned || L < lv;
+    return `<button class="bs-tile${locked ? ' locked' : ''}${name ? ' on' : ''}" data-sheet="${key}" style="--pc:${color}">
+      <small>${label}</small><div class="bs-tico">${locked ? uiIcon('lock') : icon}</div>
+      <b>${locked ? `LEVEL ${lv}` : name || 'EMPTY'}</b></button>`;
+  };
+  const tiles = [
+    tile('tactic', 'TACTIC', POWER_UNLOCK.gadget, eqG ? gadgetIcon(eqG, GADGETS[eqG].color) : gadgetIcon(tp.gadgets[0], '#6a7482'), eqG && GADGETS[eqG].name, eqG ? GADGETS[eqG].color : '#6a7482'),
+    tile('trait', 'TRAIT', POWER_UNLOCK.star, starPowerIcon(), eqS && STAR_POWERS[eqS].name, '#ffcf5a'),
+    tile('mod', 'MOD CHIPS', POWER_UNLOCK.gear1, gearIcon(ps.gears[0] ? GEARS[ps.gears[0]].color : '#6a7482'), ps.gears.filter(Boolean).map((g) => GEARS[g].name.replace(' Mod', '')).join(' + '), ps.gears[0] ? GEARS[ps.gears[0]].color : '#6a7482'),
+    tile('overload', 'OVERLOAD', POWER_UNLOCK.hyper, hyperIcon(), ps.hyper && tp.hyper.name, '#b46bff'),
+  ].join('');
+  const levelBlock = owned
+    ? (L < MAX_TLEVEL
+      ? `<div class="bs-lv"><div class="bs-lvbadge"><small>LV</small><b>${L}</b></div>
+          <div class="bs-lvmain"><div class="bs-cards"><i style="width:${Math.min(100, ((P.cards[id] || 0) / need) * 100)}%"></i><span>${P.cards[id] || 0} / ${need} cards</span></div>
+          <button class="btn bs-up ${canLevel(id) ? 'primary' : ''}" id="d-level" ${canLevel(id) ? '' : 'disabled'}>LEVEL UP · ${coinIcon()}${coins}</button></div></div>`
+      : `<div class="bs-lv"><div class="bs-lvbadge max"><small>LV</small><b>${L}</b></div><div class="bs-lvmain"><b class="bs-max">MAX LEVEL</b></div></div>`)
+    : `<div class="bs-lv"><div class="bs-lvbadge lock">${uiIcon('lock')}</div><div class="bs-lvmain">
+        <button class="btn bs-up ${P.coins >= unlockCost(id) ? 'primary' : ''}" id="d-unlock" ${P.coins >= unlockCost(id) ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${unlockCost(id)}</button>
+        <small class="menu-note">…or find its card in a chest</small></div></div>`;
+  const stats = deploy
+    ? statBar('UNIT POWER', dmg, 60, `${dmg}`, '#ff9a3a') + statBar('SQUAD EVERY', 1 / t.interval, 1 / 8, `${t.interval} s`, '#5fd8ff') + statBar('RANGE', t.range, STAT_MAX.range, `${t.range} m`, '#8fe04a')
+    : statBar('DAMAGE', t.damage * (t.shots || 1) * lb.dmg, STAT_MAX.dmg, `${dmg}${t.shots > 1 ? ` ×${t.shots}` : ''}`, '#ff9a3a')
+      + statBar('FIRE RATE', rate, STAT_MAX.rate, `${rate >= 2 ? rate.toFixed(0) : rate.toFixed(1)}/s`, '#5fd8ff')
+      + statBar('RANGE', t.range * lb.range, STAT_MAX.range, `${(t.range * lb.range).toFixed(0)} m`, '#8fe04a');
+  const chips = `${deploy ? '<span>ARMY</span>' : t.groundOnly ? '<span class="neg">GROUND ONLY</span>' : '<span class="pos">HITS AIR</span>'}${t.scope ? '<span>SCOPE</span>' : ''}<span>${coinIcon()}${t.cost} to build</span>`;
+
+  const html = `<div class="bs" style="--tc:${t.color}">
+    <div class="bs-left">
+      <div class="bs-name"><small>${deploy ? 'ARMY TOWER' : `${t.kind.toUpperCase()} TURRET`}${owned ? ` · LEVEL ${L}` : ' · LOCKED'}</small><h2>${t.name}</h2></div>
+      <canvas class="bs-3d" id="bs-3d" aria-label="${t.name} — drag to turn"></canvas>
+      ${levelBlock}
+    </div>
+    <div class="bs-right">
+      <p class="bs-desc">${t.desc}</p>
+      <div class="bs-chips">${chips}</div>
+      <div class="bs-stats">${stats}</div>
+      <h4 class="bs-h">BUILD</h4>
+      <div class="bs-tiles">${tiles}</div>
+      <div class="bs-more">
+        <button class="btn" data-sheet="tree">UPGRADE TREE</button>
+        <button class="btn" data-sheet="skins">SKINS</button>
+        <button class="btn ghost" data-sheet="how">HOW TO PLAY</button>
       </div>
     </div>
-    <div class="dtabs">${TABS.map(([k, n]) => `<button class="${detailTab === k ? 'active' : ''}" data-dt="${k}">${n}</button>`).join('')}</div>`;
-  let body = '';
-  if (detailTab === 'info') {
-    body = `
-      <div class="how">
-        <div class="how-card"><h4>ROLE</h4><p>${KIND_TEXT[t.kind] || t.desc}</p>
-          <div class="chips">${t.groundOnly ? '<span class="neg">GROUND ONLY</span>' : '<span class="pos">HITS AIR</span>'}${t.scope ? '<span>SCOPE</span>' : ''}${t.target === 'strong' ? '<span>TARGETS STRONGEST</span>' : ''}</div></div>
-        <div class="how-card"><h4>WHEN YOU CONTROL IT</h4><p>${TURRET_TIPS[id] || 'Drag the left half to aim and hold FIRE.'}</p></div>
-      </div>
-      <table class="stat-table">
-        <tr><th></th><th>AUTO</th><th>YOU AIM</th></tr>
-        <tr><td>Damage</td><td>${Math.round(t.damage * lb.dmg)}${t.shots > 1 ? ` ×${t.shots}` : ''}</td><td>${Math.round(t.manual.damage * lb.dmg)}</td></tr>
-        <tr><td>Shots / s</td><td>${rate}</td><td>${mrate}</td></tr>
-        <tr><td>Range</td><td colspan="2">${(t.range * lb.range).toFixed(1)} m</td></tr>
-        <tr><td>Heat per shot</td><td>—</td><td>${t.manual.heat}</td></tr>
-        <tr><td>Build cost</td><td colspan="2">${t.cost} gold</td></tr>
-      </table>
-      <div class="controls">
-        <div><b>Aim</b><span>drag the left half of the screen</span></div>
-        <div><b>Fire</b><span>hold the FIRE button</span></div>
-        <div><b>Head ×2</b><span>headshots deal double damage</span></div>
-        <div><b>Legs / tracks</b><span>hits slow the enemy down</span></div>
-      </div>`;
-  } else if (detailTab === 'powers') {
-    const ps = powerState(id);
-    const tp = TURRET_POWERS[id];
-    const lockTxt = (lv) => `<span class="lock-note">${uiIcon('lock')} TURRET LEVEL ${lv}</span>`;
-    const pcard = (kind, i, name, desc, icon, bought, equipped, unlockLv, price) => {
-      let action;
-      if (!owned || L < unlockLv) action = lockTxt(unlockLv);
-      else if (!bought) action = `<button class="btn sm ${P.coins >= price ? 'primary' : ''}" data-buy="${kind}:${i}" ${P.coins >= price ? '' : 'disabled'}>${coinIcon()}${price}</button>`;
-      else if (equipped) action = '<span class="eq">EQUIPPED</span>';
-      else action = `<button class="btn sm" data-eq="${kind}:${i}">EQUIP</button>`;
-      return `<div class="pcard${equipped ? ' on' : ''}${bought ? '' : ' nb'}"><div class="pc-ico">${icon}</div><div class="c-main"><b>${name}</b><small>${desc}</small></div>${action}</div>`;
-    };
-    const gearSlot = (slot) => {
-      const lv = slot === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2;
-      const cur = ps.gears[slot];
-      const head2 = `<div class="gs-head"><b>Mod chip ${slot + 1}</b>${!owned || L < lv ? lockTxt(lv) : cur ? `<span class="eq" style="color:${GEARS[cur].color}">${GEARS[cur].name}</span>` : `<small>pick one · ${coinIcon()}${POWER_PRICE.gear}</small>`}</div>`;
-      if (!owned || L < lv) return `<div class="gslot locked">${head2}</div>`;
-      return `<div class="gslot">${head2}<div class="gears">${GEAR_ORDER.map((g) => `<button class="gear${cur === g ? ' on' : ''}" data-gear="${slot}:${g}" style="--pc:${GEARS[g].color}" ${cur === g || ps.gears.includes(g) || P.coins < POWER_PRICE.gear ? 'disabled' : ''}>${gearIcon(GEARS[g].color)}<b>${GEARS[g].name.replace(' Mod', '')}</b><small>${GEARS[g].desc}</small></button>`).join('')}</div></div>`;
-    };
-    const fxText = Object.entries(tp.hyper.fx).map(([k, v]) => ({ splash: `+${v} m splash`, shots: `+${v} shots`, pierce: `+${v} pierce`, crit: `+${Math.round(v * 100)}% crit`, freeze: 'freezing hits', burn: `+${v} burn/s`, range: `+${Math.round(v * 100)}% range`, cluster: `${v} cluster bombs`, slow: 'slowing hits', stun: 'stunning hits', chain: `+${v} chain`, dmg: `+${Math.round(v * 100)}% damage`, beams: `${v} beams`, ramp: 'faster ramp', rate: `+${Math.round(v * 100)}% fire rate` }[k] || k)).join(' · ');
-    body = `
-      <h3>Tactics <small>active move · 3 uses per match · hex button next to FIRE</small></h3>
-      ${tp.gadgets.map((g, i) => pcard('gadget', i, GADGETS[g].name, GADGETS[g].desc, gadgetIcon(g, GADGETS[g].color), ps.gadgets[i], ps.gadgets[i] && ps.gadget === i, POWER_UNLOCK.gadget, POWER_PRICE.gadget)).join('')}
-      <h3>Traits <small>passive · one equipped</small></h3>
-      ${tp.stars.map((st, i) => pcard('star', i, STAR_POWERS[st].name, STAR_POWERS[st].desc, starPowerIcon(), ps.stars[i], ps.stars[i] && ps.star === i, POWER_UNLOCK.star, POWER_PRICE.star)).join('')}
-      <h3>Mod chips <small>two slots of stat boosts</small></h3>
-      ${gearSlot(0)}${gearSlot(1)}
-      <h3>Overload <small>reactor fills with ${HYPER_KILLS} kills · +40% damage and fire rate for 8 s</small></h3>
-      <div class="pcard hyper${ps.hyper ? ' on' : ''}"><div class="pc-ico">${hyperIcon()}</div><div class="c-main"><b>${tp.hyper.name}</b><small>${fxText}</small></div>
-        ${!owned || L < POWER_UNLOCK.hyper ? lockTxt(POWER_UNLOCK.hyper) : ps.hyper ? '<span class="eq">OWNED</span>' : `<button class="btn sm ${P.coins >= POWER_PRICE.hyper ? 'primary' : ''}" data-buy="hyper:0" ${P.coins >= POWER_PRICE.hyper ? '' : 'disabled'}>${coinIcon()}${POWER_PRICE.hyper}</button>`}</div>`;
-  } else if (detailTab === 'tree') {
-    body = `<p class="menu-note">Bought with gold during a match — tap your turret, or ⬆ while you control it. Three paths, only one can go past tier 3.</p>
-      <div class="mini-tree">${TREES[id].map((b) => `<div class="mt-branch" style="--bc:${b.color}"><b>${b.name}</b>${b.nodes.map((n, i) => `<span class="${i === 4 ? 'ult' : ''}"><i>${i + 1}</i>${i === 4 ? '★ ' : ''}${n.name}<em>${n.desc}</em></span>`).join('')}</div>`).join('')}</div>`;
-  } else {
-    body = `<div class="skins">${SKIN_ORDER.map((sk) => {
-      const s = SKINS[sk];
-      const have = !!P.skins[sk];
-      const sel = skinOf(id) === sk;
-      const fx = s.fx ? `<span class="sk-fx"><i style="background:${s.fx.tracer}"></i><i style="background:${s.fx.trail}"></i><i style="background:${s.fx.spark}"></i></span>` : '';
-      return `<button class="skin${sel ? ' sel' : ''}${have ? '' : ' locked'}" data-sk="${sk}" style="--rc:${RARITY_COLORS[s.rarity]}">
-        <span class="sk-rar">${s.rarity}</span>
-        <div class="sk-pic">${pic(turretPortrait(id, sk))}</div><b>${s.name}</b><small class="sk-desc">${s.desc}</small>${fx}
-        <small class="sk-state">${have ? (sel ? 'EQUIPPED' : 'EQUIP') : s.price ? `${gemIcon()}${s.price}` : 'FREE'}</small></button>`;
-    }).join('')}</div><p class="menu-note">Skins change the turret's look and accessories and the colour of its shots, trails and sparks. Some are only on the Trophy Road or in the Battle Pass.</p>`;
-  }
-  openOverlay(head + `<div class="dbody">${body}</div>`, 'wide');
-  document.querySelectorAll('#overlay-body [data-dt]').forEach((b) => b.addEventListener('click', () => { detailTab = b.dataset.dt; openTurretDetail(id); }));
-  $('d-level')?.addEventListener('click', () => { if (levelUp(id)) { toast(`${t.name} → LEVEL ${tlevel(id)}`); openTurretDetail(id); renderMenu(); } });
-  $('d-unlock')?.addEventListener('click', () => { if (unlockTurret(id)) { P.tlevel[id] = 1; save(); openTurretDetail(id); renderMenu(); } });
-  document.querySelectorAll('#overlay-body [data-buy]').forEach((b) => b.addEventListener('click', () => {
+    ${detailSheet ? `<div class="bs-sheet"><div class="bs-sheet-head"><b>${{ tactic: 'Tactics', trait: 'Traits', mod: 'Mod chips', overload: 'Overload', tree: 'Upgrade tree', skins: 'Skins', how: 'How to play' }[detailSheet]}</b><button class="x-btn" id="bs-close" aria-label="Back">${uiIcon('close')}</button></div><div class="bs-sheet-body">${sheetHtml(id, detailSheet, { owned, L, ps, tp, lb })}</div></div>` : ''}
+  </div>`;
+  openOverlay(html, 'full');
+  const view = showcase($('bs-3d'), id, skinOf(id));
+  const root = $('overlay-body');
+  root.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => { sfx('tap'); openTurretDetail(id, b.dataset.sheet); }));
+  $('bs-close')?.addEventListener('click', () => { sfx('tap'); openTurretDetail(id, null); });
+  $('d-level')?.addEventListener('click', () => {
+    if (!levelUp(id)) return;
+    sfx('levelup');
+    view.bump();
+    toast(`${t.name} → LEVEL ${tlevel(id)}`);
+    setTimeout(() => { openTurretDetail(id); renderMenu(); }, 850);
+  });
+  $('d-unlock')?.addEventListener('click', () => { if (unlockTurret(id)) { P.tlevel[id] = 1; save(); sfx('reward'); view.bump(); setTimeout(() => { openTurretDetail(id); renderMenu(); }, 850); } });
+  root.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => {
     const [kind, i] = b.dataset.buy.split(':');
     const ok = kind === 'gadget' ? buyGadget(id, +i) : kind === 'star' ? buyStar(id, +i) : buyHyper(id);
-    if (ok) toast('Unlocked and equipped!'); else toast('Not enough coins');
+    if (ok) { sfx('reward'); toast('Unlocked and equipped!'); } else toast('Not enough coins');
     openTurretDetail(id);
     renderMenu();
   }));
-  document.querySelectorAll('#overlay-body [data-eq]').forEach((b) => b.addEventListener('click', () => {
+  root.querySelectorAll('[data-eq]').forEach((b) => b.addEventListener('click', () => {
     const [kind, i] = b.dataset.eq.split(':');
     selectPower(id, kind, +i);
+    sfx('tap');
     openTurretDetail(id);
   }));
-  document.querySelectorAll('#overlay-body [data-gear]').forEach((b) => b.addEventListener('click', () => {
+  root.querySelectorAll('[data-gear]').forEach((b) => b.addEventListener('click', () => {
     const [slot, g] = b.dataset.gear.split(':');
-    if (buyGear(id, +slot, g)) toast(`${GEARS[g].name} equipped`); else toast('Not enough coins');
+    if (buyGear(id, +slot, g)) { sfx('reward'); toast(`${GEARS[g].name} equipped`); } else toast('Not enough coins');
     openTurretDetail(id);
     renderMenu();
   }));
-  document.querySelectorAll('#overlay-body .skin').forEach((b) => b.addEventListener('click', () => {
+  root.querySelectorAll('.skin').forEach((b) => b.addEventListener('click', () => {
     const sk = b.dataset.sk;
     if (!P.skins[sk]) {
       if (!SKINS[sk].price) { toast('Earn this skin on the Trophy Road or in the Battle Pass'); return; }
@@ -536,9 +537,66 @@ function openTurretDetail(id) {
       toast(`${SKINS[sk].name} unlocked!`);
     }
     selectSkin(id, sk);
+    sfx('reward');
     openTurretDetail(id);
     renderMenu();
   }));
+}
+
+function sheetHtml(id, sheet, { owned, L, ps, tp, lb }) {
+  const t = TURRETS[id];
+  const lockTxt = (lv) => `<span class="lock-note">${uiIcon('lock')} LEVEL ${lv}</span>`;
+  const pcard = (kind, i, name, desc, icon, bought, equipped, unlockLv, price) => {
+    let action;
+    if (!owned || L < unlockLv) action = lockTxt(unlockLv);
+    else if (!bought) action = `<button class="btn sm ${P.coins >= price ? 'primary' : ''}" data-buy="${kind}:${i}" ${P.coins >= price ? '' : 'disabled'}>${coinIcon()}${price}</button>`;
+    else if (equipped) action = '<span class="eq">EQUIPPED</span>';
+    else action = `<button class="btn sm" data-eq="${kind}:${i}">EQUIP</button>`;
+    return `<div class="pcard${equipped ? ' on' : ''}${bought ? '' : ' nb'}"><div class="pc-ico">${icon}</div><div class="c-main"><b>${name}</b><small>${desc}</small></div>${action}</div>`;
+  };
+  if (sheet === 'tactic') return `<p class="menu-note">Active move · 3 uses per match · the hex button next to FIRE.</p>`
+    + tp.gadgets.map((g, i) => pcard('gadget', i, GADGETS[g].name, GADGETS[g].desc, gadgetIcon(g, GADGETS[g].color), ps.gadgets[i], ps.gadgets[i] && ps.gadget === i, POWER_UNLOCK.gadget, POWER_PRICE.gadget)).join('');
+  if (sheet === 'trait') return `<p class="menu-note">Passive · one equipped.</p>`
+    + tp.stars.map((st, i) => pcard('star', i, STAR_POWERS[st].name, STAR_POWERS[st].desc, starPowerIcon(), ps.stars[i], ps.stars[i] && ps.star === i, POWER_UNLOCK.star, POWER_PRICE.star)).join('');
+  if (sheet === 'mod') {
+    const gearSlot = (slot) => {
+      const lv = slot === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2;
+      const cur = ps.gears[slot];
+      const head = `<div class="gs-head"><b>Slot ${slot + 1}</b>${!owned || L < lv ? lockTxt(lv) : cur ? `<span class="eq" style="color:${GEARS[cur].color}">${GEARS[cur].name}</span>` : `<small>pick one · ${coinIcon()}${POWER_PRICE.gear}</small>`}</div>`;
+      if (!owned || L < lv) return `<div class="gslot locked">${head}</div>`;
+      return `<div class="gslot">${head}<div class="gears">${GEAR_ORDER.map((g) => `<button class="gear${cur === g ? ' on' : ''}" data-gear="${slot}:${g}" style="--pc:${GEARS[g].color}" ${cur === g || ps.gears.includes(g) || P.coins < POWER_PRICE.gear ? 'disabled' : ''}>${gearIcon(GEARS[g].color)}<b>${GEARS[g].name.replace(' Mod', '')}</b><small>${GEARS[g].desc}</small></button>`).join('')}</div></div>`;
+    };
+    return `<p class="menu-note">Two slots of stat boosts.</p>${gearSlot(0)}${gearSlot(1)}`;
+  }
+  if (sheet === 'overload') {
+    const fxText = Object.entries(tp.hyper.fx).map(([k, v]) => ({ splash: `+${v} m splash`, shots: `+${v} shots`, pierce: `+${v} pierce`, crit: `+${Math.round(v * 100)}% crit`, freeze: 'freezing hits', burn: `+${v} burn/s`, range: `+${Math.round(v * 100)}% range`, cluster: `${v} cluster bombs`, slow: 'slowing hits', stun: 'stunning hits', chain: `+${v} chain`, dmg: `+${Math.round(v * 100)}% damage`, beams: `${v} beams`, ramp: 'faster ramp', rate: `+${Math.round(v * 100)}% fire rate` }[k] || k)).join(' · ');
+    return `<p class="menu-note">The reactor fills with ${HYPER_KILLS} kills — then +40% damage and fire rate for 8 s, plus:</p>
+      <div class="pcard hyper${ps.hyper ? ' on' : ''}"><div class="pc-ico">${hyperIcon()}</div><div class="c-main"><b>${tp.hyper.name}</b><small>${fxText}</small></div>
+      ${!owned || L < POWER_UNLOCK.hyper ? lockTxt(POWER_UNLOCK.hyper) : ps.hyper ? '<span class="eq">OWNED</span>' : `<button class="btn sm ${P.coins >= POWER_PRICE.hyper ? 'primary' : ''}" data-buy="hyper:0" ${P.coins >= POWER_PRICE.hyper ? '' : 'disabled'}>${coinIcon()}${POWER_PRICE.hyper}</button>`}</div>`;
+  }
+  if (sheet === 'tree') return `<p class="menu-note">Bought with gold during a match — tap and hold your turret, or ⬆ while you control it. Only one path can go past tier 3.</p>
+      <div class="mini-tree">${TREES[id].map((b) => `<div class="mt-branch" style="--bc:${b.color}"><b>${b.name}</b>${b.nodes.map((n, i) => `<span class="${i === 4 ? 'ult' : ''}"><i>${i + 1}</i>${i === 4 ? '★ ' : ''}${n.name}<em>${n.desc}</em></span>`).join('')}</div>`).join('')}</div>`;
+  if (sheet === 'skins') return `<div class="skins">${SKIN_ORDER.map((sk) => {
+      const s = SKINS[sk];
+      const have = !!P.skins[sk];
+      const sel = skinOf(id) === sk;
+      const fx = s.fx ? `<span class="sk-fx"><i style="background:${s.fx.tracer}"></i><i style="background:${s.fx.trail}"></i><i style="background:${s.fx.spark}"></i></span>` : '';
+      return `<button class="skin${sel ? ' sel' : ''}${have ? '' : ' locked'}" data-sk="${sk}" style="--rc:${RARITY_COLORS[s.rarity]}">
+        <span class="sk-rar">${s.rarity}</span><div class="sk-pic">${pic(turretPortrait(id, sk))}</div><b>${s.name}</b>${fx}
+        <small class="sk-state">${have ? (sel ? 'EQUIPPED' : 'EQUIP') : s.price ? `${gemIcon()}${s.price}` : 'PASS / ROAD'}</small></button>`;
+    }).join('')}</div>`;
+  // how to play
+  const mrate = (1 / t.manual.interval).toFixed(t.manual.interval < 0.5 ? 0 : 1);
+  return `<div class="how">
+      <div class="how-card"><h4>ROLE</h4><p>${KIND_TEXT[t.kind] || t.desc}</p></div>
+      <div class="how-card"><h4>WHEN YOU CONTROL IT</h4><p>${TURRET_TIPS[id] || 'Drag to aim and hold FIRE.'}</p></div>
+    </div>
+    ${t.kind === 'deploy' ? '' : `<table class="stat-table">
+      <tr><th></th><th>AUTO</th><th>YOU AIM</th></tr>
+      <tr><td>Damage</td><td>${Math.round(t.damage * lb.dmg)}${t.shots > 1 ? ` ×${t.shots}` : ''}</td><td>${Math.round(t.manual.damage * lb.dmg)}</td></tr>
+      <tr><td>Shots / s</td><td>${(1 / t.interval).toFixed(1)}</td><td>${mrate}</td></tr>
+      <tr><td>Heat per shot</td><td>—</td><td>${t.manual.heat}</td></tr>
+    </table>`}`;
 }
 
 /* -------------------------------------------------------------------- shop */
@@ -911,7 +969,7 @@ function openOverlay(html, cls = '') {
   $('overlay').className = `ov show ${cls}`;
   $('overlay-body').querySelector('.ov-x').addEventListener('click', closeOverlay);
 }
-function closeOverlay() { $('overlay').className = 'ov'; }
+function closeOverlay() { $('overlay').className = 'ov'; stopShowcase(); detailSheet = null; }
 
 let toastTimer = 0;
 export function toast(msg) {

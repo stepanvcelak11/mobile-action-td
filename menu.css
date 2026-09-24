@@ -77,3 +77,83 @@ body.army-ctl #fpv-ui, body.army-ctl #army-take, body.army-ctl #abilities, body.
 /* Season line in the Battle hero */
 .season-line { display: inline-block; margin: 4px 0 2px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: 0.12em;
   color: #cfe8ff; background: linear-gradient(90deg, rgba(90, 160, 255, 0.35), rgba(90, 160, 255, 0.08)); border: 1px solid rgba(143, 216, 255, 0.4); }
+
+/* Turret detail (I2): full-screen showcase */
+.ov.full { padding: 0; }
+.ov.full #overlay-body { width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; padding: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 25% 30%, color-mix(in srgb, var(--tc, #ff9a3a) 22%, #10141b), #0b0e13 70%); }
+.ov.full .ov-x { position: absolute; z-index: 5; right: calc(var(--sar, 0px) + 12px); top: calc(var(--sat, 0px) + 10px); }
+.bs { position: relative; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px;
+  padding: calc(var(--sat, 0px) + 12px) calc(var(--sar, 0px) + 16px) calc(var(--sab, 0px) + 12px) calc(var(--sal, 0px) + 16px); color: #eef2f6; }
+.bs-left { display: flex; flex-direction: column; min-height: 0; }
+.bs-name small { font-size: 11px; font-weight: 900; letter-spacing: 0.16em; color: var(--tc); }
+.bs-name h2 { margin: 2px 0 0; font-size: 26px; letter-spacing: 0.02em; }
+.bs-3d { flex: 1; width: 100%; min-height: 150px; cursor: grab; animation: bsIn 0.45s ease-out both; }
+.bs-lv { display: flex; gap: 10px; align-items: center; }
+.bs-lvbadge { flex: none; width: 58px; height: 58px; border-radius: 14px; display: grid; place-items: center; align-content: center; line-height: 1;
+  background: linear-gradient(160deg, #ffb24d, #b8500a); color: #1b0d00; box-shadow: 0 4px 16px rgba(240, 123, 18, 0.4); }
+.bs-lvbadge small { font-size: 10px; font-weight: 900; }
+.bs-lvbadge b { font-size: 24px; font-weight: 900; }
+.bs-lvbadge.max { background: linear-gradient(160deg, #fff3b0, #ffb52e); }
+.bs-lvbadge.lock { background: #2a313c; color: #9aa7b4; }
+.bs-lvbadge.lock svg { width: 26px; height: 26px; }
+.bs-lvmain { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.bs-cards { position: relative; height: 18px; border-radius: 9px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.bs-cards i { display: block; height: 100%; background: linear-gradient(90deg, #3ee07a, #8ff0a8); }
+.bs-cards span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; font-weight: 900; text-shadow: 0 1px 2px #000; }
+.bs-up { width: 100%; font-weight: 900; letter-spacing: 0.06em; }
+.bs-max { color: #ffcf5a; letter-spacing: 0.12em; }
+.bs-right { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; padding-right: 36px; animation: bsSlide 0.4s ease-out both; }
+.bs-desc { margin: 26px 0 0; color: #c9d3dd; font-size: 14px; line-height: 1.4; }
+.bs-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.bs-chips span { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); display: inline-flex; align-items: center; gap: 4px; }
+.bs-chips span svg { width: 13px; height: 13px; }
+.bs-chips .pos { color: #8ff0a8; }
+.bs-chips .neg { color: #ff9a8a; }
+.bs-stats { display: flex; flex-direction: column; gap: 7px; }
+.bs-stat { display: grid; grid-template-columns: 92px 1fr 64px; align-items: center; gap: 8px; }
+.bs-stat span { font-size: 11px; font-weight: 900; letter-spacing: 0.1em; color: #9aa7b4; }
+.bs-stat b { text-align: right; font-variant-numeric: tabular-nums; }
+.bs-sbar { height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.bs-sbar i { display: block; height: 100%; border-radius: 6px; }
+.bs-h { margin: 4px 0 0; font-size: 12px; letter-spacing: 0.16em; color: #9aa7b4; }
+.bs-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bs-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 9px; border-radius: 14px; cursor: pointer; color: #eef2f6;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 28%, #1a2029), #141920); border: 2px solid color-mix(in srgb, var(--pc) 60%, transparent);
+  transition: transform 0.15s; }
+.bs-tile:active { transform: scale(0.95); }
+.bs-tile small { font-size: 9px; font-weight: 900; letter-spacing: 0.12em; color: #9aa7b4; }
+.bs-tico svg { width: 38px; height: 38px; }
+.bs-tile b { font-size: 11px; line-height: 1.15; text-align: center; min-height: 26px; }
+.bs-tile.locked { filter: grayscale(0.9); opacity: 0.7; border-color: rgba(255, 255, 255, 0.12); }
+.bs-tile.locked .bs-tico svg { width: 26px; height: 26px; margin: 6px 0; }
+.bs-more { display: flex; gap: 8px; flex-wrap: wrap; }
+.bs-more .btn { flex: 1; min-width: 110px; }
+.bs-sheet { position: absolute; z-index: 4; top: 0; right: 0; bottom: 0; width: min(520px, 58%); display: flex; flex-direction: column;
+  background: #12171f; border-left: 1px solid rgba(255, 255, 255, 0.12); box-shadow: -18px 0 40px rgba(0, 0, 0, 0.5); animation: bsSheet 0.28s ease-out both;
+  padding: calc(var(--sat, 0px) + 12px) calc(var(--sar, 0px) + 14px) calc(var(--sab, 0px) + 12px) 14px; }
+.bs-sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-right: 44px; }
+.bs-sheet-head b { font-size: 18px; }
+.bs-sheet-body { flex: 1; overflow-y: auto; touch-action: pan-y; }
+.bs-sheet-body .skins { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+@keyframes bsIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes bsSlide { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+@keyframes bsSheet { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes bsSheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@media (orientation: portrait) {
+  .bs { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow-y: auto; }
+  .bs-3d { height: 32vh; flex: none; }
+  .bs-right { overflow: visible; padding-right: 0; }
+  .bs-desc { margin-top: 0; }
+  .bs-sheet { top: auto; width: 100%; height: 68%; border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.12); border-radius: 18px 18px 0 0; animation-name: bsSheetUp; }
+}
+@media (orientation: landscape) and (max-height: 430px) {
+  .bs-name h2 { font-size: 20px; }
+  .bs-desc { font-size: 12.5px; margin-top: 30px; }
+  .bs-tico svg { width: 30px; height: 30px; }
+  .bs-lvbadge { width: 48px; height: 48px; }
+  .bs-lvbadge b { font-size: 20px; }
+  .bs-stat { grid-template-columns: 80px 1fr 56px; }
+}
+@media (prefers-reduced-motion: reduce) { .bs-3d, .bs-right, .bs-sheet { animation: none; } }
+#overlay-body:has(.bs-sheet) > .ov-x { display: none; }
