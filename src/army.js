@@ -58,7 +58,7 @@ function buildSoldier() {
     add(p, new THREE.BoxGeometry(0.13, 0.6, 0.15), dark, 0, -0.3, 0);
     legs.push(p);
   }
-  return { g, body, legs, muzzle: new THREE.Vector3(0.18, 1.1, 0.62), camH: 2.0, camBack: 4.4, camSide: 0.7 };
+  return { g, body, legs, muzzle: new THREE.Vector3(0.18, 1.1, 0.62), eye: [0, 1.5, 0.05], camH: 2.0, camBack: 4.4, camSide: 0.7 };
 }
 function buildTank() {
   const g = new THREE.Group();
@@ -77,7 +77,7 @@ function buildTank() {
   add(tur, new THREE.CylinderGeometry(0.45, 0.55, 0.36, 8), blue, 0, 0, 0);
   add(tur, new THREE.CylinderGeometry(0.08, 0.1, 1.3, 8).rotateX(Math.PI / 2), dark, 0, 0.04, 0.8);
   add(tur, new THREE.SphereGeometry(0.06, 6, 4), glowM('#8fe3ff'), 0.25, 0.2, 0.3, false);
-  return { g, body, tur, legs: [], muzzle: new THREE.Vector3(0, 0.96, 1.5), camH: 3.0, camBack: 6.0, camSide: 0 };
+  return { g, body, tur, legs: [], muzzle: new THREE.Vector3(0, 0.96, 1.5), eye: [0, 1.75, -0.55], camH: 3.0, camBack: 6.0, camSide: 0 };
 }
 function buildHeli() {
   const g = new THREE.Group();
@@ -101,7 +101,7 @@ function buildHeli() {
   tail.position.set(0.1, 0.35, -2.4);
   body.add(tail);
   add(tail, new THREE.BoxGeometry(0.02, 0.8, 0.08), dark, 0, 0, 0, false);
-  return { g, body, rotor, tail, legs: [], muzzle: new THREE.Vector3(0, -0.1, 0.9), camH: 2.2, camBack: 7.0, camSide: 0 };
+  return { g, body, rotor, tail, legs: [], muzzle: new THREE.Vector3(0, -0.1, 0.9), eye: [0, 0.15, 0.55], camH: 2.2, camBack: 7.0, camSide: 0 };
 }
 const BUILD = { soldier: buildSoldier, tank: buildTank, heli: buildHeli };
 
@@ -355,6 +355,23 @@ function computeBlocks() {
 }
 
 /* ------------------------------------------------------- direct control */
+let vmRifle = null;
+function viewModel() {
+  if (vmRifle) return vmRifle;
+  vmRifle = new THREE.Group();
+  const gun = mat('#2a2f36', { metalness: 0.6 }), wood = mat('#6a4a2a'), blue = mat('#3a7bd5');
+  add(vmRifle, new THREE.BoxGeometry(0.07, 0.09, 0.62), gun, 0, 0, -0.18, false);
+  add(vmRifle, new THREE.BoxGeometry(0.06, 0.14, 0.08), gun, 0, -0.09, 0.02, false);
+  add(vmRifle, new THREE.BoxGeometry(0.08, 0.1, 0.22), wood, 0, -0.02, 0.2, false);
+  add(vmRifle, new THREE.CylinderGeometry(0.018, 0.018, 0.2, 6).rotateX(Math.PI / 2), gun, 0, 0.02, -0.56, false);
+  add(vmRifle, new THREE.BoxGeometry(0.11, 0.1, 0.16), blue, -0.02, -0.12, 0.14, false); // sleeve / hand
+  vmRifle.traverse((o) => { if (o.isMesh) { o.renderOrder = 20; o.material = o.material.clone(); o.material.depthTest = false; } });
+  vmRifle.scale.setScalar(0.75);
+  vmRifle.visible = false;
+  H.scene.add(vmRifle);
+  return vmRifle;
+}
+
 const ctl = { jx: 0, jy: 0, fire: false, el: null, stick: null };
 function driveControlled(u, dt, s) {
   const def = u.def;
@@ -395,6 +412,7 @@ function driveControlled(u, dt, s) {
       if (point.y < 0.1) point.y = 0.1;
     }
     shoot(u, point, best, { ...s, dmg: s.dmg * 1.5 }, true);
+    u.kick = 1;
     H.shake?.(u.kind === 'soldier' ? 0.03 : 0.12);
   }
 }
@@ -406,6 +424,9 @@ function buildOverlay() {
   el.innerHTML = `<div class="ac-aim" id="ac-aim"></div>
     <div class="ac-stick" id="ac-stick"><i></i></div>
     <button class="ac-fire" id="ac-fire" type="button">FIRE</button>
+    <div class="ac-side"><button class="ac-btn" id="ac-map" type="button" aria-label="Full map"><b>MAP</b></button>
+      <button class="ac-btn" id="ac-wave" type="button" aria-label="Start the next wave"><b>WAVE</b></button>
+      <button class="ac-btn" id="ac-up" type="button" aria-label="Upgrade the tower"><b>UPGRADE</b></button></div>
     <button class="ac-back" id="ac-back" type="button">◀ TOWER</button>
     <div class="ac-name" id="ac-name"></div><div class="ac-cross"></div>
     <div class="ac-hp"><i id="ac-hp"></i></div>`;
@@ -441,8 +462,20 @@ function buildOverlay() {
   aim.addEventListener('pointerup', endAim);
   aim.addEventListener('pointercancel', endAim);
   const fire = el.querySelector('#ac-fire');
-  fire.addEventListener('pointerdown', (e) => { e.stopPropagation(); ctl.fire = true; });
-  for (const n of ['pointerup', 'pointercancel', 'pointerleave']) fire.addEventListener(n, () => { ctl.fire = false; });
+  // hold FIRE and drag to keep aiming while shooting
+  let fid = null, fx = 0, fy = 0;
+  fire.addEventListener('pointerdown', (e) => { e.stopPropagation(); ctl.fire = true; fid = e.pointerId; fire.setPointerCapture(fid); fx = e.clientX; fy = e.clientY; });
+  fire.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== fid || !controlled) return;
+    const k = 0.005 * (H.sens?.() || 1);
+    controlled.aimYaw -= (e.clientX - fx) * k;
+    controlled.aimPitch = THREE.MathUtils.clamp(controlled.aimPitch - (e.clientY - fy) * k, -0.6, 0.35);
+    fx = e.clientX; fy = e.clientY;
+  });
+  for (const n of ['pointerup', 'pointercancel']) fire.addEventListener(n, (e) => { if (e.pointerId === fid) { fid = null; ctl.fire = false; } });
+  el.querySelector('#ac-wave').addEventListener('click', (e) => { e.stopPropagation(); (H.startWave || window.__game?.startWave)?.(); });
+  el.querySelector('#ac-up').addEventListener('click', (e) => { e.stopPropagation(); const t = controlled?.owner; control(null); if (t) (H.openCard || window.__game?.openTurretCard)?.(t); });
+  el.querySelector('#ac-map').addEventListener('click', (e) => { e.stopPropagation(); control(null); (H.exitFPV || window.__game?.exitFPV)?.(); });
   el.querySelector('#ac-back').addEventListener('click', (e) => { e.stopPropagation(); control(null); });
   for (const n of ['pointerdown', 'pointerup', 'click', 'touchstart']) el.addEventListener(n, (e) => e.stopPropagation());
 }
@@ -470,6 +503,8 @@ function ensureTakeBtn() {
 
 function control(u) {
   if (controlled === u) return;
+  if (controlled) controlled.m.body.visible = true;
+  if (vmRifle) vmRifle.visible = false;
   controlled = u;
   buildOverlay();
   document.body.classList.toggle('army-ctl', !!u);
@@ -536,14 +571,27 @@ export const army = {
   cameraPose(cam) {
     const u = controlled;
     if (!u) return false;
-    const back = u.m.camBack, h = u.m.camH;
+    // first person: the camera sits at the unit's eyes (soldier), hatch (tank) or cockpit (gunship)
     const cy = Math.cos(u.aimPitch);
     const dir = _v.set(Math.sin(u.aimYaw) * cy, Math.sin(u.aimPitch), Math.cos(u.aimYaw) * cy);
-    // over-the-shoulder: a little to the right of the unit
-    const side = u.m.camSide || 0;
-    cam.position.set(u.pos.x - dir.x * back + Math.cos(u.aimYaw) * side * -1, u.pos.y + h - dir.y * back * 0.5, u.pos.z - dir.z * back + Math.sin(u.aimYaw) * side);
+    const [ex, ey, ez] = u.m.eye;
+    const body = u.kind === 'tank' ? u.aimYaw : u.yaw; // tank hatch turns with the turret
+    const sb = Math.sin(body), cb = Math.cos(body);
+    const bob = u.kind === 'soldier' && u.moving ? Math.sin(performance.now() / 110) * 0.04 : 0;
+    cam.position.set(u.pos.x + ex * cb + ez * sb, u.pos.y + ey + bob, u.pos.z - ex * sb + ez * cb);
     cam.lookAt(_v2.copy(cam.position).addScaledVector(dir, 10));
-    if (cam.fov !== 70) { cam.fov = 70; cam.updateProjectionMatrix(); }
+    const fov = u.kind === 'heli' ? 80 : 75;
+    if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    // soldier: hide the body, show a rifle in front of the camera
+    if (u.kind === 'soldier') {
+      u.m.body.visible = false;
+      const vm = viewModel();
+      vm.visible = true;
+      vm.position.copy(cam.position);
+      vm.quaternion.copy(cam.quaternion);
+      vm.translateX(0.2); vm.translateY(-0.19 + bob * 0.5); vm.translateZ(-0.42 + (u.kick || 0) * 0.07);
+      u.kick = Math.max(0, (u.kick || 0) - 0.2);
+    }
     return true;
   },
   /** Release direct control (e.g. when leaving the tower). */
