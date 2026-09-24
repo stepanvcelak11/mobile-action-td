@@ -228,8 +228,10 @@ function decorGeometries(kind) {
     head.translate(0.2, 3.4, 0);
     return { a: post, b: head, aColor: '#3a3a48', bColors: ['#ffe8a0', '#9ad8ff', '#ff9ad0'], glow: true };
   }
-  const crown = new THREE.ConeGeometry(0.9, 2.3, 6);
-  crown.translate(0, 1.9, 0);
+  const t1 = new THREE.ConeGeometry(1.0, 1.4, 7); t1.translate(0, 1.35, 0);
+  const t2 = new THREE.ConeGeometry(0.78, 1.2, 7); t2.translate(0, 2.0, 0);
+  const t3 = new THREE.ConeGeometry(0.52, 1.0, 7); t3.translate(0, 2.6, 0);
+  const crown = mergeGeos([t1, t2, t3]);
   if (kind === 'snowpine') return { a: trunk, b: crown, aColor: '#5a4632', bColors: ['#e9f1f7', '#dbe8f1', '#cfe0d8', '#3f6b52'] };
   return { a: trunk, b: crown, aColor: '#6b4a2b', bColors: ['#2f6b35', '#3b7d3a', '#2c5e3a', '#4a8a3d', '#356e2e'] };
 }
@@ -301,6 +303,182 @@ function buildDecor(root, roadDist, plotPositions, basePos, theme, rand, paths) 
   }
 }
 
+/* ---------------------------------------------------------- Detail pass */
+// Grass tufts, leafy trees, bushes and roadside fences / kerb stones. Everything is instanced, so the
+// whole pass costs about six draw calls whatever the map size.
+const TUFTS = {
+  pine: { n: 700, cols: ['#4f8a2e', '#6aa03a', '#86b848', '#3f7a2a'], h: 1 },
+  snowpine: { n: 220, cols: ['#8a9a7a', '#a8b49a', '#6f8062'], h: 0.8 },
+  cactus: { n: 260, cols: ['#c8b070', '#b89a5a', '#d8c088'], h: 0.8 },
+  shrub: { n: 300, cols: ['#b89a5a', '#a0883e', '#c8a060'], h: 0.8 },
+  deadtree: { n: 520, cols: ['#5a6a30', '#4a5a28', '#6a7a3a', '#3a4a22'], h: 1.4 },
+};
+const BUSH = {
+  pine: ['#3f8a34', '#4f9a3a', '#2f7a30', '#5aa848'],
+  snowpine: ['#dfe9f0', '#cfdde6', '#4a7050'],
+  deadtree: ['#3a4a28', '#4a5a30', '#2e3a20'],
+  shrub: ['#8a8a3a', '#7a6a32'],
+};
+const FENCE = { pine: 'wood', snowpine: 'wood', deadtree: 'wood', cactus: 'stone', shrub: 'stone' };
+
+function buildDetail(root, roadDist, plotPositions, basePos, theme, rand, paths, water) {
+  const kind = theme.decor;
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), v = new THREE.Vector3(), e = new THREE.Euler();
+  const nearPlot = (x, z, r) => plotPositions.some((p) => Math.hypot(p.x - x, p.z - z) < r);
+  const freeSpot = (x, z, road, plot) => roadDist(x, z) >= road && !nearPlot(x, z, plot) && Math.hypot(basePos.x - x, basePos.z - z) > 6.5;
+  const paint = (im, cols, i) => im.setColorAt(i, cols[(rand() * cols.length) | 0]);
+  const toCols = (list) => list.map((c) => new THREE.Color(c));
+  const finish = (im, count, shadow) => {
+    im.count = count;
+    im.castShadow = shadow; im.receiveShadow = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    root.add(im);
+  };
+
+  // grass tufts: four thin blades fanned out
+  const tuft = TUFTS[kind];
+  if (tuft) {
+    const blades = [];
+    for (let b = 0; b < 4; b++) {
+      const g = new THREE.ConeGeometry(0.05, 0.55 * tuft.h, 3);
+      g.translate(0, 0.27 * tuft.h, 0);
+      g.rotateZ((b - 1.5) * 0.28);
+      g.rotateY(b * 1.3);
+      blades.push(g);
+    }
+    const geo = mergeGeos(blades);
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 1 });
+    addWind(mat, 0.9);
+    const im = new THREE.InstancedMesh(geo, mat, tuft.n);
+    const cols = toCols(tuft.cols);
+    let k = 0, guard = 0;
+    while (k < tuft.n && guard++ < tuft.n * 8) {
+      // denser along the road verges, where the camera looks most
+      const near = rand() < 0.45;
+      let x, z;
+      if (near) {
+        const path = paths[(rand() * paths.length) | 0];
+        const pt = new THREE.Vector3(), tg = new THREE.Vector3();
+        path.sample(rand() * path.length, pt, tg);
+        const off = (ROAD_WIDTH / 2 + 0.6 + rand() * 3) * (rand() < 0.5 ? -1 : 1);
+        x = pt.x - tg.z * off; z = pt.z + tg.x * off;
+      } else { x = (rand() - 0.5) * 110; z = (rand() - 0.5) * 90; }
+      if (!freeSpot(x, z, ROAD_WIDTH / 2 + 0.5, 1.9)) continue;
+      const k1 = 0.7 + rand() * 0.8;
+      q.setFromEuler(e.set(0, rand() * 6.28, 0));
+      m.compose(v.set(x, hillY(x, z), z), q, sc.set(k1, k1 * (0.8 + rand() * 0.5), k1));
+      im.setMatrixAt(k, m); paint(im, cols, k); k++;
+    }
+    finish(im, k, false);
+  }
+
+  // leafy trees mixed into the pine woods (grass themes)
+  if (kind === 'pine') {
+    const n = 34;
+    const trunk = new THREE.CylinderGeometry(0.13, 0.22, 1.6, 6); trunk.translate(0, 0.8, 0);
+    const b1 = new THREE.IcosahedronGeometry(1.0, 1); b1.translate(0, 2.1, 0);
+    const b2 = new THREE.IcosahedronGeometry(0.72, 1); b2.translate(0.55, 2.5, 0.2);
+    const b3 = new THREE.IcosahedronGeometry(0.62, 1); b3.translate(-0.45, 2.55, -0.25);
+    const crown = mergeGeos([b1, b2, b3]);
+    const tM = new THREE.MeshStandardMaterial({ color: '#6b4a2b', flatShading: true, roughness: 1 });
+    const cM = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.85 });
+    addWind(cM, 0.04);
+    const tI = new THREE.InstancedMesh(trunk, tM, n), cI = new THREE.InstancedMesh(crown, cM, n);
+    const cols = toCols(['#4f9a3a', '#62ac44', '#3f8a36', '#78b84e', '#e0a030']);
+    let k = 0, guard = 0;
+    while (k < n && guard++ < 3000) {
+      const x = (rand() - 0.5) * 115, z = (rand() - 0.5) * 95;
+      if (!freeSpot(x, z, ROAD_WIDTH + 2.4, 3.4)) continue;
+      if (Math.abs(x) < 26 && Math.abs(z) < 17 && rand() < 0.7) continue;
+      const k1 = 0.8 + rand() * 0.6;
+      q.setFromEuler(e.set(0, rand() * 6.28, 0));
+      m.compose(v.set(x, hillY(x, z), z), q, sc.set(k1, k1 * (0.9 + rand() * 0.3), k1));
+      tI.setMatrixAt(k, m); cI.setMatrixAt(k, m);
+      // autumn trees are rare
+      cI.setColorAt(k, cols[rand() < 0.08 ? 4 : (rand() * 4) | 0]);
+      k++;
+    }
+    finish(tI, k, true); finish(cI, k, true);
+  }
+
+  // bushes hugging the road verges
+  const bush = BUSH[kind];
+  if (bush) {
+    const n = 70;
+    const a = new THREE.IcosahedronGeometry(0.55, 0); a.scale(1, 0.75, 1); a.translate(0, 0.3, 0);
+    const b = new THREE.IcosahedronGeometry(0.42, 0); b.scale(1, 0.8, 1); b.translate(0.45, 0.25, 0.15);
+    const c = new THREE.IcosahedronGeometry(0.38, 0); c.translate(-0.35, 0.22, -0.2);
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', flatShading: true, roughness: 0.9 });
+    addWind(mat, 0.06);
+    const im = new THREE.InstancedMesh(mergeGeos([a, b, c]), mat, n);
+    const cols = toCols(bush);
+    let k = 0, guard = 0;
+    while (k < n && guard++ < 2500) {
+      const path = paths[(rand() * paths.length) | 0];
+      const pt = new THREE.Vector3(), tg = new THREE.Vector3();
+      path.sample(rand() * path.length, pt, tg);
+      const off = (ROAD_WIDTH / 2 + 2.2 + rand() * 4) * (rand() < 0.5 ? -1 : 1);
+      const x = pt.x - tg.z * off, z = pt.z + tg.x * off;
+      if (!freeSpot(x, z, ROAD_WIDTH / 2 + 1.6, 2.8)) continue;
+      const k1 = 0.7 + rand() * 0.7;
+      q.setFromEuler(e.set(0, rand() * 6.28, 0));
+      m.compose(v.set(x, hillY(x, z), z), q, sc.set(k1, k1, k1));
+      im.setMatrixAt(k, m); paint(im, cols, k); k++;
+    }
+    finish(im, k, true);
+  }
+
+  // roadside fences (wooden posts + two rails) or kerb stones, in broken runs
+  const fence = FENCE[kind];
+  if (!fence) return;
+  const posts = [], rails = [];
+  paths.forEach((path, pi) => {
+    if (water.includes(pi)) return;
+    const step = fence === 'wood' ? 2.3 : 1.2;
+    let prev = null;
+    for (let st = 5; st < path.length - 9; st += step) {
+      const run = Math.floor(st / 22) % 3;       // fence, fence other side, gap
+      if (run === 2) { prev = null; continue; }
+      const side = run === 0 ? 1 : -1;
+      const pt = new THREE.Vector3(), tg = new THREE.Vector3();
+      path.sample(st, pt, tg);
+      const off = (ROAD_WIDTH / 2 + 0.95) * side;
+      const x = pt.x - tg.z * off, z = pt.z + tg.x * off;
+      if (!freeSpot(x, z, ROAD_WIDTH / 2 + 0.7, 2.4) || Math.hypot(basePos.x - x, basePos.z - z) < 8) { prev = null; continue; }
+      const y = hillY(x, z);
+      posts.push([x, y, z, Math.atan2(tg.x, tg.z)]);
+      if (prev && Math.hypot(prev[0] - x, prev[2] - z) < step * 1.6) rails.push([prev, [x, y, z]]);
+      prev = [x, y, z];
+    }
+  });
+  const wood = fence === 'wood';
+  const postG = wood ? new THREE.BoxGeometry(0.14, 1.05, 0.14) : new THREE.DodecahedronGeometry(0.28, 0);
+  postG.translate(0, wood ? 0.52 : 0.12, 0);
+  const col = wood ? (kind === 'deadtree' ? '#4a3e2e' : kind === 'snowpine' ? '#6a5540' : '#8a6238') : theme.rock;
+  const postM = new THREE.MeshStandardMaterial({ color: col, flatShading: true, roughness: 1 });
+  const pI = new THREE.InstancedMesh(postG, postM, Math.max(1, posts.length));
+  posts.forEach(([x, y, z, r], i) => {
+    const k1 = wood ? 1 : 0.7 + rand() * 0.6;
+    q.setFromEuler(e.set(wood ? (rand() - 0.5) * 0.12 : rand() * 3, r + (wood ? 0 : rand() * 3), wood ? (rand() - 0.5) * 0.1 : 0));
+    m.compose(v.set(x, y, z), q, sc.set(k1, wood ? 0.9 + rand() * 0.2 : k1 * 0.7, k1));
+    pI.setMatrixAt(i, m);
+  });
+  finish(pI, posts.length, true);
+  if (!wood || !rails.length) return;
+  const railG = new THREE.BoxGeometry(0.07, 0.09, 1);
+  const rI = new THREE.InstancedMesh(railG, postM, rails.length * 2);
+  let k = 0;
+  for (const [a, b] of rails) {
+    const dx = b[0] - a[0], dz = b[2] - a[2], len = Math.hypot(dx, dz);
+    q.setFromEuler(e.set(Math.atan2(a[1] - b[1], len), Math.atan2(dx, dz), 0, 'YXZ'));
+    for (const h of [0.42, 0.8]) {
+      m.compose(v.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + h, (a[2] + b[2]) / 2), q, sc.set(1, 1, len));
+      rI.setMatrixAt(k++, m);
+    }
+  }
+  finish(rI, k, true);
+}
+
 function buildPortal(path) {
   const g = new THREE.Group();
   const p0 = path.pts[0], p1 = path.pts[4];
@@ -350,6 +528,24 @@ function buildBase(path) {
   add(new THREE.CylinderGeometry(1.4, 1.6, 3.2, 8), wallM, 0, 4.4, 0);
   add(new THREE.ConeGeometry(1.9, 1.8, 8), roofM, 0, 6.9, 0);
   add(new THREE.BoxGeometry(1.4, 1.6, 0.4), darkM, 0, 1.2, 3.15);
+  // detail: windows on the keep, banners on poles, torches by the gate, a front step
+  const glassM = new THREE.MeshStandardMaterial({ color: '#1c2a3a', emissive: '#ffb84a', emissiveIntensity: 0.6, flatShading: true, roughness: 0.3 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.26;
+    add(new THREE.BoxGeometry(0.32, 0.55, 0.12), glassM, Math.sin(a) * 1.5, 4.9, Math.cos(a) * 1.5).rotation.y = a;
+    add(new THREE.BoxGeometry(0.34, 0.5, 0.12), glassM, Math.sin(a + 0.52) * 3.2, 2.2, Math.cos(a + 0.52) * 3.2).rotation.y = a + 0.52;
+  }
+  const flagM = new THREE.MeshStandardMaterial({ color: '#e84a3a', flatShading: true, roughness: 0.8, side: THREE.DoubleSide });
+  const goldM = new THREE.MeshStandardMaterial({ color: '#ffc233', flatShading: true, roughness: 0.4, metalness: 0.5 });
+  for (const sx of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.06, 0.08, 4.2, 6), darkM, sx * 3.6, 2.4, 2.4);
+    add(new THREE.BoxGeometry(0.05, 1.3, 0.85), flagM, sx * 3.6, 3.7, 2.85);
+    add(new THREE.SphereGeometry(0.12, 6, 4), goldM, sx * 3.6, 4.55, 2.4);
+    add(new THREE.BoxGeometry(0.14, 0.5, 0.14), darkM, sx * 1.0, 1.6, 3.4);
+    add(new THREE.OctahedronGeometry(0.13, 0), new THREE.MeshBasicMaterial({ color: '#ffb040', toneMapped: false }), sx * 1.0, 1.98, 3.4).castShadow = false;
+  }
+  add(new THREE.BoxGeometry(2.2, 0.22, 0.9), wallM, 0, 0.7, 3.7);
+  add(new THREE.BoxGeometry(1.6, 0.25, 0.3), goldM, 0, 2.1, 3.36);
   const crystalM = new THREE.MeshStandardMaterial({ color: '#58e1ff', emissive: '#1fb8ff', emissiveIntensity: 2.5, flatShading: true, roughness: 0.2 });
   const crystal = add(new THREE.OctahedronGeometry(0.8, 0), crystalM, 0, 9.0, 0);
   crystal.castShadow = false;
@@ -433,6 +629,7 @@ export function buildWorld(map, theme) {
   });
 
   buildDecor(root, roadDist, plotPositions, base.position, theme, rand, paths);
+  buildDetail(root, roadDist, plotPositions, base.position, theme, mulberry(777 + map.id.length * 13), paths, map.water || []);
   const beforePools = new Set(root.children);
   const poolAnim = theme.pools ? buildPools(root, roadDist, plotPositions, base.position, rand, theme.pools) : null;
   const poolMeshes = root.children.filter((c) => !beforePools.has(c));
