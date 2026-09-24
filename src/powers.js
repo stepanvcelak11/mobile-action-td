@@ -12,6 +12,36 @@ export const GADGETS = {
   slowfield: { name: 'Stasis Field', desc: 'Slows enemies in range by 60% for 5 s.', color: '#b46bff' },
 };
 
+// Tailored tactics: each turret's second tactic is its own. `fx` is a timed stat buff (same keys as
+// Overload), `act` an instant effect handled in main.js useGadget.
+const U = (name, desc, color, extra) => ({ name, desc, color, ...extra });
+export const UNIQUE_TACTICS = {
+  cannon: U('Twin Salvo', 'For 6 s both barrels fire every shot and hit 60% harder.', '#f0a020', { fx: { shots: 1, dmg: 0.6 }, dur: 6 }),
+  gatling: U('Tracer Belt', 'For 6 s every bullet sets its target on fire (+15 burn/s).', '#ff8a3a', { fx: { burn: 15, rate: 0.3 }, dur: 6 }),
+  sniper: U('Hollow Point', 'For 6 s shots deal double damage and pierce 3 enemies.', '#e8e0c8', { fx: { dmg: 1, pierce: 3 }, dur: 6 }),
+  scatter: U("Dragon's Breath", 'For 6 s pellets ignite (+12 burn/s) and spread flames on impact.', '#ff5a1a', { fx: { burn: 12, splash: 1 }, dur: 6 }),
+  cryo: U('Absolute Zero', 'Freezes everything in range for 3 s; frozen enemies under 35% health shatter.', '#bff4ff', { act: 'zero' }),
+  venom: U('Toxic Cloud', 'A poison cloud on the road nearest the enemies: 30 damage/s and 40% slow for 7 s.', '#8fe04a', { act: 'cloud' }),
+  flame: U('Napalm Wall', 'A 10 m strip of burning road in front of the turret for 8 s.', '#ff4a1a', { act: 'napalm' }),
+  bouncer: U('Pinball', 'For 7 s every grenade splits into 3 bouncing bomblets.', '#c8a040', { fx: { cluster: 3 }, dur: 7 }),
+  rocket: U('Cluster Swarm', 'For 6 s rockets burst into 3 bomblets and fire one extra rocket.', '#ff4a3a', { fx: { cluster: 3, shots: 1 }, dur: 6 }),
+  harpoon: U('Deep Hook', 'Drags every enemy in range 7 m back along the road and stuns them for 1 s.', '#5aa0c8', { act: 'pull' }),
+  mortar: U('Carpet Shelling', '10 shells walk down the road through the whole range.', '#b0a070', { act: 'carpet' }),
+  sonic: U('Shockwave', 'Pushes enemies in range 5 m back and staggers them for 1.5 s.', '#ff66cc', { act: 'push' }),
+  tesla: U('Storm Grid', 'For 6 s lightning jumps to 4 extra enemies and stuns more often.', '#b46bff', { fx: { chain: 4, stun: 0.25 }, dur: 6 }),
+  plasma: U('Sun Core', 'For 6 s orbs blow up twice as wide and hit 50% harder.', '#6af0ff', { fx: { splash: 2, dmg: 0.5 }, dur: 6 }),
+  laser: U('Focus Lens', 'For 6 s the beam heats up three times faster and deals +50%.', '#ff3d7f', { fx: { ramp: 2, dmg: 0.5 }, dur: 6 }),
+  storm: U('Thunderstorm', '12 lightning bolts rain on enemies in range over 3 s.', '#9ab0ff', { act: 'thunder' }),
+  rail: U('Overcharge', 'For 5 s rails deal 150% more damage and pierce everything.', '#4fc3ff', { fx: { dmg: 1.5, pierce: 20 }, dur: 5 }),
+  silo: U('Warhead', 'Launches one heavy missile at the strongest enemy in range: huge blast.', '#ff5a3a', { act: 'warhead' }),
+  prism: U('Refraction', 'For 6 s the beam splits to 2 extra targets.', '#ffe066', { fx: { beams: 2 }, dur: 6 }),
+  howitzer: U('Bunker Buster', 'For 6 s shells hit 2.2× as hard and stun for 1 s.', '#8a9a6a', { fx: { dmg: 1.2, stun: 0.6 }, dur: 6 }),
+  barracks: U('Reinforcements', 'Drops a full squad on the enemy closest to the base.', '#6ab04c', { act: 'deploy' }),
+  helipad: U('Air Drop', 'A gunship sweeps to the enemy closest to the base.', '#8fd0ff', { act: 'deploy' }),
+  factory: U('Armoured Push', 'Sends a tank straight to the enemy closest to the base.', '#b8a070', { act: 'deploy' }),
+};
+for (const [t, u] of Object.entries(UNIQUE_TACTICS)) GADGETS[`u_${t}`] = u;
+
 export const STAR_POWERS = {
   headhunter: { name: 'Headhunter', desc: '+50% headshot damage.' },
   bounty: { name: 'Bounty', desc: '+3 gold per kill from this turret.' },
@@ -37,7 +67,7 @@ export const GEAR_ORDER = Object.keys(GEARS);
 
 // per turret: [gadget A, gadget B], [star power A, star power B], hypercharge
 const P = (g, s, hname, hfx) => ({ gadgets: g, stars: s, hyper: { name: hname, fx: hfx } });
-export const TURRET_POWERS = {
+export const TURRET_POWERS_BASE = {
   cannon: P(['overdrive', 'reveal'], ['explosive', 'crushing'], 'Siege Mode', { splash: 2, shots: 1 }),
   gatling: P(['overdrive', 'coolant'], ['doubletap', 'bounty'], 'Bullet Hell', { shots: 2, pierce: 1 }),
   sniper: P(['snipe', 'reveal'], ['headhunter', 'longshot'], 'Deadshot', { pierce: 3, crit: 0.3 }),
@@ -70,3 +100,6 @@ export const HYPER_KILLS = 14;        // kills to fill the meter (manual kills c
 export const HYPER_TIME = 8;          // seconds
 export const GADGET_USES = 3;
 export const GADGET_CD = 12;
+
+// Every turret's tactic B is its tailored one.
+export const TURRET_POWERS = Object.fromEntries(Object.entries(TURRET_POWERS_BASE).map(([t, p]) => [t, UNIQUE_TACTICS[t] ? { ...p, gadgets: [p.gadgets[0], `u_${t}`] } : p]));

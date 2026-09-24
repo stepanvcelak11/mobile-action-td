@@ -211,7 +211,7 @@ export function gadgetIcon(id, color = '#ffcf5a') {
     coolant: '<path d="M24 6c7 10 11 15 11 21a11 11 0 01-22 0c0-6 4-11 11-21z" fill="#fff"/>',
     snipe: '<circle cx="24" cy="24" r="12" fill="none" stroke="#fff" stroke-width="3"/><path d="M24 4v12M24 32v12M4 24h12M32 24h12" stroke="#fff" stroke-width="3"/>',
     slowfield: '<circle cx="24" cy="24" r="14" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="5 4"/><path d="M24 14v10l7 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>',
-  }[id] || '';
+  }[id] || (id.startsWith('u_') ? '<path d="M24 7l4.5 10.5L40 19l-8.5 7.5L34 38l-10-6-10 6 2.5-11.5L8 19l11.5-1.5z" fill="#fff"/><circle cx="24" cy="24" r="4" fill="#10151c"/>' : '');
   return `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 3h20l11 11v20L34 45H14L3 34V14z" fill="#141a22" stroke="${color}" stroke-width="3"/><path d="M16 8h16l8 8v16l-8 8H16l-8-8V16z" fill="${color}" opacity="0.85"/><g transform="translate(24 24) scale(0.62) translate(-24 -24)">${inner}</g></svg>`;
 }
 /** Overload: a reactor core with three spinning vanes (orange/cyan). */

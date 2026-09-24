@@ -225,8 +225,10 @@ export class Projectiles {
     mesh.position.copy(origin);
     this._look.copy(origin).add(dir);
     mesh.lookAt(this._look);
-    const trailW = kind === 'orb' ? 4 : 1;
+    const vfx = o.vfx || 0;
+    const trailW = (kind === 'orb' ? 4 : 1) * (1 + 0.3 * vfx);
     if (mesh.userData.trail) mesh.userData.trail.scale.set(trailW, trailW, 0.01);
+    if (mesh.userData.core && kind !== 'rocket') mesh.userData.core.scale.setScalar(1 + 0.2 * vfx);
     // skins recolour tracers and trails
     const base = MATS[kind];
     if (o.tint && base.core && mesh.userData.core) {
@@ -239,7 +241,7 @@ export class Projectiles {
     this.active.push({
       ...o, mesh, pos: origin.clone(), vel: dir.clone().multiplyScalar(o.speed),
       life: kind === 'rocket' || kind === 'mortar' ? 4 : kind === 'orb' ? 3 : 1.6, travelled: 0,
-      maxTrail: kind === 'shellM' || kind === 'sniper' ? 4.5 : kind === 'bullet' ? 2 : 3, smokeT: 0,
+      maxTrail: (kind === 'shellM' || kind === 'sniper' ? 4.5 : kind === 'bullet' ? 2 : 3) + (o.vfx || 0) * 0.9, smokeT: 0,
       hits: null, speed: o.speed,
     });
   }

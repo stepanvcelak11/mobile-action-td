@@ -12,7 +12,7 @@ import { run } from './roguelite.js';
 import { daily } from './daily.js';
 import { campaign } from './campaign.js';
 import { army } from './army.js';
-import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, TARGETED_ABILITIES, HITZONES, HEADSHOT_MULT, MAPS, THEMES } from './config.js';
+import { SKINS, TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, TARGETED_ABILITIES, HITZONES, HEADSHOT_MULT, MAPS, THEMES } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, HYPER_KILLS, HYPER_TIME, GADGET_USES, GADGET_CD } from './powers.js';
 import { TREES, canBuy } from './trees.js';
 import { P, save, addXp, perk, recordResult, mapState, xpForLevel, unlockCost } from './progress.js';
@@ -1203,6 +1203,7 @@ function statsFor(t) {
   if (sp === 'bounty') addFx({ bounty: 3 });
   if (sp === 'venomrounds') addFx({ burn: 12 });
   if (t.hyperT > 0 && t.powers?.hyper) addFx({ dmg: 0.4, rate: 0.4, range: 0.2, ...t.powers.hyper.fx });
+  if (t.buffT > 0 && t.buffFx) addFx(t.buffFx);
   const g = (k) => f[k] || 0;
   const servo = 1 + 0.08 * perk('servo');
   const lb = levelBonus(t.type);
@@ -1242,6 +1243,14 @@ function statsFor(t) {
     tint: t.hyperT > 0 ? { tracer: '#ffffff', trail: '#ff3dff', spark: '#ff9aff' } : t.skinFx,
   };
   st.sparkColor = st.tint?.spark;
+  // effects grow with the turret's price and its skin's rarity (and max out in Overload)
+  {
+    const cost = TURRETS[t.type].cost;
+    const priceTier = cost >= 250 ? 3 : cost >= 200 ? 2 : cost >= 150 ? 1 : 0;
+    const rar = SKINS[skinOf(t.type)]?.rarity;
+    const rarTier = { rare: 1, epic: 2, mythic: 3, legendary: 3 }[rar] || 0;
+    st.vfx = t.hyperT > 0 ? 4 : Math.min(4, Math.max(priceTier, rarTier) + (priceTier && rarTier ? 1 : 0));
+  }
   st.trailColor = st.tint?.trail;
   const m = d.manual;
   st.manual = {
@@ -1494,7 +1503,7 @@ function autoFire(t, target, aim, st, _dt, again) {
     if (d.spread || st.shots > d.shots) jitter(_dir, (d.spread || 0) + (i >= d.shots ? 0.03 : 0));
     projectiles.spawn(_muzzle, _dir, {
       kind, speed: d.speed, damage: st.damage, manual: false, splash: st.splash, homing: st.homing,
-      target, owner: t, st, pierce: st.pierce, groundOnly: d.groundOnly, tint: st.tint,
+      target, owner: t, st, pierce: st.pierce, groundOnly: d.groundOnly, tint: st.tint, vfx: st.vfx,
       hitR: d.kind === 'orb' ? 0.5 : 0, noFalloff: d.kind === 'orb',
     });
     sparks.emit(_muzzle, '#ffcf6a', d.kind === 'bullet' ? 2 : 6, 3, 0.15, 0, 0.1);
@@ -1655,8 +1664,10 @@ function explode(pos, radius, dmg, st, manual, direct, weak, groundOnly) {
     const f = 1 - 0.5 * (d / radius);
     hitEnemy(e, dmg * f, { st, manual: manual && e === direct, weak: isWeak, point: e.center.clone(), quiet: e !== direct });
   }
-  sparks.emit(pos, '#ffb347', Math.round(20 + radius * 8), 3 + radius * 2, 0.6, 8, 0.6);
-  sparks.emit(pos, '#ff4a1a', 25, 6, 0.5, 6, 0.4);
+  const vfx = st?.vfx || 0;
+  sparks.emit(pos, st?.sparkColor || '#ffb347', Math.round((20 + radius * 8) * (1 + 0.35 * vfx)), (3 + radius * 2) * (1 + 0.12 * vfx), 0.6, 8, 0.6);
+  sparks.emit(pos, '#ff4a1a', 25 + vfx * 10, 6, 0.5, 6, 0.4);
+  if (vfx >= 3) rings.pulse(pos.clone().setY(0.3), radius * 1.3, st?.trailColor || '#ffb347', 0.35);
   smoke.emit(pos, '#555', 10, 2.5, 1.2, -1, 0.6, 2.5);
   G.shake = Math.max(G.shake, manual ? 0.25 : 0.08);
   sfx('explode', 0.08);
@@ -1679,12 +1690,16 @@ function updateFires(dt) {
     f.tick -= dt;
     if (Math.random() < dt * 20) {
       const p = f.pos.clone().add(new V3((Math.random() - 0.5) * f.r * 1.6, 0, (Math.random() - 0.5) * f.r * 1.6));
-      flames.emit(p, Math.random() < 0.5 ? '#ff8a1a' : '#ffd24a', 1, 1, 0.5, -3, 0.8);
+      if (f.color) smoke.emit(p, f.color, 1, 0.8, 1, -0.5, 0.4, 1.5);
+      else flames.emit(p, Math.random() < 0.5 ? '#ff8a1a' : '#ffd24a', 1, 1, 0.5, -3, 0.8);
     }
     if (f.tick <= 0) {
       f.tick = 0.25;
       for (const e of [...G.enemies]) {
-        if (e.alive && !e.def.air && e.center.distanceTo(f.pos) < f.r + e.def.radius * 0.5) applyRaw(e, f.dps * 0.25, null);
+        if (e.alive && !e.def.air && e.center.distanceTo(f.pos) < f.r + e.def.radius * 0.5) {
+          applyRaw(e, f.dps * 0.25, null);
+          if (f.slow) { e.slowT = Math.max(e.slowT, 0.4); e.slowAmt = Math.max(e.slowAmt, f.slow); }
+        }
       }
     }
     if (f.t <= 0) G.fires.splice(i, 1);
@@ -1852,7 +1867,7 @@ function manualShot() {
       const from = camera.position.clone().addScaledVector(_fwd, 0.6);
       projectiles.spawn(from, _fwd.clone(), {
         kind: 'sniper', speed: d.manual.speed, damage: ms.damage, manual: true, owner: t, st,
-        pierce: st.pierce, gravity: d.manual.gravity, tint: st.tint,
+        pierce: st.pierce, gravity: d.manual.gravity, tint: st.tint, vfx: st.vfx,
       });
       b.recoil = 0.5;
       G.shake = Math.max(G.shake, 0.3);
@@ -1867,7 +1882,7 @@ function manualShot() {
         const dir = s ? jitter(_dir.clone(), spreadExtra) : _dir;
         projectiles.spawn(_muzzle, dir, {
           kind, speed: d.manual.speed, damage: ms.damage, manual: true, splash: ms.splash, owner: t, st, pierce: st.pierce,
-          counted: s === 0, tint: st.tint, hitR: d.kind === 'orb' ? 0.5 : 0, noFalloff: d.kind === 'orb',
+          counted: s === 0, tint: st.tint, vfx: st.vfx, hitR: d.kind === 'orb' ? 0.5 : 0, noFalloff: d.kind === 'orb',
         });
       }
       b.recoil = d.kind === 'bullet' ? 0.06 : 0.35;
@@ -1975,6 +1990,8 @@ function projectileGround(proj, expired) {
   if (proj.manual) smoke.emit(p, '#6b5a40', 2, 1, 0.6, -0.5, 0.4, 3);
 }
 function projectileTick(p, dt) {
+  // pricier turrets and rarer skins leave a glittering trail
+  if (p.vfx >= 2 && Math.random() < dt * p.vfx * 14) sparks.emit(p.pos, p.tint?.spark || '#ffe7a0', 1, 0.6, 0.25 + p.vfx * 0.05, 0, 0.3);
   if (p.kind === 'rocket') {
     p.smokeT -= dt;
     if (p.smokeT <= 0) {
@@ -3208,6 +3225,11 @@ function rateBoost(t) {
 
 function tickPowers(t, dt) {
   if (t.gadgetCd > 0) t.gadgetCd -= dt;
+  if (t.buffT > 0) {
+    t.buffT -= dt;
+    if (Math.random() < dt * 8) sparks.emit(t.plot.pos.clone().setY(2 + Math.random()), t.buffColor || '#ffcf5a', 1, 1.5, 0.4, -2, 0.5);
+    if (t.buffT <= 0) { t.buffFx = null; t.stats = statsFor(t); }
+  }
   if (t.overdriveT > 0) t.overdriveT -= dt;
   if (t.hyperT > 0) {
     t.hyperT -= dt;
@@ -3280,11 +3302,19 @@ function useGadget(t) {
       }
       break;
     }
+    default: {
+      const u = GADGETS[id];
+      if (u?.fx) {
+        t.buffFx = u.fx; t.buffT = u.dur; t.buffColor = u.color;
+        t.stats = statsFor(t);
+        rings.pulse(pos, 3, color, 0.5);
+      } else if (u?.act) uniqueAct(t, u.act, pos, st, base, color, inRange);
+      break;
+    }
     case 'slowfield':
       rings.pulse(pos, st.range, color, 0.8);
       for (const e of inRange) { e.slowT = Math.max(e.slowT, 5); e.slowAmt = Math.max(e.slowAmt, 0.6); }
       break;
-    default:
   }
   sparks.emit(pos, color, 30, 6, 0.6, 2, 0.6);
   if (t === G.active) banner(`${GADGETS[id].name.toUpperCase()} · ${t.gadgetUses} LEFT`, '', { quiet: true });
@@ -3837,4 +3867,68 @@ function updateBars() {
   barBg.count = barFill.count = n;
   barShield.count = ns;
   for (const m of [barBg, barFill, barShield]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+}
+
+
+/* ================================================================ tailored tactics (instant ones) */
+function uniqueAct(t, act, pos, st, base, color, inRange) {
+  const lead = () => [...G.enemies].filter((e) => e.alive && !e.buried).sort((a, b) => b.s / b.path.length - a.s / a.path.length)[0];
+  switch (act) {
+    case 'zero':
+      rings.pulse(pos, st.range, color, 0.7);
+      for (const e of inRange) {
+        stunEnemy(e, 3, true);
+        if (e.type !== 'boss' && e.hp / e.maxHp < 0.35) { hitEnemy(e, e.hp + 1, { st, quiet: true }); sparks.emit(e.center, '#dff8ff', 20, 6, 0.5, 6, 0.4); }
+      }
+      break;
+    case 'cloud':
+    case 'napalm': {
+      const target = act === 'cloud' ? (inRange[0]?.center.clone() || pos.clone()) : pos.clone();
+      if (act === 'napalm') {
+        // burning road: several fire patches on the path points closest to the turret
+        const path = world.paths.reduce((b, p) => (p.distanceTo(pos.x, pos.z) < b.distanceTo(pos.x, pos.z) ? p : b), world.paths[0]);
+        const pts = path.pts.filter((q) => q.distanceTo(pos) < Math.min(st.range, 12)).filter((_, i) => i % 6 === 0).slice(0, 8);
+        for (const q of pts) G.fires.push({ pos: q.clone().setY(0.1), r: 2.2, t: 8, dps: 22 + (st.burn || 0), tick: 0 });
+      } else {
+        G.fires.push({ pos: target.setY(0.1), r: 4.5, t: 7, dps: 30, tick: 0, slow: 0.4, color: '#8fe04a' });
+        smoke.emit(target, '#6ab03a', 30, 3, 1.5, -0.3, 0.5, 3);
+      }
+      break;
+    }
+    case 'pull':
+      for (const e of inRange) { if (e.type !== 'boss') e.s = Math.max(0, e.s - 7); else e.s = Math.max(0, e.s - 2.5); stunEnemy(e, 1, false); beams.line(pos, e.center, color, 0.05, 0.3); }
+      break;
+    case 'push':
+      rings.pulse(pos, st.range, color, 0.5);
+      for (const e of inRange) { e.s = Math.max(0, e.s - (e.type === 'boss' ? 1.5 : 5)); stunEnemy(e, 1.5, false); }
+      G.shake = 0.5;
+      break;
+    case 'carpet': {
+      const path = world.paths.reduce((b, p) => (p.distanceTo(pos.x, pos.z) < b.distanceTo(pos.x, pos.z) ? p : b), world.paths[0]);
+      const pts = path.pts.filter((q) => q.distanceTo(pos) < st.range * 1.1);
+      for (let i = 0; i < 10 && pts.length; i++) {
+        const q = pts[Math.floor((i / 10) * pts.length)].clone().setY(0.2);
+        G.timers.push({ t: 0.15 * i, fn: () => explode(q, 2.6, base * 1.4, st, false, null, false, true) });
+      }
+      break;
+    }
+    case 'thunder':
+      for (let i = 0; i < 12; i++) G.timers.push({ t: i * 0.25, fn: () => {
+        const pool = G.enemies.filter((e) => e.alive && !e.buried && e.center.distanceTo(pos) < st.range * 1.2);
+        const e = pool[Math.floor(Math.random() * pool.length)];
+        if (e) skyStrike(t, e, st, false, null, base * 1.5);
+      } });
+      break;
+    case 'warhead': {
+      const e = inRange.sort((a, b) => (b.hp + b.shield) - (a.hp + a.shield))[0] || lead();
+      if (e) projectiles.spawn(pos.clone().setY(3), new V3(0, 1, 0), { kind: 'rocket', speed: 22, damage: base * 8, manual: false, splash: 5, homing: 5, target: e, owner: t, st: { ...st, vfx: 4 }, vfx: 4 });
+      break;
+    }
+    case 'deploy': {
+      const e = lead();
+      if (e && typeof army !== 'undefined' && army.deployAt) army.deployAt(t, e.center.clone().setY(0));
+      break;
+    }
+    default:
+  }
 }
