@@ -578,8 +578,8 @@ function seeded(seed) {
 function buildWave(n) {
   const d = G.map.intro;
   const rand = seeded(n * 7919 + d * 131 + (G.mode === 'endless' ? 99 : 0) + (G.daily ? daily.today().seed % 100003 : 0));
-  const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d), runner: 4, medic: 6, burrower: 5, juggernaut: 8, bomber: 7, aegis: 3 };
-  const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2, runner: 1.6, medic: 0.6, burrower: 0.8, juggernaut: 0.5, bomber: 0.8, aegis: 0.55 };
+  const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d), runner: 4, medic: 6, burrower: 5, juggernaut: 8, bomber: 7, aegis: 6 };
+  const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2, runner: 1.6, medic: 0.6, burrower: 0.8, juggernaut: 0.5, bomber: 0.8, aegis: 0.45 };
   // later maps introduce new enemy species (ENEMIES[t].minMap)
   const avail = Object.keys(weights).filter((t) => (t === 'scout' || n >= unlockAt[t]) && (ENEMIES[t].minMap || 0) <= d);
   let budget = 4 + n * 3.6 + (n > 8 ? (n - 8) * 0.8 : 0) + d * 1.2 * Math.min(1, n / 6) + (G.mode === 'endless' && n > 20 ? (n - 20) * 2 : 0);
@@ -609,7 +609,8 @@ function buildWave(n) {
   }
   if (isBossWave(n)) {
     q.push({ type: 'boss', gap: 3 });
-    if (n >= 15) q.push({ type: 'boss', gap: 3 });
+    // a second boss only in the finale of the longest maps and deep into endless
+    if ((G.mode === 'endless' && n >= 15) || (n >= 20 && n === totalWaves())) q.push({ type: 'boss', gap: 3 });
   }
   // Daily "Swarm" and Hard mode bring more enemies: repeat entries evenly.
   const more = G.rules.count - 1;
@@ -3715,9 +3716,10 @@ function updateBoss(e, dt) {
   e.wp.scale.setScalar(e.wp.scale.x + (target - e.wp.scale.x) * Math.min(1, dt * 10));
   if (e.phase === 1 && e.hp < e.maxHp * 0.5) {
     e.phase = 2;
-    e.speedMult *= 1.2;
+    e.speedMult *= 1.1;
+    const firstBoss = G.wave <= (G.map.bosses?.[0] || 0);
     const escort = ENEMIES.runner && (ENEMIES.runner.minMap || 0) <= G.map.intro ? 'runner' : 'scout';
-    for (let k = 0; k < 4; k++) G.timers.push({ t: k * 0.35, fn: () => { if (e.alive) spawnEnemy(escort, e); } });
+    for (let k = 0; k < (firstBoss ? 2 : 4); k++) G.timers.push({ t: k * 0.35, fn: () => { if (e.alive) spawnEnemy(escort, e); } });
     banner(`${e.bossName.toUpperCase()} IS ENRAGED`, 'Phase 2 — reinforcements incoming');
     G.shake = Math.max(G.shake, 0.7);
     sparks.emit(e.center, '#ff3355', 60, 9, 0.8, 4, 0.6);

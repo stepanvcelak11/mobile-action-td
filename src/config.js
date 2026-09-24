@@ -401,7 +401,7 @@ export const MAPS = [
   },
   {
     id: 'storm', name: 'Storm Coast', sub: 'Rain, lightning and a long cliff road. The season finale.', theme: 'storm', season: 2,
-    waves: 20, bosses: [7, 14, 20], hpScale: 1.3, intro: 8, budget: 0.8,
+    waves: 20, bosses: [9, 15, 20], hpScale: 1.5, intro: 8, budget: 0.9,
     roads: [[[-28, 0], [-20, -12], [-8, -15], [0, -6], [-8, 2], [-16, 8], [-10, 15], [2, 14], [8, 4], [16, -6], [24, -14], [26, -2], [20, 8], [26, 15]]],
   },
 ];
