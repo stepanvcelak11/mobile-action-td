@@ -3184,6 +3184,8 @@ requestAnimationFrame(() => requestAnimationFrame(() => {
 window.__game = {
   G, P, STATE, camera, startWave, endGame, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
   useAbility, callStrike, castAt, openTurretCard, statsFor, renderAbilities, useGadget, activateHyper, spawnEnemy,
+  /** tests: from the bunker straight to the map table (tactical view) */
+  mapTable() { if (G.view === 'BUNKER') { BK.near = BK.b.stations.find((q) => q.id === 'map'); bunkerUse(); } },
   get plots() { return world.plots; },
   get world() { return world; },
   plotScreen(i) {

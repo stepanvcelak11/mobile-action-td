@@ -57,6 +57,12 @@ def run(p, name, w, h):
     pg.evaluate(f"{g}.startMap('valley', 'campaign')")
     pg.wait_for_function(f"{g}.G.view !== 'MENU'", timeout=15000)
     time.sleep(1.5)
+    # the battle starts in the command bunker: check it, then walk to the map table
+    if pg.evaluate(f'{g}.G.view') == 'BUNKER':
+        check(pg.evaluate("getComputedStyle(document.getElementById('bunker-ui')).display !== 'none'"), f'{name}: command bunker')
+        pg.evaluate(f'{g}.mapTable()')
+        pg.wait_for_function(f"{g}.G.view === 'TOP'", timeout=15000)
+        time.sleep(0.5)
     gold0 = pg.evaluate(f'{g}.G.gold')
     built = 0
     for i in range(2):
