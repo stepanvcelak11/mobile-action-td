@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Serpent Line — chyby z telefonů</title>
+<style>
+  :root { color-scheme: dark; --bg: #0d1117; --panel: #161c24; --line: #2a3441; --text: #e9edf2; --muted: #95a0ae; --accent: #ff9a2e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; padding: 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 14px; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  select, button { font: inherit; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .row { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .row b { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  .row small { color: var(--muted); display: block; }
+  details pre { white-space: pre-wrap; font: 12px/1.4 ui-monospace, Consolas, monospace; color: var(--muted); margin: 6px 0 0; }
+  .empty { color: var(--muted); padding: 20px 0; }
+</style>
+</head>
+<body>
+<h1>Chyby z telefonů</h1>
+<p>Stejná chyba = jeden řádek s počtem. Bez osobních údajů: zpráva, soubor, řádek, verze hry, typ zařízení a obrazovka.</p>
+<div class="bar"><label for="days">Období</label>
+  <select id="days"><option value="1">dnes</option><option value="7" selected>7 dní</option><option value="30">30 dní</option><option value="90">90 dní</option></select>
+  <button id="reload" type="button">Obnovit</button><span id="status"></span></div>
+<div id="list"></div>
+<script type="module">
+import { LEADERBOARD_URL } from './src/daily.js';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function load() {
+  $('status').textContent = 'načítám…';
+  try {
+    const r = await fetch(`${LEADERBOARD_URL}/errors?days=${$('days').value}`);
+    const d = await r.json();
+    $('status').textContent = `${d.rows.length} různých chyb`;
+    $('list').innerHTML = d.rows.length ? d.rows.map((x) => `<div class="row"><b>${x.count}×</b>${esc(x.msg)}
+      <small>${esc(x.src)}:${x.line} · ${esc(x.ver)} · ${esc(x.ua)} · naposledy ${new Date(x.last).toLocaleString('cs-CZ')}</small>
+      ${x.stack ? `<details><summary>výpis</summary><pre>${esc(x.stack)}</pre></details>` : ''}</div>`).join('')
+      : '<div class="empty">Žádné chyby za toto období.</div>';
+  } catch (e) { $('status').textContent = 'Server neodpovídá: ' + e.message; }
+}
+$('days').addEventListener('change', load);
+$('reload').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>
