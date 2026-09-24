@@ -656,7 +656,7 @@ function startWave() {
   G.queue = G.nextQueue || buildWave(G.wave);
   G.spawnTimer = 0.4;
   prepareNextWave();
-  banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? '⚠ BOSS INCOMING ⚠' : `${G.queue.length} hostiles`);
+  banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? 'Boss incoming' : '');
   sfx('wave');
   if (early) { const g = skill.waveEnd(); emit('wave', { n: G.wave - 1, grade: g?.grade || null, score: g?.score || 0, early: true }); }
   skill.waveStart(G.wave);
@@ -979,7 +979,7 @@ function gainXp(n) {
   G.xpEarned += n;
   const ups = addXp(n);
   if (ups > 0) {
-    banner('LEVEL UP!', `Commander level ${P.level} · +${ups} Tech`);
+    banner('LEVEL UP!', `Commander level ${P.level} · +${ups * 120} coins`);
     sfx('levelup');
   }
 }
@@ -1121,7 +1121,7 @@ function endGame(won) {
     questProgress('wins');
     questProgress('waves');
     gainXp(100 + 50 * stars + G.map.intro * 25);
-    banner('VICTORY', 'The line holds');
+    banner('VICTORY', 'The line holds', { big: true });
     sfx('clear');
   } else {
     const bp = world.base.position.clone().setY(3);
@@ -1334,7 +1334,7 @@ function buyUpgrade(t, branch) {
   emit('upgrade', { type: t.type, branch, tier: t.picks[branch] });
   sparks.emit(t.plot.pos.clone().setY(2), TREES[t.type][branch].color, 50, 7, 0.7, 5, 0.8);
   sfx(t.picks[branch] === 5 ? 'levelup' : 'build');
-  if (G.view === 'FPV' || G.view === 'TO_FPV') banner(node.name.toUpperCase(), node.desc);
+  if (G.view === 'FPV' || G.view === 'TO_FPV') banner(node.name.toUpperCase(), node.desc, { quiet: true });
   else floaty(t.plot.pos.clone().setY(3), node.name, 'weak');
   bump('hud-gold');
   updateHud(true);
@@ -2021,28 +2021,28 @@ function useAbility(id) {
     }
     ringAt(world.base.position.clone().setY(1), '#8fe3ff', 0);
     G.shake = 0.5;
-    banner('EMP', 'Enemies stunned, shields down');
+    banner('EMP', 'Enemies stunned, shields down', { quiet: true });
     sfx('boom');
   } else if (id === 'repair') {
     G.baseHp = Math.min(G.maxHp, G.baseHp + ABILITIES.repair.heal);
     sparks.emit(world.base.position.clone().setY(3), '#3ee07a', 60, 6, 1, -2, 0.8);
-    banner('REPAIRED', `+${ABILITIES.repair.heal} base HP`);
+    banner('REPAIRED', `+${ABILITIES.repair.heal} base HP`, { quiet: true });
     sfx('levelup');
     updateHud();
   } else if (id === 'goldrush') {
     G.goldRushT = 15;
-    banner('GOLD RUSH', 'Double gold for 15 s');
+    banner('GOLD RUSH', 'Double gold for 15 s', { quiet: true });
     sfx('clear');
   } else if (id === 'overclock') {
     G.overclockT = 10;
     for (const t of G.turrets) sparks.emit(t.plot.pos.clone().setY(2), '#ff7a1a', 20, 5, 0.5, 2, 0.6);
-    banner('OVERCLOCK', 'All turrets +50% fire rate');
+    banner('OVERCLOCK', 'All turrets +50% fire rate', { quiet: true });
     sfx('levelup');
   } else if (id === 'shieldwall') {
     G.shieldT = 8;
     baseShield.position.copy(world.base.position).setY(2);
     baseShield.visible = true;
-    banner('SHIELD WALL', 'The base is invulnerable for 8 s');
+    banner('SHIELD WALL', 'The base is invulnerable for 8 s', { quiet: true });
     sfx('build');
   }
 }
@@ -2306,7 +2306,13 @@ function bump(id) {
 }
 
 let bannerTimer = 0;
-function banner(title, sub) {
+/**
+ * Messages during play. Default: a small strip under the top HUD (max 2 at once, ~2 s).
+ * { quiet: true }  – something the player just did: title only, 1.3 s.
+ * { big: true }    – the old big centre banner, kept for the map intro and victory.
+ */
+function banner(title, sub, opts = {}) {
+  if (!opts.big) { notify(title, opts.quiet ? '' : sub, opts.quiet ? 1300 : 2200); return; }
   const b = $('banner');
   b.innerHTML = '';
   b.append(title);
@@ -2316,14 +2322,35 @@ function banner(title, sub) {
   bannerTimer = setTimeout(() => b.classList.remove('show'), 1900);
 }
 
+function notify(title, sub = '', ms = 2200) {
+  const feed = $('feed');
+  if (!feed || G.view === 'MENU') return;
+  // the same message again just restarts its timer
+  const same = [...feed.children].find((c) => c.dataset.t === title);
+  if (same) same.remove();
+  const el = document.createElement('div');
+  el.className = 'note';
+  el.dataset.t = title;
+  el.innerHTML = '<b></b>' + (sub ? '<span></span>' : '');
+  el.firstChild.textContent = title;
+  if (sub) el.lastChild.textContent = sub;
+  feed.append(el);
+  while (feed.childElementCount > 2) feed.firstElementChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, ms);
+}
+window.addEventListener('sl:notify', (e) => notify(e.detail?.title || '', e.detail?.sub || ''));
+
 let tipTimer = 0;
+const tipQueue = [];
 function showTip(type) {
+  // never over the crosshair: in first person the card waits until you are back on the map
+  if (G.view === 'FPV' || G.view === 'TO_FPV') { if (!tipQueue.includes(type)) tipQueue.push(type); return; }
   const el = $('tip');
   const pic = enemyPortrait(type);
   el.innerHTML = `<div class="tip-ico">${pic ? `<img src="${pic}" alt="">` : ''}</div><div><b>NEW ENEMY — ${ENEMIES[type].name.toUpperCase()}</b><span>${ENEMY_TIPS[type]}</span></div>`;
   el.classList.add('show');
   clearTimeout(tipTimer);
-  tipTimer = setTimeout(() => el.classList.remove('show'), 6500);
+  tipTimer = setTimeout(() => el.classList.remove('show'), 4500);
 }
 
 const _proj = new V3();
@@ -2334,7 +2361,8 @@ function floaty(worldPos, text, cls) {
   spawnFloaty(((_proj.x + 1) / 2) * viewW(), ((1 - _proj.y) / 2) * viewH(), text, cls);
 }
 function floatyScreen(text, cls = 'center') {
-  spawnFloaty(viewW() / 2, viewH() * 0.38, text, `${cls} big`);
+  // upper band, well clear of the crosshair
+  spawnFloaty(viewW() / 2, viewH() * 0.2, text, `${cls} big`);
 }
 function spawnFloaty(x, y, text, cls) {
   const el = document.createElement('div');
@@ -2923,7 +2951,7 @@ function startMap(id, mode, hard = false) {
   setTimeout(() => coachStep(), 1500);
   banner(G.map.name.toUpperCase(), G.daily ? `Daily challenge · ${daily.today().mutator.name}`
     : mode === 'endless' ? 'Endless — pick an upgrade card every 5 waves'
-    : `${G.hard ? 'HARD · ' : ''}Build turrets, then start wave 1 · ${mapWaves()} waves`);
+    : `${G.hard ? 'HARD · ' : ''}Build turrets, then start wave 1 · ${mapWaves()} waves`, { big: true });
 }
 function pauseGame(p) {
   if (G.view === 'MENU' || G.state === STATE.GAME_OVER || G.state === STATE.VICTORY) return;
@@ -3172,7 +3200,7 @@ function activateHyper(t) {
   t.stats = statsFor(t);
   rings.pulse(t.plot.pos.clone().setY(0.6), 6, '#ff5aff', 0.6);
   sparks.emit(t.plot.pos.clone().setY(2), '#ff5aff', 60, 8, 0.8, 2, 0.8);
-  if (t === G.active) banner(`OVERLOAD — ${t.powers.hyper.name.toUpperCase()}`, '+40% damage & fire rate');
+  if (t === G.active) banner(`OVERLOAD — ${t.powers.hyper.name.toUpperCase()}`, '', { quiet: true });
   sfx('levelup');
   updateFpvButtons();
 }
@@ -3232,7 +3260,7 @@ function useGadget(t) {
     default:
   }
   sparks.emit(pos, color, 30, 6, 0.6, 2, 0.6);
-  if (t === G.active) banner(GADGETS[id].name.toUpperCase(), `${t.gadgetUses} use${t.gadgetUses === 1 ? '' : 's'} left`);
+  if (t === G.active) banner(`${GADGETS[id].name.toUpperCase()} · ${t.gadgetUses} LEFT`, '', { quiet: true });
   sfx('build');
   updateFpvButtons();
   if (G.sheet?.turret === t) renderTreeSheet(true);
@@ -3414,6 +3442,7 @@ function updateReadability(dt) {
   updateWaveArrows(dt, top);
   updateThreats();
   updateBossBar();
+  if (tipQueue.length && G.view === 'TOP' && !$('tip').classList.contains('show')) showTip(tipQueue.shift());
   updateBars();
 }
 
@@ -3589,7 +3618,7 @@ function tryVent() {
     G.vent = null;
     el.classList.add('ok');
     setTimeout(() => el.classList.remove('show', 'ok'), 450);
-    banner('PERFECT VENT', '+25% damage for 5 s');
+    banner('PERFECT VENT', '+25% damage for 5 s', { quiet: true });
     sfx('reloadOk');
     emit('vent', { perfect: true });
   } else {
@@ -3684,6 +3713,7 @@ function updateBossBar() {
   const bar = $('bossbar');
   const boss = G.view !== 'MENU' && inGame() ? G.enemies.find((o) => o.alive && o.type === 'boss' && o.bossName) : null;
   bar.classList.toggle('show', !!boss);
+  document.body.classList.toggle('boss-on', !!boss);
   if (!boss) return;
   const key = `${boss.bossName}|${boss.phase}|${boss.wpOpen}`;
   if (bar.dataset.key !== key) {
