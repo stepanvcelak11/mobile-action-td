@@ -15,6 +15,7 @@ import { sfx } from './audio.js';
 import { daily } from './daily.js';
 import { campaign } from './campaign.js';
 import { skill } from './skill.js';
+import { ach } from './achievements.js';
 import { turretIcon, uiIcon, enemyIcon, abilityIcon, coinIcon, gemIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, starPowerIcon, gearIcon, navIcon, settingsIcon } from './icons.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -98,6 +99,7 @@ export function initMenu(h) {
   document.querySelectorAll('.bottomnav .nav-ico[data-ico]').forEach((el) => { el.innerHTML = navIcon(el.dataset.ico); });
   $('m-settings').innerHTML = settingsIcon();
   $('m-settings').addEventListener('click', () => { handlers.click?.(); openSettings(); });
+  document.querySelectorAll('#menu .lvl-badge, #menu .profile-main').forEach((el) => { el.style.cursor = 'pointer'; el.addEventListener('click', () => { handlers.click?.(); openProfile(); }); });
   // chest-slot timers tick while the Battle tab is open
   setInterval(() => {
     if (tab !== 'battle' || !$('menu').classList.contains('show')) return;
@@ -121,6 +123,8 @@ export function selectMenuMap(id) { selectedMap = id; }
 
 function renderTop() {
   $('m-level').textContent = P.level;
+  const pn = document.querySelector('#menu .pname');
+  if (pn) pn.textContent = (ach.title || 'Serpent Line').toUpperCase();
   const need = xpForLevel(P.level);
   $('m-xp').style.width = `${Math.min(100, (P.xp / need) * 100)}%`;
   $('m-trophies').innerHTML = `${trophyIcon()}<b>${P.trophies}</b>`;
@@ -800,6 +804,43 @@ export function openChest(kind) {
   ov.querySelector('.chest-stage').addEventListener('click', (ev) => { if (!ev.target.closest('#chest-ok')) tap(ev); });
   setTimeout(() => { if (!opened && taps === 0) open(); }, 2600);
   $('chest-ok').addEventListener('click', (ev) => { ev.stopPropagation(); stopFx?.(); ov.classList.remove('show'); renderMenu(); });
+}
+
+
+/* ---------------------------------------------------------------- profile (J2) */
+let profileTab = 'stats';
+function openProfile() {
+  const s = ach.stats;
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');
+  const fav = ach.favorite();
+  const list = ach.list();
+  const done = list.filter((a) => a.done).length;
+  const statRows = [
+    ['Matches · wins', `${s.matches} · ${s.wins}`], ['Win rate', pct(s.wins, s.matches)],
+    ['Enemies destroyed', s.kills.toLocaleString('en')], ['Manual kills', s.manualKills.toLocaleString('en')],
+    ['Manual accuracy', pct(s.hits, s.shots)], ['Headshot share', pct(s.heads, s.manualKills)],
+    ['Best combo', `${s.bestCombo}×`], ['Longest headshot', s.longest ? `${s.longest} m` : '—'],
+    ['Bosses · elites', `${s.bosses} · ${s.elites}`], ['S grades', s.sGrades],
+    ['Best endless wave', s.endlessBest || '—'], ['Daily challenges', s.dailies],
+  ];
+  const favHtml = fav ? `<div class="pf-fav">${pic(turretPortrait(fav, skinOf(fav))) || turretIcon(fav)}<div><small>FAVOURITE TURRET</small><b>${TURRETS[fav].name}</b><span>${(s.byTurret[fav] || 0).toLocaleString('en')} kills · mastery ${skill.mastery(fav).title}</span></div></div>` : '';
+  const titles = ach.titles();
+  const body = profileTab === 'stats'
+    ? `${favHtml}<div class="pf-stats">${statRows.map(([a, b]) => `<div><small>${a}</small><b>${b}</b></div>`).join('')}</div>
+       <h3 class="pf-h">Title</h3>
+       <div class="pf-titles">${['', ...titles].map((t) => `<button class="pf-title${ach.title === t ? ' on' : ''}" data-title="${t}">${t || 'Commander'}</button>`).join('')}
+       ${titles.length ? '' : '<small class="pf-note">Gold achievements unlock titles.</small>'}</div>`
+    : `<div class="pf-ach">${list.sort((a, b) => (b.done - a.done) || (b.value / b.goal - a.value / a.goal)).map((a) => `
+        <div class="pf-a${a.done ? ' done' : ''}" style="--tc:${ach.TIER_COL[a.tier]}">${ach.medal(a.tier, 34)}
+          <div class="pf-a-main"><b>${a.name}</b><small>${a.text}${a.title ? ` · title “${a.title}”` : ''}</small>
+          ${a.done ? '' : `<div class="pf-bar"><i style="width:${Math.round((a.value / a.goal) * 100)}%"></i></div><small>${a.value.toLocaleString('en')} / ${a.goal.toLocaleString('en')}</small>`}</div></div>`).join('')}</div>`;
+  openOverlay(`<div class="pf-sheet">
+      <div class="pf-head"><div class="lvl-badge big"><small>LV</small><b>${P.level}</b></div>
+        <div><h2>${ach.title || 'Commander'}</h2><small>${done} / ${ach.total} achievements · ${P.trophies} trophies</small></div></div>
+      <div class="seg pf-tabs"><button data-t="stats" class="${profileTab === 'stats' ? 'on' : ''}">PROFILE</button><button data-t="ach" class="${profileTab === 'ach' ? 'on' : ''}">ACHIEVEMENTS ${done}/${ach.total}</button></div>
+      ${body}</div>`, 'wide');
+  document.querySelectorAll('#overlay-body .pf-tabs button').forEach((b) => b.addEventListener('click', () => { profileTab = b.dataset.t; handlers.click?.(); openProfile(); }));
+  document.querySelectorAll('#overlay-body .pf-title').forEach((b) => b.addEventListener('click', () => { ach.setTitle(b.dataset.title); handlers.click?.(); renderTop(); openProfile(); }));
 }
 
 /* ------------------------------------------------------------ overlay/toast */

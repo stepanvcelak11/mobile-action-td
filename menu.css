@@ -1,0 +1,46 @@
+/* Menu additions kept out of style.css (which the gameplay side edits): achievements, profile. */
+
+/* achievement toast */
+.ach-toast { position: fixed; left: 50%; top: calc(var(--sat, 0px) + 10px); transform: translateX(-50%); z-index: 70; display: flex; gap: 10px; align-items: center;
+  min-width: min(360px, calc(100% - 24px)); padding: 8px 14px 8px 8px; border-radius: 14px; background: linear-gradient(90deg, color-mix(in srgb, var(--tc) 30%, #12161d), #12161d 70%);
+  border: 1px solid var(--tc); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5), 0 0 18px color-mix(in srgb, var(--tc) 40%, transparent); color: #eef2f6; pointer-events: none;
+  animation: achIn 0.45s cubic-bezier(.2, 1.5, .4, 1) both; }
+.ach-toast.out { animation: achOut 0.4s ease-in forwards; }
+.ach-toast small { display: block; font-size: 10px; font-weight: 900; letter-spacing: 0.14em; color: var(--tc); }
+.ach-toast b { display: block; font-size: 15px; }
+.ach-toast span { font-size: 12px; color: #b9c3cf; }
+.ach-medal { flex: none; animation: achSpin 0.8s ease-out; }
+@keyframes achIn { from { opacity: 0; transform: translate(-50%, -30px) scale(0.9); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes achOut { to { opacity: 0; transform: translate(-50%, -20px); } }
+@keyframes achSpin { from { transform: rotateY(360deg) scale(0.4); } to { transform: none; } }
+
+/* profile */
+.pf-sheet h2 { margin: 0; font-size: 20px; }
+.pf-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.pf-head small { color: var(--muted); font-weight: 600; }
+.lvl-badge.big { width: 54px; height: 54px; }
+.pf-tabs { margin-bottom: 12px; }
+.pf-fav { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 14px; background: var(--panel-2); margin-bottom: 10px; }
+.pf-fav img, .pf-fav svg { width: 64px; height: 64px; object-fit: contain; }
+.pf-fav small { display: block; font-size: 10px; font-weight: 900; letter-spacing: 0.12em; color: var(--accent-2); }
+.pf-fav b { display: block; font-size: 16px; }
+.pf-fav span { font-size: 12px; color: var(--muted); }
+.pf-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.pf-stats > div { padding: 8px 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--panel-border); }
+.pf-stats small { display: block; font-size: 11px; color: var(--muted); font-weight: 700; }
+.pf-stats b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.pf-h { margin: 14px 0 6px; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.pf-titles { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pf-title { border: 1px solid var(--panel-border); background: var(--panel-2); color: var(--text); border-radius: 999px; padding: 6px 12px; font-weight: 800; cursor: pointer; }
+.pf-title.on { background: linear-gradient(180deg, #ffb04a, #f07f12); color: #1c1206; border-color: transparent; }
+.pf-note { color: var(--muted); }
+.pf-ach { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.pf-a { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--panel-border); opacity: 0.72; }
+.pf-a svg { flex: none; filter: grayscale(1) brightness(0.8); }
+.pf-a.done { opacity: 1; border-color: color-mix(in srgb, var(--tc) 60%, transparent); }
+.pf-a.done svg { filter: none; }
+.pf-a-main { min-width: 0; flex: 1; }
+.pf-a b { display: block; font-size: 14px; }
+.pf-a small { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.pf-bar { height: 5px; border-radius: 5px; background: rgba(127, 127, 127, 0.25); margin: 5px 0 2px; overflow: hidden; }
+.pf-bar i { display: block; height: 100%; background: var(--tc); border-radius: 5px; }
