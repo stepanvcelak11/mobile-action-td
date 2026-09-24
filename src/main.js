@@ -15,7 +15,7 @@ import { army } from './army.js';
 import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, TARGETED_ABILITIES, HITZONES, HEADSHOT_MULT, MAPS, THEMES } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, HYPER_KILLS, HYPER_TIME, GADGET_USES, GADGET_CD } from './powers.js';
 import { TREES, canBuy } from './trees.js';
-import { P, save, addXp, perk, recordResult, mapState, xpForLevel } from './progress.js';
+import { P, save, addXp, perk, recordResult, mapState, xpForLevel, unlockCost } from './progress.js';
 import { initMenu, renderMenu, selectMenuMap, starsHtml, openChest, applySettings } from './ui.js';
 import { uiIcon, turretIcon, enemyIcon, abilityIcon, coinIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, traitIcon, gearIcon } from './icons.js';
 const chestIconHtml = (k) => chestIcon(k, { wood: '#a8743a', iron: '#9aa6b2', gold: '#ffc62e', epic: '#b46bff' }[k]);
@@ -1129,7 +1129,7 @@ function endGame(won) {
     sfx('over');
   }
   const res = G.daily
-    ? { stars: 0, newStars: 0, tpStars: 0, unlockedMap: null, endlessBest: false }
+    ? { stars: 0, newStars: 0, starCoins: 0, unlockedMap: null, endlessBest: false }
     : recordResult(G.map.id, G.mode, { won, wave: wavesDone, hpFrac, stars });
   res.meta = matchRewards({ won, stars, waves: wavesDone, mapIndex: MAPS.indexOf(G.map), kills: G.kills, mode: G.mode });
   setCoach(null);
@@ -2391,7 +2391,7 @@ function refreshBuildCard() {
   setText('bdesc', $('build-desc'), !allowedType(G.buildType)
     ? `${d.name}: not allowed in today's challenge.`
     : locked
-    ? `${d.name}: ${d.desc} Unlock it in the Armory for ${d.unlockTP} Tech points.`
+    ? `${d.name}: ${d.desc} Unlock it in the Armory for ${unlockCost(G.buildType)} coins or find its card in a chest.`
     : `${d.name}: ${d.desc} Range ${d.range} m.`);
   const btn = $('build-confirm');
   const cost = buildCost(G.buildType);
@@ -2953,7 +2953,8 @@ function showResults(won, wavesDone, res) {
   const sk = G.skillRes;
   if (sk?.avgGrade) lines.splice(1, 0, ['Average wave grade', sk.avgGrade]);
   if (G.runPicked?.length) lines.push(['Run upgrades', G.runPicked.map((id) => run.cardName(id)).join(', ')]);
-  const tpGain = (P.level - G.levelStart) + res.tpStars;
+  const levelUps = P.level - G.levelStart;
+  const bonusCoins = levelUps * 120 + (res.starCoins || 0);
   const hl = [];
   if (sk && G.launchMode === 'campaign' && won) hl.push([sk.done ? '3rd star challenge ✓' : '3rd star challenge', sk.challenge]);
   if (G.daily) hl.push(['Daily score', G.dailyRes ? `${sk.score}${G.dailyRes.official ? ' · official' : ' · practice'}${G.dailyRes.rank ? ` · rank #${G.dailyRes.rank}` : ''}` : `${sk.score} · sending…`]);
@@ -2961,7 +2962,7 @@ function showResults(won, wavesDone, res) {
   hl.push(['Trophies', `${m.trophies >= 0 ? '+' : ''}${m.trophies} ${trophyIcon()}`]);
   hl.push(['Coins', `+${m.coins} ${coinIcon()}`]);
   hl.push(['Battle Pass XP', `+${m.passXp}`]);
-  if (tpGain > 0) hl.push(['Tech points', `+${tpGain}`]);
+  if (bonusCoins > 0) hl.push([levelUps > 0 ? 'Level-up + star coins' : 'Star coins', `+${bonusCoins} ${coinIcon()}`]);
   if (res.newStars > 0) hl.push(['New stars', `+${res.newStars} ★`]);
   if (res.unlockedMap) hl.push(['Map unlocked', res.unlockedMap.name]);
   if (res.endlessBest) hl.push(['New endless record', `wave ${wavesDone}`]);

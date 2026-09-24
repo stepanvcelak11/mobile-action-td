@@ -1,9 +1,12 @@
-// Persistent meta-progression (commander level, tech points, unlocks, stars) in localStorage.
+// Persistent meta-progression (commander level, unlocks, stars) in localStorage.
+// Tech points were folded into coins (E5): levels and new stars pay coins, perks and unlocks cost coins.
 import { MAPS, PERKS, TURRETS } from './config.js';
 
 const KEY = 'serpentline.save.v1';
-const TP_PER_LEVEL = 1;
-const TP_PER_STAR = 2;
+const COINS_PER_LEVEL = 120;
+const COINS_PER_STAR = 60;
+export const PERK_COIN = 250;           // perk level n+1 costs (n+1) × PERK_COIN
+export const UNLOCK_COIN = 150;         // a turret's old tech-point price × UNLOCK_COIN
 
 function fresh() {
   return { xp: 0, level: 1, tp: 0, unlocked: { cannon: true, gatling: true, sniper: true }, perks: {}, maps: { valley: { unlocked: true, stars: 0, best: 0, cleared: false, endlessBest: 0 } }, lastMap: 'valley', seen: {} };
@@ -36,14 +39,15 @@ export function addXp(n) {
   while (P.xp >= xpForLevel(P.level)) {
     P.xp -= xpForLevel(P.level);
     P.level++;
-    P.tp += TP_PER_LEVEL;
+    P.coins = (P.coins || 0) + COINS_PER_LEVEL;
     ups++;
   }
   return ups;
 }
 
 export const perk = (id) => P.perks[id] || 0;
-export const perkCost = (id) => perk(id) + 1;
+export const perkCost = (id) => (perk(id) + 1) * PERK_COIN;
+export const unlockCost = (id) => (TURRETS[id]?.unlockTP || 0) * UNLOCK_COIN;
 
 export function mapState(id) {
   if (!P.maps[id]) P.maps[id] = { unlocked: false, stars: 0, best: 0, cleared: false, endlessBest: 0 };
@@ -53,8 +57,8 @@ export function mapState(id) {
 export function buyPerk(id) {
   const def = PERKS.find((p) => p.id === id);
   const cost = perkCost(id);
-  if (!def || perk(id) >= def.max || P.tp < cost) return false;
-  P.tp -= cost;
+  if (!def || perk(id) >= def.max || (P.coins || 0) < cost) return false;
+  P.coins -= cost;
   P.perks[id] = perk(id) + 1;
   save();
   return true;
@@ -62,8 +66,9 @@ export function buyPerk(id) {
 
 export function unlockTurret(id) {
   const t = TURRETS[id];
-  if (!t || P.unlocked[id] || P.tp < t.unlockTP) return false;
-  P.tp -= t.unlockTP;
+  const cost = unlockCost(id);
+  if (!t || P.unlocked[id] || (P.coins || 0) < cost) return false;
+  P.coins -= cost;
   P.unlocked[id] = true;
   save();
   return true;
@@ -74,7 +79,7 @@ export const starsFor = (hpFrac) => (hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1);
 /** Records the end of a run. Returns a summary for the results screen. */
 export function recordResult(mapId, mode, { won, wave, hpFrac, stars }) {
   const ms = mapState(mapId);
-  const out = { stars: 0, newStars: 0, tpStars: 0, unlockedMap: null, endlessBest: false };
+  const out = { stars: 0, newStars: 0, starCoins: 0, unlockedMap: null, endlessBest: false };
   if (mode === 'endless') {
     if (wave > ms.endlessBest) { ms.endlessBest = wave; out.endlessBest = true; }
   } else {
@@ -82,8 +87,8 @@ export function recordResult(mapId, mode, { won, wave, hpFrac, stars }) {
     if (won) {
       out.stars = stars ?? starsFor(hpFrac);
       out.newStars = Math.max(0, out.stars - ms.stars);
-      out.tpStars = out.newStars * TP_PER_STAR;
-      P.tp += out.tpStars;
+      out.starCoins = out.newStars * COINS_PER_STAR;
+      P.coins = (P.coins || 0) + out.starCoins;
       ms.stars = Math.max(ms.stars, out.stars);
       ms.cleared = true;
       const idx = MAPS.findIndex((m) => m.id === mapId);

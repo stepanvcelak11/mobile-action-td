@@ -1103,3 +1103,14 @@ body.fpv #coach.show { transform: none; }
 .m-content h3 { color: var(--text); text-shadow: 0 1px 6px var(--ground-shadow, rgba(0, 0, 0, 0.55)); }
 body[data-theme="light"] .m-content h3 { --ground-shadow: rgba(255, 255, 255, 0.9); }
 .m-content h3 small { color: var(--muted); }
+
+/* ------------------------------------------------------ E4 first minutes */
+body.newbie .tab-battle .side > :not(.welcome-card) { display: none; }
+body.newbie #b-endless, body.newbie .hero-extra, body.newbie .hero-challenge, body.newbie .tab-battle .loadout, body.newbie #map-row { display: none; }
+body.newbie #m-trophies, body.newbie #m-gems { display: none; }
+body.newbie .play-btn { animation: nodepulse 1.3s ease-in-out infinite; }
+body.newbie .bottomnav [data-tab="shop"], body.newbie .bottomnav [data-tab="pass"], body.newbie .bottomnav [data-tab="road"] { opacity: 0.4; filter: grayscale(1); }
+.welcome-card h3 { color: var(--accent-2); margin-bottom: 4px; }
+.welcome-card p { margin: 6px 0; font-size: 13.5px; line-height: 1.45; }
+.welcome-card .wc-next { color: var(--muted); font-size: 12.5px; }
+body.newbie .bottomnav .badge { display: none !important; }

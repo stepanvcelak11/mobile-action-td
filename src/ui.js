@@ -3,7 +3,7 @@
 import { MAPS, THEMES, TURRETS, TURRET_ORDER, TURRET_TIPS, PERKS, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, SKINS, SKIN_ORDER, RARITY_COLORS } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, GEAR_ORDER, TURRET_POWERS, POWER_UNLOCK, POWER_PRICE, HYPER_KILLS } from './powers.js';
 import { TREES } from './trees.js';
-import { P, save, xpForLevel, mapState, perk, perkCost, buyPerk, unlockTurret, resetProgress } from './progress.js';
+import { P, save, xpForLevel, mapState, perk, perkCost, buyPerk, unlockTurret, unlockCost, resetProgress } from './progress.js';
 import {
   tlevel, levelBonus, canLevel, levelUp, CARD_NEED, COIN_NEED, MAX_TLEVEL, CHESTS, rollChest, grant,
   ROAD, claimRoad, roadClaimable, PASS, PASS_TIER_XP, PASS_PRICE, passTier, claimPass, buyPremium, passClaimable,
@@ -92,6 +92,7 @@ let detailTab = 'info';
 export function initMenu(h) {
   handlers = h;
   document.querySelectorAll('.bottomnav [data-tab]').forEach((b) => b.addEventListener('click', () => {
+    if (isNewbie() && NEWBIE_LOCKED.includes(b.dataset.tab)) { toast('Win your first battle to unlock this'); return; }
     tab = b.dataset.tab;
     handlers.click?.();
     renderMenu();
@@ -130,7 +131,6 @@ function renderTop() {
   $('m-trophies').innerHTML = `${trophyIcon()}<b>${P.trophies}</b>`;
   $('m-coins').innerHTML = `${coinIcon()}<b>${P.coins}</b>`;
   $('m-gems').innerHTML = `${gemIcon()}<b>${P.gems}</b>`;
-  $('m-tp').innerHTML = `<span class="ico tp"></span><b>${P.tp}</b>`;
   const readySlots = P.slots.filter((_, i) => slotInfo(i)?.state === 'ready').length;
   const badge = { battle: questsClaimable() + (P.daily.gift ? 0 : 1) + P.pendingChests.length + readySlots, pass: passClaimable(), road: roadClaimable(), shop: P.daily.gift ? 0 : 1, armory: TURRET_ORDER.filter(canLevel).length };
   document.querySelectorAll('.bottomnav [data-tab]').forEach((b) => {
@@ -141,7 +141,18 @@ function renderTop() {
   });
 }
 
+/** Before the first victory the menu shows only what a new player needs. */
+const NEWBIE_LOCKED = ['shop', 'pass', 'road'];
+const isNewbie = () => !mapState('valley').cleared;
 export function renderMenu() {
+  const newbie = isNewbie();
+  document.body.classList.toggle('newbie', newbie);
+  if (newbie && NEWBIE_LOCKED.includes(tab)) tab = 'battle';
+  if (!newbie && !P.unlockShown) {
+    P.unlockShown = true;
+    save();
+    setTimeout(() => toast('Unlocked: Shop, Battle Pass, Trophy Road, chests and daily quests!'), 400);
+  }
   refreshDaily();
   renderTop();
   const c = $('m-content');
@@ -197,6 +208,9 @@ function renderBattle(c) {
         </div>
       </section>
       <section class="side">
+        ${isNewbie() ? `<div class="card-panel welcome-card"><h3>Welcome, Commander</h3>
+          <p>Build turrets next to the road, start the wave, then <b>tap a turret to jump inside and aim it yourself</b>. Headshots hit twice as hard.</p>
+          <p class="wc-next">Win your first battle to unlock chests, daily quests, the Shop, the Battle Pass and the Trophy Road.</p></div>` : ''}
         <div id="daily-card"></div>
         <div class="card-panel slots-panel">
           <h3>Chest slots <small>win matches to fill them · one unlocks at a time</small></h3>
@@ -305,7 +319,7 @@ function renderArmory(c) {
         <div class="tc-name">${t.name}</div>
         ${owned ? `<div class="tc-lvl">LV ${L}${powerDots(id)}</div>
           <div class="bar"><i style="width:${L >= MAX_TLEVEL ? 100 : Math.min(100, (have / need) * 100)}%"></i><span>${L >= MAX_TLEVEL ? 'MAX' : `${have}/${need}`}</span></div>`
-        : `<div class="tc-lock">${uiIcon('lock')} ${t.unlockTP} TECH or a card</div>`}
+        : `<div class="tc-lock">${uiIcon('lock')} ${coinIcon()}${unlockCost(id)} or a card</div>`}
       </button>`;
     }).join('')}</div><p class="menu-note">Collect turret cards from chests, then level turrets up with coins: +7% damage and +1.5% range per level. Level ${POWER_UNLOCK.gadget} unlocks Tactics, ${POWER_UNLOCK.star} Traits, ${POWER_UNLOCK.gear1} and ${POWER_UNLOCK.gear2} Mod chips, ${POWER_UNLOCK.hyper} Overload.</p>`;
     body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t); }));
@@ -326,8 +340,8 @@ function renderArmory(c) {
       const lvl = perk(pk.id), maxed = lvl >= pk.max, cost = perkCost(pk.id);
       return `<div class="card"><div class="card-row"><div class="c-main"><div class="c-name">${pk.name}</div><div class="c-desc">${pk.desc} per level</div>
         <div class="pips">${Array.from({ length: pk.max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div></div>
-        ${maxed ? '<span class="lock-note">MAX</span>' : `<button class="btn ${P.tp >= cost ? 'primary' : ''}" data-perk="${pk.id}" ${P.tp >= cost ? '' : 'disabled'}><span class="ico tp sm"></span>${cost}</button>`}</div></div>`;
-    }).join('')}</div><p class="menu-note">Tech points: 1 per commander level, 2 per new star.</p>`;
+        ${maxed ? '<span class="lock-note">MAX</span>' : `<button class="btn ${P.coins >= cost ? 'primary' : ''}" data-perk="${pk.id}" ${P.coins >= cost ? '' : 'disabled'}>${coinIcon()}${cost}</button>`}</div></div>`;
+    }).join('')}</div><p class="menu-note">Perks are bought with coins. Every commander level pays 120 coins and every new star 60.</p>`;
     body.querySelectorAll('[data-perk]').forEach((b) => b.addEventListener('click', () => { if (buyPerk(b.dataset.perk)) renderMenu(); }));
   }
 }
@@ -377,7 +391,7 @@ function openTurretDetail(id) {
         <p>${t.desc}</p>
         ${owned ? (L < MAX_TLEVEL ? `<div class="bar lvbar"><i style="width:${Math.min(100, ((P.cards[id] || 0) / need) * 100)}%"></i><span>${P.cards[id] || 0}/${need} cards</span></div>
           <button class="btn ${canLevel(id) ? 'primary' : ''}" id="d-level" ${canLevel(id) ? '' : 'disabled'}>LEVEL UP → ${L + 1} · ${coinIcon()}${coins}</button>` : '<div class="lock-note">MAX LEVEL</div>')
-          : `<button class="btn ${P.tp >= t.unlockTP ? 'primary' : ''}" id="d-unlock" ${P.tp >= t.unlockTP ? '' : 'disabled'}>UNLOCK · <span class="ico tp sm"></span>${t.unlockTP} TECH</button><small class="menu-note">…or find its card in a chest.</small>`}
+          : `<button class="btn ${P.coins >= unlockCost(id) ? 'primary' : ''}" id="d-unlock" ${P.coins >= unlockCost(id) ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${unlockCost(id)}</button><small class="menu-note">…or find its card in a chest.</small>`}
       </div>
     </div>
     <div class="dtabs">${TABS.map(([k, n]) => `<button class="${detailTab === k ? 'active' : ''}" data-dt="${k}">${n}</button>`).join('')}</div>`;

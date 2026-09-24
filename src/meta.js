@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS = {
 export function ensureMeta() {
   P.coins ??= 200;
   P.gems ??= 40;
+  // E5: tech points are gone — whatever a player had becomes coins
+  if (P.tp > 0) { P.coins += P.tp * 150; P.tp = 0; }
   P.trophies ??= 0;
   P.cards ??= {};
   P.tlevel ??= {};
@@ -128,6 +130,8 @@ export function addToSlot(kind) {
   if (i < 0) return -1;
   P.slots[i] = { kind, start: null };
   if (!P.slots.some((x) => x && x.start)) P.slots[i].start = Date.now();
+  // E4: the very first chest is ready at once, so a new player opens it right after the first win
+  if (!P.firstChestDone) { P.slots[i].start = Date.now() - CHEST_TIME[kind] * 1000; P.firstChestDone = true; }
   save();
   return i;
 }
