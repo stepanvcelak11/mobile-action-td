@@ -6,7 +6,7 @@ import { TREES } from './trees.js';
 import { P, save, xpForLevel, mapState, perk, perkCost, buyPerk, unlockTurret, unlockCost, resetProgress } from './progress.js';
 import {
   tlevel, levelBonus, canLevel, levelUp, CARD_NEED, COIN_NEED, MAX_TLEVEL, CHESTS, rollChest, grant,
-  ROAD, claimRoad, roadClaimable, PASS, PASS_TIER_XP, PASS_PRICE, passTier, claimPass, buyPremium, passClaimable,
+  ROAD, claimRoad, roadClaimable, PASS, PASS_TIER_XP, PASS_PRICE, passTier, SEASON, seasonDaysLeft, claimPass, buyPremium, passClaimable,
   questText, claimQuest, questsClaimable, dailyDeals, buyDeal, SHOP_CHESTS, SHOP_COINS, canPay, pay, claimGift,
   buySkin, selectSkin, skinOf, refreshDaily, DEFAULT_SETTINGS,
   powerState, buyGadget, buyStar, selectPower, buyGear, buyHyper, setLoadout, slotInfo, startUnlock, skipCost, takeSlot,
@@ -198,6 +198,7 @@ function renderBattle(c) {
         <h1 class="hero-title">${m.name}</h1>
         <div class="hero-sub">${m.sub}</div>
         <div class="stars">${starsHtml(ms.stars)}</div>
+        <div class="season-line">SEASON ${SEASON.n} · ${SEASON.name.toUpperCase()} · ${seasonDaysLeft()} DAYS LEFT</div>
         <div class="hero-actions">
           <button class="btn primary big play-btn" id="b-play">${uiIcon('wave')}PLAY</button>
           <button class="btn" id="b-endless" ${ms.cleared ? '' : 'disabled'}>∞ ENDLESS${ms.endlessBest ? ` · ${ms.endlessBest}` : ''}</button>
@@ -600,8 +601,8 @@ function renderPass(c) {
       <div class="pass-hero">
         <div class="ph-badge"><small>TIER</small><b>${tier}</b></div>
         <div class="ph-main">
-          <div class="kicker">SEASON ${P.pass.season} · BATTLE PASS</div>
-          <h2>Iron Serpent</h2>
+          <div class="kicker">SEASON ${SEASON.n} · BATTLE PASS · ENDS IN ${seasonDaysLeft()} DAYS</div>
+          <h2>${SEASON.name}</h2>
           <div class="bar big"><i style="width:${tier >= PASS.length ? 100 : (into / PASS_TIER_XP) * 100}%"></i><span>${tier >= PASS.length ? 'MAX' : `${into}/${PASS_TIER_XP} XP to tier ${tier + 1}`}</span></div>
           <small>Pass XP from every match and daily quest.</small>
         </div>
@@ -624,6 +625,7 @@ function renderPass(c) {
       </div>
     </div>`;
   $('p-prem')?.addEventListener('click', () => { if (buyPremium()) { toast('Premium pass unlocked!'); renderMenu(); } });
+  if (P.pass.carried) { toast(`Season ${P.pass.from} ended — ${P.pass.carried} unclaimed rewards were added to your account`); P.pass.carried = 0; save(); }
   c.querySelectorAll('.rtile.ready[data-pf]').forEach((b) => b.addEventListener('click', () => claimPassUi(+b.dataset.pf, false)));
   c.querySelectorAll('.rtile.ready[data-pp]').forEach((b) => b.addEventListener('click', () => claimPassUi(+b.dataset.pp, true)));
   requestAnimationFrame(() => {

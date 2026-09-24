@@ -24,7 +24,7 @@ export function ensureMeta() {
   P.slots ??= [null, null, null, null];
   P.skins ??= { factory: true };
   P.skinSel ??= {};
-  P.pass ??= { season: 1, xp: 0, premium: false, free: [], prem: [] };
+  P.pass ??= { season: SEASON.n, xp: 0, premium: false, free: [], prem: [] };
   P.road ??= { claimed: [] };
   P.quests ??= { date: '', list: [] };
   P.daily ??= { date: '', gift: false, bought: [] };
@@ -32,6 +32,7 @@ export function ensureMeta() {
   P.settings = { ...DEFAULT_SETTINGS, ...(P.settings || {}) };
   P.best ??= {};
   for (const t of TURRET_ORDER) if (P.unlocked[t]) P.tlevel[t] ??= 1;
+  rollSeason(); // after every other field exists: rolling over grants rewards
   refreshDaily();
 }
 
@@ -278,9 +279,33 @@ export const roadClaimable = () => ROAD.filter((m, i) => P.trophies >= m.trophie
 /* ------------------------------------------------------------- battle pass */
 export const PASS_TIER_XP = 120;
 export const PASS_PRICE = 450;
-function buildPass() {
+// Seasons run by date. When a new one starts, rewards already reached but not claimed in the
+// old pass are granted automatically, then the pass starts over.
+export const SEASONS = [
+  { n: 1, name: 'Iron Serpent', start: '2026-09-01', end: '2026-09-24', skins: { 9: 'neon', 19: 'royal', 29: 'void' } },
+  { n: 2, name: 'Storm Front', start: '2026-09-24', end: '2026-11-05', skins: { 9: 'camo', 19: 'tempest', 29: 'void' } },
+  { n: 3, name: 'Frozen Core', start: '2026-11-05', end: '2026-12-17', skins: { 9: 'arctic', 19: 'crystal', 29: 'gold' } },
+];
+function seasonNow(d = new Date()) {
+  const day = d.toISOString().slice(0, 10);
+  return SEASONS.find((s) => day >= s.start && day < s.end) || SEASONS[SEASONS.length - 1];
+}
+export const SEASON = seasonNow();
+export const seasonDaysLeft = () => Math.max(0, Math.ceil((Date.parse(SEASON.end + 'T00:00:00Z') - Date.now()) / 86400000));
+function rollSeason() {
+  if (P.pass.season === SEASON.n) return;
+  const old = buildPass(P.pass.season);
+  const reached = Math.min(old.length, Math.floor(P.pass.xp / PASS_TIER_XP));
+  let n = 0;
+  for (let i = 0; i < reached; i++) {
+    if (!P.pass.free.includes(i)) { grant({ ...old[i].free }); n++; }
+    if (P.pass.premium && !P.pass.prem.includes(i)) { grant({ ...old[i].prem }); n++; }
+  }
+  P.pass = { season: SEASON.n, xp: 0, premium: false, free: [], prem: [], carried: n, from: P.pass.season };
+}
+function buildPass(season = SEASON.n) {
   const tiers = [];
-  const premSkins = { 9: 'neon', 19: 'royal', 29: 'void' };
+  const premSkins = (SEASONS.find((s) => s.n === season) || SEASON).skins;
   for (let i = 0; i < 30; i++) {
     const free = i % 5 === 4 ? { chest: 'iron' } : i % 5 === 2 ? { abilities: { [ABILITY_ORDER[i % ABILITY_ORDER.length]]: 1 } } : i % 7 === 6 ? { gems: 10 } : { coins: 80 + i * 10 };
     const prem = premSkins[i] ? { skin: premSkins[i] } : i % 5 === 4 ? { chest: 'gold' } : i % 3 === 0 ? { gems: 25 } : i % 3 === 1 ? { coins: 250 + i * 20 } : { abilities: { [ABILITY_ORDER[(i + 3) % ABILITY_ORDER.length]]: 2 } };

@@ -31,6 +31,8 @@ export const CHALLENGES = {
   swamp: { text: 'Finish 100 kills while controlling a turret', check: (m) => m.manualKills >= 100 },
   magma: { text: 'Win with 70% accuracy on manual shots', check: (m) => m.manualShots >= 60 && Math.min(1, m.manualHits / m.manualShots) >= 0.7 },
   neon: { text: 'Win with an average grade of A or better', check: (m) => m.waves > 0 && m.gradePoints / m.waves >= 3 },
+  jungle: { text: 'Win with at most 3 enemies getting through', check: (m) => m.leaks <= 3 },
+  storm: { text: 'Win with 150 manual kills', check: (m) => m.manualKills >= 150 },
 };
 
 /* --------------------------------------------------------------- Mastery */
@@ -152,10 +154,8 @@ export const skill = {
     } else m.pts += 1;
     const after = masteryOf(type);
     if (after.level > before) {
-      const el = document.createElement('div');
-      el.className = 'sk-mast';
-      el.textContent = `${type.toUpperCase()} MASTERY ${after.level} · ${after.title.toUpperCase()}`;
-      show(el);
+      // shown after the match (achievements.js flushes the queue on the result screen)
+      window.dispatchEvent(new CustomEvent('sl:later', { detail: { kind: 'mastery', title: `${type.toUpperCase()} MASTERY ${after.level}`, sub: after.title } }));
     }
     if (m.kills % 10 === 0 || after.level > before) save();
   },
@@ -168,11 +168,8 @@ export const skill = {
     map.grades[g.grade]++;
     map.gradePoints += GRADE_POINTS[g.grade];
     map.score += g.score;
-    const el = document.createElement('div');
-    el.className = 'sk-card';
-    el.innerHTML = `<div class="sk-grade ${g.grade}">${g.grade}</div><div class="sk-body"><b>WAVE ${wave.n}</b>`
-      + `<span>ACC ${pct(g.acc)} · HEAD ${pct(wave.hits ? g.heads : null)} · LEAKS ${wave.leaks}</span></div>`;
-    show(el);
+    // small strip in the shared feed (no pop-up over the battlefield)
+    window.dispatchEvent(new CustomEvent('sl:notify', { detail: { title: `WAVE ${wave.n} · ${g.grade}`, sub: `ACC ${pct(g.acc)} · HEAD ${pct(wave.hits ? g.heads : null)} · LEAKS ${wave.leaks}`, grade: g.grade } }));
     const res = { ...g, n: wave.n, leaks: wave.leaks, secs };
     wave = null;
     save();

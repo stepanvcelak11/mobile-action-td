@@ -1,25 +1,28 @@
-// Minimap in first-person view: roads, base, gates, enemies and every turret. A turret that is
-// firing flashes, so from inside one turret you can see where the fight is. Tap a turret on the
-// minimap to jump into it. Self-contained: reads the game state through window.__game.
+// Minimap in first-person view, top right in place of the MAP button: roads, base, gates, enemies
+// and every turret. A turret that is firing flashes, so from inside one turret you can see where
+// the fight is. Tap a turret on it to jump into that turret; tap anywhere else for the full map.
+// Self-contained: reads the game state through window.__game.
 import * as THREE from 'three';
 
-const SIZE = 112; // CSS px
+const SIZE = 104; // CSS px
 const css = document.createElement('style');
 css.textContent = `
-#minimap{position:fixed;left:calc(10px + var(--sal,0px));bottom:calc(10px + var(--sab,0px));width:${SIZE}px;height:${SIZE}px;z-index:9;display:none;
+#minimap{position:relative;flex:none;width:${SIZE}px;height:${SIZE}px;z-index:9;display:none;cursor:pointer;
   border-radius:14px;background:rgba(8,12,18,.62);border:1px solid rgba(255,255,255,.16);box-shadow:0 6px 18px rgba(0,0,0,.4);pointer-events:auto;touch-action:none}
 body.fpv #minimap{display:block}
+body.fpv #fpv-corner{align-items:flex-end}
+body.fpv #fpv-corner #exit-fpv{display:none}
 body.layout-edit #minimap, body.sheet-open #minimap{display:none}
 #minimap canvas{width:100%;height:100%;display:block;border-radius:14px}
-#minimap .mm-alert{position:absolute;left:0;right:0;top:-18px;text-align:center;font:900 10px/1 system-ui,sans-serif;letter-spacing:.12em;color:#ff5a4a;text-shadow:0 1px 3px #000;opacity:0;transition:opacity .2s}
+#minimap .mm-alert{position:absolute;left:0;right:0;bottom:-16px;text-align:center;font:900 10px/1 system-ui,sans-serif;letter-spacing:.12em;color:#ff5a4a;text-shadow:0 1px 3px #000;opacity:0;transition:opacity .2s}
 #minimap.danger .mm-alert{opacity:1}
-@media (orientation:portrait){#minimap{bottom:calc(62px + var(--sab,0px))}}`;
+#minimap .mm-hint{position:absolute;left:6px;top:5px;font:900 8px/1 system-ui,sans-serif;letter-spacing:.14em;color:rgba(233,237,242,.7);pointer-events:none}`;
 document.head.appendChild(css);
 
 const box = document.createElement('div');
 box.id = 'minimap';
-box.setAttribute('aria-label', 'Minimap: tap a turret to jump into it');
-box.innerHTML = '<div class="mm-alert">BASE UNDER ATTACK</div><canvas></canvas>';
+box.setAttribute('aria-label', 'Minimap: tap a turret to jump into it, anywhere else for the full map');
+box.innerHTML = '<canvas></canvas><div class="mm-hint">MAP</div><div class="mm-alert">BASE UNDER ATTACK</div>';
 const cv = box.querySelector('canvas');
 const ctx = cv.getContext('2d');
 
@@ -54,7 +57,9 @@ function draw() {
   requestAnimationFrame(draw);
   if (!ready() || !document.body.classList.contains('fpv')) return;
   const { G, world } = window.__game;
-  if (!box.isConnected) document.body.appendChild(box);
+  const corner = document.getElementById('fpv-corner');
+  if (corner && box.parentNode !== corner) corner.prepend(box);
+  else if (!corner && !box.isConnected) document.body.appendChild(box);
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const W = SIZE * dpr;
   if (cv.width !== W) { cv.width = cv.height = W; }
@@ -138,7 +143,9 @@ box.addEventListener('pointerdown', (ev) => {
     const d = Math.hypot(a - mx, b - my);
     if (d < bd) { bd = d; best = t; }
   }
-  if (best && best !== G.active) enterFPV(best);
+  if (best) { if (best !== G.active) enterFPV(best); return; }
+  // anywhere else on the minimap: back to the full map (same as the old MAP button)
+  window.__game.exitFPV?.();
 });
 ['pointermove', 'pointerup', 'click', 'touchstart', 'touchmove'].forEach((n) => box.addEventListener(n, (e) => e.stopPropagation()));
 

@@ -665,7 +665,56 @@ export function buildBomber() {
   return { g, body, legs, wp, gait: 'flyspin', parts: [body] };
 }
 
+/* -------------------------------------------------------- Aegis Priest (S2) */
+export function buildAegis() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const robe = smooth('#d8d0b8', { metalness: 0.2, roughness: 0.5 });
+  const gold = mat('#d0a030', { metalness: 0.7, roughness: 0.3 });
+  const dark = mat('#2a2a3a', { metalness: 0.4 });
+  const k = kit();
+  k.add(cone(0.62, 1.3, 10), robe, [0, 0.95, 0]);
+  k.add(cylY(0.34, 0.42, 0.5, 10), robe, [0, 1.55, 0]);
+  k.add(torus(0.4, 0.05, 6, 18), gold, [0, 1.78, 0], [Math.PI / 2, 0, 0]);
+  k.add(sph(0.26, 12, 10), dark, [0, 2.05, 0.05]);
+  k.add(cone(0.3, 0.4, 8), gold, [0, 2.35, 0]);
+  for (const sx of [-1, 1]) {
+    k.add(sph(0.16, 8, 6), gold, [sx * 0.46, 1.72, 0]);
+    k.add(capZ(0.07, 0.4, 6), robe, [sx * 0.5, 1.35, 0.15], [Math.PI / 2 + 0.4, 0, 0]);
+  }
+  // staff
+  k.add(cylY(0.04, 0.04, 2.4, 6), gold, [0.62, 1.2, 0.3]);
+  k.add(new THREE.OctahedronGeometry(0.16, 0), glow('#8fe3ff'), [0.62, 2.5, 0.3]);
+  k.add(box(0.46, 0.5, 0.26), dark, [0, 1.45, -0.42]);
+  k.bake(body);
+  eyes(body, '#8fe3ff', [[-0.09, 2.08, 0.28], [0.09, 2.08, 0.28]], 0.05);
+  const legs = [];
+  for (const sx of [-0.2, 0.2]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 0.55, 0);
+    body.add(pivot);
+    const lk = kit();
+    lk.add(box(0.16, 0.5, 0.18), dark, [0, -0.25, 0]);
+    lk.add(box(0.2, 0.06, 0.28), gold, [0, -0.52, 0.04]);
+    lk.bake(pivot);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  const wp = weakPoint(body, sph(0.2, 10, 8), '#8fe3ff', 0, 1.5, -0.6);
+  const bubbleM = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const bubble = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 2), bubbleM);
+  bubble.position.y = 1.2;
+  body.add(bubble);
+  const auraM = new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const aura = new THREE.Mesh(new THREE.RingGeometry(3.4, 3.8, 40), auraM);
+  aura.rotation.x = -Math.PI / 2;
+  aura.position.y = 0.08;
+  g.add(aura);
+  return { g, body, legs, wp, bubble, aura, gait: 'walk', parts: [body] };
+}
+
 export const MODEL_BUILDERS = {
+  aegis: buildAegis,
   scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
   shield: buildShield, cloak: buildCloak, splitter: buildSplitter, boss: buildBoss,
   runner: buildRunner, medic: buildMedic, burrower: buildBurrower, juggernaut: buildJuggernaut, bomber: buildBomber,

@@ -71,16 +71,22 @@ const TIER_COL = { 1: '#d08a4a', 2: '#c9d6e2', 3: '#ffcf5a' };
 /* --------------------------------------------------------------- toast */
 const queue = [];
 let showing = false;
+const inMatch = () => document.body.classList.contains('ingame') && !document.getElementById('result')?.classList.contains('show');
 function toastNext() {
-  if (showing || !queue.length) return;
+  if (showing || !queue.length || inMatch()) return;
   showing = true;
   const d = queue.shift();
   const el = document.createElement('div');
   el.className = 'ach-toast';
-  el.style.setProperty('--tc', TIER_COL[d[3]]);
-  el.innerHTML = `<div class="ach-medal">${medal(d[3])}</div><div><small>ACHIEVEMENT · ${TIER[d[3]]}</small><b>${d[1]}</b><span>${d[2]} · +${GEMS[d[3]]} gems${d[6] ? ` · title “${d[6]}”` : ''}</span></div>`;
+  if (d.mastery) {
+    el.style.setProperty('--tc', '#ffcf5a');
+    el.innerHTML = `<div class="ach-medal">${medal(3)}</div><div><small>TURRET MASTERY</small><b>${d.title}</b><span>${d.sub}</span></div>`;
+  } else {
+    el.style.setProperty('--tc', TIER_COL[d[3]]);
+    el.innerHTML = `<div class="ach-medal">${medal(d[3])}</div><div><small>ACHIEVEMENT · ${TIER[d[3]]}</small><b>${d[1]}</b><span>${d[2]} · +${GEMS[d[3]]} gems${d[6] ? ` · title “${d[6]}”` : ''}</span></div>`;
+  }
   document.body.appendChild(el);
-  sfx(d[3] === 3 ? 'levelup' : 'reward');
+  sfx(d.mastery || d[3] === 3 ? 'levelup' : 'reward');
   setTimeout(() => el.classList.add('out'), 3200);
   setTimeout(() => { el.remove(); showing = false; toastNext(); }, 3700);
 }
@@ -101,6 +107,11 @@ function check() {
   }
   toastNext();
 }
+
+// flush held toasts when the match ends (result screen) or the menu opens
+window.addEventListener('sl:later', (e) => { queue.push({ mastery: true, ...e.detail }); toastNext(); });
+new MutationObserver(() => setTimeout(toastNext, 600)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+window.addEventListener('sl:match', () => setTimeout(toastNext, 2500));
 
 /* --------------------------------------------------------------- events */
 const on = (n, fn) => window.addEventListener('sl:' + n, (e) => { try { fn(e.detail || {}); persist(); } catch { /* never break the game */ } });

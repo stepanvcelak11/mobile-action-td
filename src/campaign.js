@@ -16,12 +16,13 @@ export const CHAPTERS = [
   { name: 'Chapter 1 · The Green Frontier', maps: ['valley', 'dunes'] },
   { name: 'Chapter 2 · Cold Steel', maps: ['frost', 'canyon'] },
   { name: 'Chapter 3 · The Serpent\'s Nest', maps: ['swamp', 'magma', 'neon'] },
+  { name: 'Season 2 · Storm Front', maps: ['jungle', 'storm'] },
 ];
 // Node positions on the world map (0–100 × 0–60 units).
 const NODES = {
-  valley: [12, 44], dunes: [28, 30], frost: [44, 14], canyon: [56, 36], swamp: [70, 50], magma: [82, 28], neon: [92, 10],
+  valley: [8, 44], dunes: [20, 30], frost: [32, 14], canyon: [43, 34], swamp: [54, 50], magma: [65, 30], neon: [75, 12], jungle: [86, 32], storm: [96, 52],
 };
-const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins' };
+const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast' };
 
 // Two voices: HQ (your side) and VIPER (the enemy commander).
 const TALK = {
@@ -52,6 +53,14 @@ const TALK = {
   neon: {
     before: [['VIPER', 'Three gates. One base. Night. Welcome to my home.'], ['HQ', 'Last stand, Commander. Make every shot count.']],
     after: [['HQ', 'Viper is down. The Serpent Line is broken. Outstanding work, Commander.'], ['HQ', 'Hard mode is open on every map with 3 stars. The swarm always comes back.']],
+  },
+  jungle: {
+    before: [['HQ', 'Season two, Commander. A storm front is pushing the swarm south into the delta.'], ['VIPER', 'Did you miss me? My priests will keep my children alive.']],
+    after: [['HQ', 'The priests are falling back to the coast. Follow the lightning.']],
+  },
+  storm: {
+    before: [['VIPER', 'The storm is mine, Commander. Twenty waves. No mercy.'], ['HQ', 'Hold the cliff road and the season is ours.']],
+    after: [['HQ', 'Storm Front broken. Season two complete — take a bow, Commander.']],
   },
 };
 const BOSS_LINES = [['VIPER', 'Behemoth, crush them!'], ['VIPER', 'Your base looks tired, Commander.'], ['VIPER', 'Here comes the big one.']];
@@ -97,8 +106,11 @@ function ensureCss() {
 
 const star = (on, x, y) => `<path d="M${x} ${y - 1.6}l.47 1.1 1.2.1-.9.8.28 1.17-1.05-.63-1.05.63.28-1.17-.9-.8 1.2-.1z" fill="${on ? '#ffcf5a' : '#3a4452'}"/>`;
 
+let hushed = null;
 export const campaign = {
   CHAPTERS,
+  /** Close the radio now (a wave starts). */
+  hush() { document.getElementById('cp-talk')?.remove(); document.body.classList.remove('radio-on'); hushed?.(); hushed = null; },
   /** Hard mode multipliers. */
   hard: () => ({ hp: 1.6, speed: 1.12, count: 1.25, gold: 1.1, extraWaves: 2 }),
   hardDone: (id) => !!S.hard[id],
@@ -167,6 +179,7 @@ export const campaign = {
     if (when !== 'boss') { S.seen[seenKey] = true; save(); }
     ensureCss();
     return new Promise((resolve) => {
+      hushed = resolve;
       let i = 0;
       const box = document.createElement('div');
       box.id = 'cp-talk';

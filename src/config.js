@@ -202,6 +202,8 @@ export const ENEMIES = {
   burrower: { name: 'Burrower', hp: 120, speed: 3.2, reward: 30, damage: 9, radius: 0.9, centerY: 0.5, barY: 1.6, barW: 1.4, wpR: 0.3, lateral: 0.5, burrow: true, cost: 3, minMap: 3 },
   juggernaut: { name: 'Juggernaut', hp: 620, speed: 1.35, reward: 80, damage: 22, radius: 1.7, centerY: 1.2, barY: 3.3, barW: 2.4, wpR: 0.45, lateral: 0.3, armor: 0.5, cost: 8, minMap: 4 },
   bomber: { name: 'Bomber', hp: 190, speed: 2.6, reward: 40, damage: 14, radius: 1.3, centerY: 4.2, barY: 5.5, barW: 1.8, wpR: 0.4, lateral: 1.0, air: true, cost: 4, minMap: 5 },
+  // Season 2: shields itself and heals everything around it.
+  aegis: { name: 'Aegis Priest', hp: 260, shield: 160, speed: 2.0, reward: 60, damage: 14, radius: 1.0, centerY: 1.1, barY: 2.9, barW: 1.8, wpR: 0.34, lateral: 0.4, heal: 14, cost: 5.5, minMap: 7 },
 };
 
 export const ENEMY_TIPS = {
@@ -215,6 +217,7 @@ export const ENEMY_TIPS = {
   burrower: 'BURROWERS dig underground every few seconds and can\'t be hit while buried.',
   juggernaut: 'JUGGERNAUTS have 50% armor. Crippling their legs and Shred upgrades are your friends.',
   bomber: 'BOMBERS are armored flyers. Ground-only weapons can\'t touch them.',
+  aegis: 'AEGIS PRIESTS carry a shield and heal everyone nearby. Pop the shield on the back core, then go for the head.',
 };
 
 // Hit zones for manual shots (local coordinates): head = ×2 damage, limbs (legs, tracks, rotors) = crippled (slowed).
@@ -233,6 +236,7 @@ export const HITZONES = {
   burrower: { head: [0, 0.55, 0.9, 0.35], limbs: [] },
   juggernaut: { head: [0, 2.2, 0.4, 0.45], limbs: [[-0.75, 0.55, 0, 0.45], [0.75, 0.55, 0, 0.45]] },
   bomber: { head: [0, 4.2, 1.2, 0.45], limbs: [[-1.4, 4.3, 0, 0.45], [1.4, 4.3, 0, 0.45]] },
+  aegis: { head: [0, 2.05, 0.18, 0.34], limbs: [[-0.34, 0.42, 0, 0.3], [0.34, 0.42, 0, 0.3]] },
 };
 
 export const PERKS = [
@@ -275,9 +279,11 @@ export const SKINS = {
   royal: { name: 'Royal Guard', rarity: 'legendary', price: 260, steel: '#a8203a', dark: '#4a0a18', light: '#e8c070', band: '#ffd24a', acc: 'banners', fx: { tracer: '#ffe08a', trail: '#ff3a4a', spark: '#ffd24a' }, desc: 'Crimson armour, gold trim and royal banners.' },
   neon: { name: 'Neon Night', rarity: 'legendary', price: 300, steel: '#2a2a3c', dark: '#14141e', light: '#44446a', band: '#ff3d9f', glow: '#ff3d9f', acc: 'neon', fx: { tracer: '#ffffff', trail: '#ff3d9f', spark: '#3af0ff' }, desc: 'Neon tubes and hot-pink laser tracers.' },
   gold: { name: 'Solid Gold', rarity: 'legendary', price: 300, steel: '#ffc93a', dark: '#c08a1a', light: '#fff0a8', band: '#ffffff', metal: 0.55, glow: '#ffb020', acc: 'crown', fx: { tracer: '#fff4c0', trail: '#ffb020', spark: '#ffe066' }, desc: 'Gold plating and a crown. Shoots gold.' },
+  camo: { name: 'Jungle Camo', rarity: 'epic', price: 170, steel: '#4a5a32', dark: '#2a3420', light: '#7a8a4a', band: '#c8a24a', acc: 'sandbags', fx: { tracer: '#f0e0a0', trail: '#8ab04a', spark: '#d8c070' }, desc: 'Season 2 · Leaf camouflage, sandbags and olive tracers.' },
+  tempest: { name: 'Tempest', rarity: 'legendary', price: 320, steel: '#34405a', dark: '#161c2a', light: '#6a88c0', band: '#8fd8ff', glow: '#5ac8ff', acc: 'crystals', fx: { tracer: '#e8f8ff', trail: '#5ac8ff', spark: '#bfe8ff' }, desc: 'Season 2 · Storm crystals and lightning-blue shots.' },
   void: { name: 'Void Walker', rarity: 'legendary', price: 340, steel: '#2a1a3a', dark: '#0a0612', light: '#5a3a8a', band: '#b46bff', glow: '#9a4aff', acc: 'halo', fx: { tracer: '#f0d8ff', trail: '#9a4aff', spark: '#c48bff' }, desc: 'A floating void halo and purple rift shots.' },
 };
-export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'crystal', 'royal', 'neon', 'gold', 'void'];
+export const SKIN_ORDER = ['factory', 'desert', 'arctic', 'toxic', 'obsidian', 'crystal', 'royal', 'neon', 'gold', 'void', 'camo', 'tempest'];
 export const RARITY_COLORS = { common: '#9aa7b4', rare: '#4fa8ff', epic: '#b46bff', legendary: '#ffb020' };
 
 export const THEMES = {
@@ -322,6 +328,19 @@ export const THEMES = {
     road: ['#16161e', '#2a2a36', '#34343f', '#ffd24a'], sun: ['#a0b4ff', 1.3], amb: 0.45,
     hemi: ['#6a5aff', '#101018', 0.8], exposure: 1.2, decor: 'lamp', rock: '#3a3a48', fx: 'rain',
     pools: { color: '#3aa0ff', color2: '#ff3d9f', glow: true, n: 5 }, landmark: 'city', stars: true,
+  },
+  // Season 2
+  jungle: {
+    sky: '#bfe3c8', skyTop: '#3f8f6a', fog: [48, 125], groundA: '#3f7a3a', groundB: '#57924a', edge: '#6a5a3a', hill: '#4a6a3a',
+    road: ['#5e4a30', '#7f6440', '#8c7048', '#6e5636'], sun: ['#fff0c8', 2.4], amb: 0.55,
+    hemi: ['#d8f0d0', '#2a4a20', 0.75], exposure: 1.05, decor: 'pine', rock: '#6a7a6a', fx: 'spores',
+    pools: { color: '#3f9f8a', color2: '#6fc4a8', glow: false, n: 4 }, landmark: 'mushrooms', flowers: true,
+  },
+  storm: {
+    sky: '#6a7a8a', skyTop: '#2a3444', fog: [40, 110], groundA: '#4a5a4a', groundB: '#566656', edge: '#3a3a34', hill: '#44504a',
+    road: ['#3a3a3a', '#555552', '#5f5f5a', '#8a8a80'], sun: ['#c8d4ff', 1.7], amb: 0.5,
+    hemi: ['#9aaacc', '#1a2020', 0.7], exposure: 1.1, decor: 'deadtree', rock: '#5a606a', fx: 'rain',
+    pools: { color: '#2a4a6a', color2: '#4a7a9a', glow: false, n: 3 }, landmark: 'mesas',
   },
 };
 
@@ -370,5 +389,19 @@ export const MAPS = [
       [[-28, 17], [-16, 17], [-16, 10], [-25, 10], [-25, 3], [-12, 3], [-8, 10], [-2, 6], [2, 0]],
       [[27, 17], [18, 17], [18, 8], [26, 8], [26, -2], [16, -2], [16, -12], [8, -12], [6, -4], [2, 0]],
     ],
+  },
+  // Season 2 · Storm Front
+  {
+    id: 'jungle', name: 'Jungle Delta', sub: 'Two rivers of enemies braid through the jungle. Aegis Priests shield the swarm.', theme: 'jungle', season: 2,
+    waves: 16, bosses: [8, 16], hpScale: 1.25, intro: 7, budget: 0.8,
+    roads: [
+      [[-28, -16], [-18, -12], [-20, -2], [-10, 2], [-4, -8], [6, -10], [10, -2], [4, 6], [12, 12], [22, 10]],
+      [[-28, 16], [-16, 14], [-8, 10], [4, 6], [12, 12], [22, 10]],
+    ],
+  },
+  {
+    id: 'storm', name: 'Storm Coast', sub: 'Rain, lightning and a long cliff road. The season finale.', theme: 'storm', season: 2,
+    waves: 20, bosses: [7, 14, 20], hpScale: 1.3, intro: 8, budget: 0.8,
+    roads: [[[-28, 0], [-20, -12], [-8, -15], [0, -6], [-8, 2], [-16, 8], [-10, 15], [2, 14], [8, 4], [16, -6], [24, -14], [26, -2], [20, 8], [26, 15]]],
   },
 ];

@@ -93,11 +93,8 @@ const toastEl = document.createElement('div');
 toastEl.id = 'clip-toast';
 document.body.appendChild(toastEl);
 const LABEL = { bosskill: 'BOSS KILL', multikill: 'MULTI-KILL', longshot: 'LONG SHOT', headshot: 'HEADSHOT' };
-function notify() {
-  toastEl.textContent = `● CLIP SAVED · ${LABEL[best.kind] || ''}`;
-  toastEl.classList.add('show');
-  setTimeout(() => toastEl.classList.remove('show'), 1800);
-}
+// no pop-up over the fight: the result screen shows SAVE CLIP
+function notify() {}
 
 async function saveClip() {
   if (!best) return;

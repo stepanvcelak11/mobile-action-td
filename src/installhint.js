@@ -8,6 +8,7 @@ const inSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
 
 function show() {
   if (document.getElementById('ios-install')) return;
+  if (document.body.classList.contains('ingame')) { setTimeout(show, 4000); return; }
   const el = document.createElement('div');
   el.id = 'ios-install';
   el.setAttribute('role', 'status');

@@ -13,8 +13,8 @@
 export const LEADERBOARD_URL = 'https://serpentline-api.ar-geodet.workers.dev';
 
 const KEY = 'serpentline.daily.v1';
-const MAPS = ['valley', 'dunes', 'frost', 'canyon', 'swamp', 'magma', 'neon'];
-const MAP_NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins' };
+const MAPS = ['valley', 'dunes', 'frost', 'canyon', 'swamp', 'magma', 'neon', 'jungle', 'storm'];
+const MAP_NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast' };
 
 // Daily mutators: fields the match code reads (all optional, 1 = unchanged).
 const MUTATORS = [
