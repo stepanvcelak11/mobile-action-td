@@ -23,17 +23,27 @@ export function uiIcon(name) {
         <path d="M8 17h24l-6-6M40 31H16l6 6" fill="none" stroke="url(#${g.id})" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>`, g.def);
     }
     case 'wave': {
-      const g = grad('#ff8a6a', '#c0202a');
-      return svg(`<path d="M12 42V7" stroke="#2a1a14" stroke-width="3.5" stroke-linecap="round"/>
-        <path d="M13 8c8-4 12 4 22 0v18c-10 4-14-4-22 0z" fill="url(#${g.id})" stroke="#2a0a0a" stroke-width="2.4" stroke-linejoin="round"/>
-        <circle cx="24" cy="16" r="4.2" fill="#fff"/><circle cx="22.4" cy="15.6" r="1.1" fill="#2a0a0a"/><circle cx="25.8" cy="15.6" r="1.1" fill="#2a0a0a"/>
-        <path d="M21.5 19.5h5" stroke="#2a0a0a" stroke-width="1.4"/>`, g.def);
+      // red shield with a skull and "incoming" chevrons
+      const g = grad('#ff7a5a', '#a8141e');
+      const h = grad('#ffffff', '#ffd0c0');
+      return svg(`<path d="M24 3l17 6v13c0 11-7 19-17 23C14 41 7 33 7 22V9z" fill="url(#${g.id})" stroke="#2a0608" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M24 6.5l14 5v10.5c0 9-5.8 15.6-14 19.2" fill="none" stroke="#ffb09a" stroke-width="1.4" opacity="0.6"/>
+        <path d="M24 12c-5.6 0-9 3.6-9 8.2 0 2.6 1.2 4.4 3 5.6V29h12v-3.2c1.8-1.2 3-3 3-5.6 0-4.6-3.4-8.2-9-8.2z" fill="url(#${h.id})" stroke="#2a0608" stroke-width="1.8"/>
+        <circle cx="20.4" cy="20.6" r="2.4" fill="#2a0608"/><circle cx="27.6" cy="20.6" r="2.4" fill="#2a0608"/>
+        <path d="M24 23.2l-1.4 2.4h2.8z" fill="#2a0608"/>
+        <path d="M21 29v2.6M24 29v2.6M27 29v2.6" stroke="#2a0608" stroke-width="1.4"/>
+        <path d="M15 36.5l3-2.5-3-2.5M20 38l3-2.5-3-2.5" stroke="#ffe0a0" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`, g.def + h.def);
     }
     case 'upgrade': {
-      const g = grad('#ffe98a', '#e08a10');
-      return svg(`<path d="M24 5l15 15h-9v9H18v-9H9z" fill="url(#${g.id})" stroke="#3a1d00" stroke-width="2.5" stroke-linejoin="round"/>
-        <path d="M14 34h20M14 41h20" stroke="url(#${g.id})" stroke-width="4.5" stroke-linecap="round"/>
-        <path d="M14 34h20M14 41h20" stroke="#3a1d00" stroke-width="1.2" stroke-linecap="round" opacity="0.4"/>`, g.def);
+      // hexagon badge with a gear and double gold chevrons
+      const g = grad('#ffe98a', '#e0820c');
+      const d = grad('#3a4452', '#161b22');
+      return svg(`<path d="M24 3l18 10.5v21L24 45 6 34.5v-21z" fill="url(#${d.id})" stroke="#ffcf5a" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M24 7.5l14.2 8.3v16.4L24 40.5 9.8 32.2V15.8z" fill="none" stroke="#ffcf5a" stroke-width="1" opacity="0.35"/>
+        <path d="M14 26l10-9 10 9" fill="none" stroke="url(#${g.id})" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 34l10-9 10 9" fill="none" stroke="url(#${g.id})" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 26l10-9 10 9M14 34l10-9 10 9" fill="none" stroke="#3a1d00" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+        <circle cx="24" cy="11" r="2.2" fill="#fff4c0"/>`, g.def + d.def);
     }
     case 'pause':
       return svg(`<rect x="12" y="10" width="9" height="28" rx="2.5" fill="#eef2f6"/><rect x="27" y="10" width="9" height="28" rx="2.5" fill="#eef2f6"/>`);

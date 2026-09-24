@@ -18,7 +18,8 @@ import { daily } from './daily.js';
 import { campaign } from './campaign.js';
 import { skill } from './skill.js';
 import { ach } from './achievements.js';
-import { showcase, stopShowcase } from './showcase.js';
+import { showcase, stopShowcase, demo, stopDemo } from './showcase.js';
+import { renderTree } from './treeview.js';
 import { turretIcon, uiIcon, enemyIcon, abilityIcon, coinIcon, gemIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, starPowerIcon, gearIcon, navIcon, settingsIcon } from './icons.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -521,7 +522,23 @@ function openTurretDetail(id, sheet = detailSheet) {
   const view = showcase($('bs-3d'), id, skinOf(id));
   const root = $('overlay-body');
   root.querySelectorAll('[data-sheet]').forEach((b) => b.addEventListener('click', () => { sfx('tap'); openTurretDetail(id, b.dataset.sheet); }));
-  $('bs-close')?.addEventListener('click', () => { sfx('tap'); openTurretDetail(id, null); });
+  $('bs-close')?.addEventListener('click', () => { sfx('tap'); stopDemo(); openTurretDetail(id, null); });
+  if (detailSheet !== 'how') stopDemo();
+  if (detailSheet === 'how' && $('bs-demo')) demo($('bs-demo'), id, skinOf(id), SKINS[skinOf(id)]?.fx);
+  root.querySelectorAll('[data-modslot]').forEach((b) => b.addEventListener('click', () => { modSlot = +b.dataset.modslot; sfx('tap'); openTurretDetail(id); }));
+  if (detailSheet === 'tree' && $('bs-tree')) {
+    let sel = null;
+    const draw = () => {
+      sel = renderTree($('bs-tree'), { type: id, picks: [0, 0, 0] }, {
+        gold: Infinity, cost: () => 0, buy: () => {}, sel, rootIcon: turretIcon(id),
+        onSelect: (v) => { sel = v; sfx('tap'); draw(); },
+      });
+      // preview only: upgrades are bought in a match
+      const b = $('bs-tree').querySelector('.tbuy');
+      if (b) b.outerHTML = `<span class="tstate">${TREES[id][sel.b].name} · tier ${sel.n + 1}</span>`;
+    };
+    draw();
+  }
   $('d-level')?.addEventListener('click', () => {
     if (!levelUp(id)) return;
     sfx('levelup');
@@ -563,39 +580,54 @@ function openTurretDetail(id, sheet = detailSheet) {
   }));
 }
 
+let modSlot = 0;
 function sheetHtml(id, sheet, { owned, L, ps, tp, lb }) {
   const t = TURRETS[id];
-  const lockTxt = (lv) => `<span class="lock-note">${uiIcon('lock')} LEVEL ${lv}</span>`;
-  const pcard = (kind, i, name, desc, icon, bought, equipped, unlockLv, price) => {
-    let action;
-    if (!owned || L < unlockLv) action = lockTxt(unlockLv);
-    else if (!bought) action = `<button class="btn sm ${P.coins >= price ? 'primary' : ''}" data-buy="${kind}:${i}" ${P.coins >= price ? '' : 'disabled'}>${coinIcon()}${price}</button>`;
-    else if (equipped) action = '<span class="eq">EQUIPPED</span>';
-    else action = `<button class="btn sm" data-eq="${kind}:${i}">EQUIP</button>`;
-    return `<div class="pcard${equipped ? ' on' : ''}${bought ? '' : ' nb'}"><div class="pc-ico">${icon}</div><div class="c-main"><b>${name}</b><small>${desc}</small></div>${action}</div>`;
+  const lockTag = (lv) => `<span class="pw-lock">${uiIcon('lock')} TURRET LV ${lv}</span>`;
+  // big power card: icon plate, name, what it does, state/action at the bottom
+  const pw = ({ kind, i, name, desc, icon, color, bought, equipped, lv, price }) => {
+    let act;
+    if (!owned || L < lv) act = lockTag(lv);
+    else if (!bought) act = `<button class="btn sm ${P.coins >= price ? 'primary' : ''}" data-buy="${kind}:${i}" ${P.coins >= price ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${price}</button>`;
+    else if (equipped) act = '<span class="pw-eq">✓ EQUIPPED</span>';
+    else act = `<button class="btn sm" data-eq="${kind}:${i}">EQUIP</button>`;
+    return `<div class="pw${equipped ? ' on' : ''}${!owned || L < lv ? ' locked' : ''}" style="--pc:${color}">
+      <div class="pw-plate">${icon}</div><b class="pw-name">${name}</b><p class="pw-desc">${desc}</p><div class="pw-act">${act}</div></div>`;
   };
-  if (sheet === 'tactic') return `<p class="menu-note">Active move · 3 uses per match · the hex button next to FIRE.</p>`
-    + tp.gadgets.map((g, i) => pcard('gadget', i, GADGETS[g].name, GADGETS[g].desc, gadgetIcon(g, GADGETS[g].color), ps.gadgets[i], ps.gadgets[i] && ps.gadget === i, POWER_UNLOCK.gadget, POWER_PRICE.gadget)).join('');
-  if (sheet === 'trait') return `<p class="menu-note">Passive · one equipped.</p>`
-    + tp.stars.map((st, i) => pcard('star', i, STAR_POWERS[st].name, STAR_POWERS[st].desc, starPowerIcon(), ps.stars[i], ps.stars[i] && ps.star === i, POWER_UNLOCK.star, POWER_PRICE.star)).join('');
+  if (sheet === 'tactic') return `<p class="pw-intro"><b>Tactics</b> are active moves: <b>3 uses per match</b> from the hex button next to FIRE. One equipped.</p>
+    <div class="pw-grid">${tp.gadgets.map((g, i) => pw({ kind: 'gadget', i, name: GADGETS[g].name, desc: GADGETS[g].desc, icon: gadgetIcon(g, GADGETS[g].color), color: GADGETS[g].color, bought: ps.gadgets[i], equipped: ps.gadgets[i] && ps.gadget === i, lv: POWER_UNLOCK.gadget, price: POWER_PRICE.gadget })).join('')}</div>`;
+  if (sheet === 'trait') return `<p class="pw-intro"><b>Traits</b> are passive and always on. One equipped.</p>
+    <div class="pw-grid">${tp.stars.map((st, i) => pw({ kind: 'star', i, name: STAR_POWERS[st].name, desc: STAR_POWERS[st].desc, icon: starPowerIcon(), color: '#ffcf5a', bought: ps.stars[i], equipped: ps.stars[i] && ps.star === i, lv: POWER_UNLOCK.star, price: POWER_PRICE.star })).join('')}</div>`;
   if (sheet === 'mod') {
-    const gearSlot = (slot) => {
-      const lv = slot === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2;
-      const cur = ps.gears[slot];
-      const head = `<div class="gs-head"><b>Slot ${slot + 1}</b>${!owned || L < lv ? lockTxt(lv) : cur ? `<span class="eq" style="color:${GEARS[cur].color}">${GEARS[cur].name}</span>` : `<small>pick one · ${coinIcon()}${POWER_PRICE.gear}</small>`}</div>`;
-      if (!owned || L < lv) return `<div class="gslot locked">${head}</div>`;
-      return `<div class="gslot">${head}<div class="gears">${GEAR_ORDER.map((g) => `<button class="gear${cur === g ? ' on' : ''}" data-gear="${slot}:${g}" style="--pc:${GEARS[g].color}" ${cur === g || ps.gears.includes(g) || P.coins < POWER_PRICE.gear ? 'disabled' : ''}>${gearIcon(GEARS[g].color)}<b>${GEARS[g].name.replace(' Mod', '')}</b><small>${GEARS[g].desc}</small></button>`).join('')}</div></div>`;
+    const slot = (s) => {
+      const lv = s === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2;
+      const cur = ps.gears[s];
+      const locked = !owned || L < lv;
+      return `<button class="mod-slot${modSlot === s ? ' sel' : ''}${locked ? ' locked' : ''}" data-modslot="${s}" style="--pc:${cur ? GEARS[cur].color : '#6a7482'}" ${locked ? 'disabled' : ''}>
+        <small>SLOT ${s + 1}</small>${locked ? `${uiIcon('lock')}<b>LV ${lv}</b>` : cur ? `${gearIcon(GEARS[cur].color)}<b>${GEARS[cur].name.replace(' Mod', '')}</b>` : `${gearIcon('#6a7482')}<b>EMPTY</b>`}</button>`;
     };
-    return `<p class="menu-note">Two slots of stat boosts.</p>${gearSlot(0)}${gearSlot(1)}`;
+    const slotLocked = !owned || L < (modSlot === 0 ? POWER_UNLOCK.gear1 : POWER_UNLOCK.gear2);
+    return `<p class="pw-intro"><b>Mod chips</b> are stat boosts. There are <b>${GEAR_ORDER.length} chips</b>; a turret holds <b>2</b>. Pick a slot, then a chip (${coinIcon()}${POWER_PRICE.gear} each).</p>
+      <div class="mod-slots">${slot(0)}${slot(1)}</div>
+      <div class="mod-grid">${GEAR_ORDER.map((g) => {
+        const inUse = ps.gears.includes(g);
+        const dis = slotLocked || inUse || P.coins < POWER_PRICE.gear;
+        return `<button class="mod${inUse ? ' on' : ''}" data-gear="${modSlot}:${g}" style="--pc:${GEARS[g].color}" ${dis ? 'disabled' : ''}>
+          ${gearIcon(GEARS[g].color)}<b>${GEARS[g].name.replace(' Mod', '')}</b><small>${GEARS[g].desc}</small>${inUse ? `<em>SLOT ${ps.gears.indexOf(g) + 1}</em>` : ''}</button>`;
+      }).join('')}</div>`;
   }
   if (sheet === 'overload') {
-    const fxText = Object.entries(tp.hyper.fx).map(([k, v]) => ({ splash: `+${v} m splash`, shots: `+${v} shots`, pierce: `+${v} pierce`, crit: `+${Math.round(v * 100)}% crit`, freeze: 'freezing hits', burn: `+${v} burn/s`, range: `+${Math.round(v * 100)}% range`, cluster: `${v} cluster bombs`, slow: 'slowing hits', stun: 'stunning hits', chain: `+${v} chain`, dmg: `+${Math.round(v * 100)}% damage`, beams: `${v} beams`, ramp: 'faster ramp', rate: `+${Math.round(v * 100)}% fire rate` }[k] || k)).join(' · ');
-    return `<p class="menu-note">The reactor fills with ${HYPER_KILLS} kills — then +40% damage and fire rate for 8 s, plus:</p>
-      <div class="pcard hyper${ps.hyper ? ' on' : ''}"><div class="pc-ico">${hyperIcon()}</div><div class="c-main"><b>${tp.hyper.name}</b><small>${fxText}</small></div>
-      ${!owned || L < POWER_UNLOCK.hyper ? lockTxt(POWER_UNLOCK.hyper) : ps.hyper ? '<span class="eq">OWNED</span>' : `<button class="btn sm ${P.coins >= POWER_PRICE.hyper ? 'primary' : ''}" data-buy="hyper:0" ${P.coins >= POWER_PRICE.hyper ? '' : 'disabled'}>${coinIcon()}${POWER_PRICE.hyper}</button>`}</div>`;
+    const fx = Object.entries(tp.hyper.fx).map(([k, v]) => ({ splash: `+${v} m splash`, shots: `+${v} shots`, pierce: `+${v} pierce`, crit: `+${Math.round(v * 100)}% crit`, freeze: 'freezing hits', burn: `+${v} burn/s`, range: `+${Math.round(v * 100)}% range`, cluster: `${v} cluster bombs`, slow: 'slowing hits', stun: 'stunning hits', chain: `+${v} chain`, dmg: `+${Math.round(v * 100)}% damage`, beams: `${v} beams`, ramp: 'faster ramp', rate: `+${Math.round(v * 100)}% fire rate` }[k] || k));
+    const locked = !owned || L < POWER_UNLOCK.hyper;
+    return `<div class="ovl${ps.hyper ? ' on' : ''}${locked ? ' locked' : ''}">
+      <div class="ovl-core">${hyperIcon()}</div>
+      <div class="ovl-main"><small>OVERLOAD</small><b>${tp.hyper.name}</b>
+        <p>Every kill charges the reactor. At <b>${HYPER_KILLS} kills</b> tap it: for <b>8 s</b> the turret gets <b>+40% damage and fire rate</b> plus:</p>
+        <div class="ovl-fx">${fx.map((f) => `<span>${f}</span>`).join('')}</div>
+        <div class="pw-act">${locked ? lockTag(POWER_UNLOCK.hyper) : ps.hyper ? '<span class="pw-eq">✓ OWNED</span>' : `<button class="btn ${P.coins >= POWER_PRICE.hyper ? 'primary' : ''}" data-buy="hyper:0" ${P.coins >= POWER_PRICE.hyper ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${POWER_PRICE.hyper}</button>`}</div>
+      </div></div>`;
   }
-  if (sheet === 'tree') return `<p class="menu-note">Bought with gold during a match — tap and hold your turret, or ⬆ while you control it. Only one path can go past tier 3.</p>
-      <div class="mini-tree">${TREES[id].map((b) => `<div class="mt-branch" style="--bc:${b.color}"><b>${b.name}</b>${b.nodes.map((n, i) => `<span class="${i === 4 ? 'ult' : ''}"><i>${i + 1}</i>${i === 4 ? '★ ' : ''}${n.name}<em>${n.desc}</em></span>`).join('')}</div>`).join('')}</div>`;
+  if (sheet === 'tree') return `<p class="pw-intro">Upgrades are bought with <b>gold during a match</b>: hold your turret, or tap ⬆ inside it. Up to <b>10</b> upgrades, and only <b>one path</b> can go past tier 3 to its ★ signature.</p><div id="bs-tree" class="bs-tree"></div>`;
   if (sheet === 'skins') return `<div class="skins">${SKIN_ORDER.map((sk) => {
       const s = SKINS[sk];
       const have = !!P.skins[sk];
@@ -605,18 +637,19 @@ function sheetHtml(id, sheet, { owned, L, ps, tp, lb }) {
         <span class="sk-rar">${s.rarity}</span><div class="sk-pic">${pic(turretPortrait(id, sk))}</div><b>${s.name}</b>${fx}
         <small class="sk-state">${have ? (sel ? 'EQUIPPED' : 'EQUIP') : s.price ? `${gemIcon()}${s.price}` : 'PASS / ROAD'}</small></button>`;
     }).join('')}</div>`;
-  // how to play
-  const mrate = (1 / t.manual.interval).toFixed(t.manual.interval < 0.5 ? 0 : 1);
-  return `<div class="how">
-      <div class="how-card"><h4>ROLE</h4><p>${KIND_TEXT[t.kind] || t.desc}</p></div>
-      <div class="how-card"><h4>WHEN YOU CONTROL IT</h4><p>${TURRET_TIPS[id] || 'Drag to aim and hold FIRE.'}</p></div>
+  // how to play: live demo + three steps + auto vs you
+  const auto = t.kind === 'deploy' ? null : { dmg: Math.round(t.damage * lb.dmg * (t.shots || 1)), rate: 1 / t.interval };
+  const you = t.kind === 'deploy' ? null : { dmg: Math.round(t.manual.damage * lb.dmg), rate: 1 / t.manual.interval };
+  const dps = (o) => o.dmg * o.rate;
+  return `<div class="howto">
+    <div class="ht-demo"><canvas id="bs-demo" aria-label="${t.name} in action"></canvas><span class="ht-live">● LIVE</span></div>
+    <div class="ht-steps">
+      <div class="ht-step"><i>1</i><b>ROLE</b><span>${KIND_TEXT[t.kind] || t.desc}</span></div>
+      <div class="ht-step"><i>2</i><b>YOU AIM</b><span>${TURRET_TIPS[id] || 'Drag to aim and hold FIRE.'}</span></div>
+      <div class="ht-step"><i>3</i><b>SKILL</b><span>Headshots ×2 · hits on legs and tracks slow enemies · glowing weak points take extra damage.</span></div>
     </div>
-    ${t.kind === 'deploy' ? '' : `<table class="stat-table">
-      <tr><th></th><th>AUTO</th><th>YOU AIM</th></tr>
-      <tr><td>Damage</td><td>${Math.round(t.damage * lb.dmg)}${t.shots > 1 ? ` ×${t.shots}` : ''}</td><td>${Math.round(t.manual.damage * lb.dmg)}</td></tr>
-      <tr><td>Shots / s</td><td>${(1 / t.interval).toFixed(1)}</td><td>${mrate}</td></tr>
-      <tr><td>Heat per shot</td><td>—</td><td>${t.manual.heat}</td></tr>
-    </table>`}`;
+    ${auto ? `<div class="ht-vs"><div><small>AUTO</small><b>${Math.round(dps(auto))}</b><span>damage / s</span></div><div class="ht-arrow">→</div><div class="you"><small>YOU AIM</small><b>${Math.round(dps(you))}</b><span>damage / s + headshots</span></div></div>` : ''}
+  </div>`;
 }
 
 /* -------------------------------------------------------------------- shop */
@@ -990,7 +1023,7 @@ function openOverlay(html, cls = '') {
   $('overlay').className = `ov show ${cls}`;
   $('overlay-body').querySelector('.ov-x').addEventListener('click', closeOverlay);
 }
-function closeOverlay() { $('overlay').className = 'ov'; stopShowcase(); detailSheet = null; }
+function closeOverlay() { $('overlay').className = 'ov'; stopShowcase(); stopDemo(); detailSheet = null; }
 
 let toastTimer = 0;
 export function toast(msg) {
