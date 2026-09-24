@@ -535,6 +535,7 @@ function enterFPV(turret) {
   G.laser.target = null;
   G.view = 'TO_FPV';
   document.body.classList.add('fpv');
+  document.body.classList.remove('bunker', 'bk-scope');
   document.body.classList.remove('scope');
   document.body.dataset.weapon = turret.type;
   document.body.classList.toggle('cockpit', !!P.settings.cockpit && !TURRETS[turret.type].scope);
@@ -3004,7 +3005,8 @@ function startMap(id, mode, hard = false) {
   if (BK.b) {
     G.view = 'BUNKER';
     document.body.classList.add('bunker');
-    G.rules.speed *= 0.78;          // commanding from the bunker takes time: a slower battle
+    G.rules.speed *= 0.78;          // commanding from the bunker takes time: a slower battle…
+    G.rules.hp *= 1.3;              // …but slower enemies stay longer under fire, so they get tougher
   }
   banner(G.map.name.toUpperCase(), G.daily ? `Daily challenge · ${daily.today().mutator.name}`
     : mode === 'endless' ? 'Endless — pick an upgrade card every 5 waves'

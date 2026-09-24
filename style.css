@@ -1189,3 +1189,4 @@ body.bk-scope #bunker-ui::after { content: ""; position: fixed; inset: 0; pointe
 .bkp-t { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; border-radius: 12px; border: 1px solid var(--panel-border); background: var(--panel-2); color: var(--text); cursor: pointer; }
 .bkp-t b { font-size: 11px; } .bkp-t small { font-size: 10px; color: var(--muted); }
 @media (orientation: portrait) { #bk-help { white-space: normal; width: calc(100vw - 40px); text-align: center; } }
+body.army-ctl #bunker-ui, body.fpv #bunker-ui { display: none !important; }
