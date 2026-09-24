@@ -11,8 +11,8 @@ import { sfx, sfxAt } from './audio.js';
 
 export const DEPLOY_TYPES = ['barracks', 'factory', 'helipad'];
 export const UNITS = {
-  soldier: { name: 'Rifleman', hp: 80, speed: 3.4, range: 9, dmg: 9, rate: 0.42, block: 2, air: false, hitsAir: 0.5, radius: 0.45, squad: 3, cap: 6, color: '#3a7bd5' },
-  tank: { name: 'Light Tank', hp: 460, speed: 2.3, range: 13, dmg: 48, rate: 1.7, splash: 2.2, block: 5, air: false, hitsAir: 0, radius: 1.1, squad: 1, cap: 2, color: '#3a7bd5' },
+  soldier: { name: 'Rifleman', hp: 65, speed: 3.4, range: 8.5, dmg: 6.5, rate: 0.45, block: 2, air: false, hitsAir: 0.5, radius: 0.45, squad: 3, cap: 6, color: '#3a7bd5' },
+  tank: { name: 'Light Tank', hp: 540, speed: 2.3, range: 13, dmg: 56, rate: 1.7, splash: 2.2, block: 5, air: false, hitsAir: 0, radius: 1.1, squad: 1, cap: 2, color: '#3a7bd5' },
   heli: { name: 'Gunship', hp: 200, speed: 6.5, range: 15, dmg: 24, rate: 0.8, splash: 1.3, block: 0, air: true, hitsAir: 1, radius: 1.2, squad: 1, cap: 2, alt: 6.5, color: '#3a7bd5' },
 };
 const UNIT_OF = { barracks: 'soldier', factory: 'tank', helipad: 'heli' };

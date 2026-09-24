@@ -133,13 +133,13 @@ export const TURRETS = {
   barracks: {
     name: 'Barracks', cost: 150, unlockTP: 6, color: '#5a8ad8',
     desc: 'Sends riflemen down the road. They block enemies and fight. Fire to drop a squad where you aim, or take control of a soldier.',
-    range: 12, interval: 9, damage: 10, shots: 1, kind: 'deploy', unit: 'soldier',
+    range: 12, interval: 11, damage: 10, shots: 1, kind: 'deploy', unit: 'soldier',
     manual: { interval: 0.6, damage: 10, heat: 12 }, fov: 80,
   },
   factory: {
     name: 'Tank Factory', cost: 260, unlockTP: 10, color: '#4a7ab8',
     desc: 'Builds light tanks that hold the road and shell groups. Fire to drop a tank, or drive one yourself.',
-    range: 14, interval: 18, damage: 50, shots: 1, kind: 'deploy', unit: 'tank',
+    range: 14, interval: 16, damage: 50, shots: 1, kind: 'deploy', unit: 'tank',
     manual: { interval: 0.6, damage: 50, heat: 12 }, fov: 80,
   },
   helipad: {
