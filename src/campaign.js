@@ -16,13 +16,13 @@ export const CHAPTERS = [
   { name: 'Chapter 1 · The Green Frontier', maps: ['valley', 'dunes'] },
   { name: 'Chapter 2 · Cold Steel', maps: ['frost', 'canyon'] },
   { name: 'Chapter 3 · The Serpent\'s Nest', maps: ['swamp', 'magma', 'neon'] },
-  { name: 'Season 2 · Storm Front', maps: ['jungle', 'storm'] },
+  { name: 'Season 2 · Storm Front', maps: ['jungle', 'storm', 'harbor'] },
 ];
 // Node positions on the world map (0–100 × 0–60 units).
 const NODES = {
-  valley: [8, 44], dunes: [20, 30], frost: [32, 14], canyon: [43, 34], swamp: [54, 50], magma: [65, 30], neon: [75, 12], jungle: [86, 32], storm: [96, 52],
+  valley: [8, 44], dunes: [20, 30], frost: [32, 14], canyon: [43, 34], swamp: [54, 50], magma: [65, 30], neon: [75, 12], jungle: [84, 30], storm: [92, 50], harbor: [99, 22],
 };
-const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast' };
+const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast', harbor: 'Iron Harbor' };
 
 // Two voices: HQ (your side) and VIPER (the enemy commander).
 const TALK = {

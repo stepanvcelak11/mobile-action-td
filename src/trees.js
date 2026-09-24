@@ -539,6 +539,30 @@ TREES.helipad = [
   ]),
 ];
 
+TREES.carrier = [
+  B('Payload', '#ff9a3a', [
+    ['Rocket Racks', '+25% jet damage', { dmg: 0.25 }],
+    ['Cluster Warheads', '+1 m splash', { splash: 1 }],
+    ['Heavy Ordnance', '+35% jet damage', { dmg: 0.35 }],
+    ['Strafing Run', '+30% fire rate', { rate: 0.3 }],
+    ['Carpet Bombing', '+100% damage, +2 m splash', { dmg: 1.0, splash: 2 }],
+  ]),
+  B('Flight Deck', '#5fd8ff', [
+    ['Catapult', '+20% faster launches', { rate: 0.2 }],
+    ['Wingman', '+1 jet per launch', { shots: 1 }],
+    ['Deck Crew', '+25% faster launches', { rate: 0.25 }],
+    ['Armor Piercing', 'Rockets shred armor', { shred: 1 }],
+    ['Squadron', '+2 jets per launch', { shots: 2 }],
+  ]),
+  B('AWACS', '#b46bff', [
+    ['Long Radar', '+15% range', { range: 0.15 }],
+    ['Thermal Pods', 'Jets see cloaked Phantoms', { detect: 1 }],
+    ['Datalink', '+20% range', { range: 0.2 }],
+    ['Sonic Boom', '15% stun chance', { stun: 0.15 }],
+    ['Ace Pilots', '+25% crit chance', { crit: 0.25 }],
+  ]),
+];
+
 /** Can this branch buy its next tier? Returns a reason string when not. */
 export function canBuy(picks, branch) {
   const total = picks.reduce((a, b) => a + b, 0);

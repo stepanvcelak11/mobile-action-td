@@ -375,7 +375,18 @@ export function buildWorld(map, theme) {
   const [edge, main, bright, track] = theme.road;
   const hw = ROAD_WIDTH / 2;
   const roadM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
+  const waterM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.92 });
   paths.forEach((path, i) => {
+    if ((map.water || []).includes(i)) {
+      // a canal: sandy banks, shallow edge, deep blue middle
+      const canal = new THREE.Mesh(ribbon(path, [
+        { off: -hw - 1.4, color: '#c8b27a' }, { off: -hw - 0.6, color: '#6ac0e8' }, { off: -1.0, color: '#2f8fd0' },
+        { off: 0, color: '#1f6fb8' }, { off: 1.0, color: '#2f8fd0' }, { off: hw + 0.6, color: '#6ac0e8' }, { off: hw + 1.4, color: '#c8b27a' },
+      ], 0.03), waterM);
+      canal.receiveShadow = true;
+      root.add(canal);
+      return;
+    }
     const road = new THREE.Mesh(ribbon(path, [
       { off: -hw - 0.35, color: edge }, { off: -hw, color: main }, { off: -0.85, color: bright },
       { off: -0.55, color: track }, { off: -0.3, color: bright }, { off: 0.3, color: bright },

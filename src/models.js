@@ -665,6 +665,46 @@ export function buildBomber() {
   return { g, body, legs, wp, gait: 'flyspin', parts: [body] };
 }
 
+/* ------------------------------------------------------------- Naval */
+function buildShip(size, hullCol, deckCol, guns) {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const hull = mat(hullCol, { metalness: 0.45, roughness: 0.45 });
+  const deck = mat(deckCol, { metalness: 0.3, roughness: 0.6 });
+  const dark = mat('#20262e', { metalness: 0.5 });
+  const k = kit();
+  const L = 3.2 * size, W = 1.1 * size;
+  k.add(box(W, 0.55 * size, L), hull, [0, 0.25 * size, 0]);
+  k.add(cone(W * 0.55, 1.2 * size, 4), hull, [0, 0.25 * size, L / 2 + 0.55 * size], [Math.PI / 2, Math.PI / 4, 0], [1, 1, 0.55]);
+  k.add(box(W * 0.96, 0.08, L), deck, [0, 0.55 * size, 0]);
+  k.add(box(W * 0.6, 0.5 * size, 0.9 * size), deck, [0, 0.85 * size, -0.3 * size]);
+  k.add(box(W * 0.5, 0.25 * size, 0.6 * size), dark, [0, 1.2 * size, -0.35 * size]);
+  k.add(cylY(0.05, 0.05, 0.9 * size, 4), dark, [0, 1.7 * size, -0.5 * size]);
+  k.add(cylY(0.16 * size, 0.2 * size, 0.6 * size, 8), dark, [0, 1.0 * size, -0.95 * size]);
+  k.add(box(W * 1.02, 0.06, L * 1.02), glow('#ffffff'), [0, 0.05, 0], [0, 0, 0], [1, 0.4, 1]);
+  k.bake(body);
+  eyes(body, '#ffd24a', [[-0.2 * size, 1.22 * size, -0.05 * size], [0.2 * size, 1.22 * size, -0.05 * size]], 0.05 * size);
+  const tur = new THREE.Group();
+  tur.position.set(0, 0.65 * size, L * 0.28);
+  body.add(tur);
+  const tk = kit();
+  tk.add(cylY(0.28 * size, 0.32 * size, 0.22 * size, 8), deck, [0, 0.1, 0]);
+  for (let i = 0; i < guns; i++) tk.add(cylZ(0.05 * size, 0.06 * size, 0.8 * size, 6), dark, [(i - (guns - 1) / 2) * 0.14 * size, 0.18 * size, 0.4 * size]);
+  tk.bake(tur);
+  const wp = weakPoint(body, sph(0.22 * size, 10, 8), '#ff8a1a', 0, 0.7 * size, -L / 2 - 0.05);
+  // wake foam behind the ship
+  const foamM = new THREE.MeshBasicMaterial({ color: '#e8f8ff', transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false });
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.4, L * 0.9), foamM);
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.set(0, 0.06, -L * 0.75);
+  g.add(foam);
+  foam.onBeforeRender = () => { foamM.opacity = 0.35 + 0.2 * Math.sin(performance.now() / 180); };
+  return { g, body, legs: [], wp, tur, gait: 'tank', parts: [body, tur] };
+}
+export const buildGunboat = () => buildShip(0.7, '#5a6a7a', '#c8ccd0', 1);
+export const buildDestroyer = () => buildShip(1.15, '#44505e', '#9aa4ae', 2);
+
 /* -------------------------------------------------------- Aegis Priest (S2) */
 export function buildAegis() {
   const g = new THREE.Group();
@@ -714,6 +754,7 @@ export function buildAegis() {
 }
 
 export const MODEL_BUILDERS = {
+  gunboat: buildGunboat, destroyer: buildDestroyer,
   aegis: buildAegis,
   scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
   shield: buildShield, cloak: buildCloak, splitter: buildSplitter, boss: buildBoss,

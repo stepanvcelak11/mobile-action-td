@@ -142,6 +142,12 @@ export const TURRETS = {
     range: 14, interval: 16, damage: 50, shots: 1, kind: 'deploy', unit: 'tank',
     manual: { interval: 0.6, damage: 50, heat: 12 }, fov: 80,
   },
+  carrier: {
+    name: 'Carrier', rarity: 'mythic', cost: 320, unlockTP: 11, color: '#6a8ab8',
+    desc: 'A small aircraft carrier that launches jets. They sweep the whole map and hit flyers and ships. Fire to send them where you aim, or fly one yourself.',
+    range: 18, interval: 20, damage: 30, shots: 1, kind: 'deploy', unit: 'jet',
+    manual: { interval: 0.6, damage: 30, heat: 12 }, fov: 80,
+  },
   helipad: {
     name: 'Helipad', rarity: 'epic', cost: 240, unlockTP: 9, color: '#6ab0e8',
     desc: 'Launches gunships that circle the fight and fire rockets — they hit flyers too. Fire to send them where you aim, or fly one.',
@@ -149,7 +155,7 @@ export const TURRETS = {
     manual: { interval: 0.6, damage: 24, heat: 12 }, fov: 80,
   },
 };
-export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer', 'barracks', 'helipad', 'factory'];
+export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer', 'barracks', 'helipad', 'factory', 'carrier'];
 
 // How to play each turret yourself (shown in the Armory).
 export const TURRET_TIPS = {
@@ -175,6 +181,7 @@ export const TURRET_TIPS = {
   howitzer: 'Shells take a long time to land — aim well ahead of the group.',
   barracks: 'FIRE drops a squad where you aim and moves the rally point. TAKE CONTROL to fight as a rifleman: left thumb moves, drag right to aim.',
   factory: 'Park tanks in chokepoints — they block up to five enemies. TAKE CONTROL to drive one and fire its cannon.',
+  carrier: 'Jets fly fast loops over the fight. TAKE CONTROL to fly one: the jet always flies forward — steer with the left thumb, aim with the right, FIRE rockets.',
   helipad: 'Gunships shoot flyers. TAKE CONTROL to fly one: left thumb flies, drag right to aim the rockets.',
 };
 
@@ -202,6 +209,9 @@ export const ENEMIES = {
   burrower: { name: 'Burrower', hp: 120, speed: 3.2, reward: 30, damage: 9, radius: 0.9, centerY: 0.5, barY: 1.6, barW: 1.4, wpR: 0.3, lateral: 0.5, burrow: true, cost: 3, minMap: 3 },
   juggernaut: { name: 'Juggernaut', hp: 620, speed: 1.35, reward: 80, damage: 22, radius: 1.7, centerY: 1.2, barY: 3.3, barW: 2.4, wpR: 0.45, lateral: 0.3, armor: 0.5, cost: 8, minMap: 4 },
   bomber: { name: 'Bomber', hp: 190, speed: 2.6, reward: 40, damage: 14, radius: 1.3, centerY: 4.2, barY: 5.5, barW: 1.8, wpR: 0.4, lateral: 1.0, air: true, cost: 4, minMap: 5 },
+  // Naval (only on maps with a water lane): they sail the canal and shell the base from range.
+  gunboat: { name: 'Gunboat', hp: 90, speed: 4.2, reward: 22, damage: 6, radius: 1.1, centerY: 0.6, barY: 2.0, barW: 1.4, wpR: 0.3, lateral: 0.8, cost: 1.8, naval: true, shootsBase: true, shootRange: 16, shot: 2, shotEvery: 2.5 },
+  destroyer: { name: 'Destroyer', hp: 420, speed: 2.0, reward: 55, damage: 16, radius: 1.8, centerY: 0.9, barY: 3.2, barW: 2.4, wpR: 0.42, lateral: 0.3, armor: 0.3, cost: 5, naval: true, shootsBase: true, shootRange: 24, shot: 4, shotEvery: 3.2 },
   // Season 2: shields itself and heals everything around it.
   aegis: { name: 'Aegis Priest', hp: 260, shield: 160, speed: 2.0, reward: 60, damage: 14, radius: 1.0, centerY: 1.1, barY: 2.9, barW: 1.8, wpR: 0.34, lateral: 0.4, heal: 14, cost: 5.5, minMap: 7 },
 };
@@ -217,6 +227,8 @@ export const ENEMY_TIPS = {
   burrower: 'BURROWERS dig underground every few seconds and can\'t be hit while buried.',
   juggernaut: 'JUGGERNAUTS have 50% armor. Crippling their legs and Shred upgrades are your friends.',
   bomber: 'BOMBERS are armored flyers. Ground-only weapons can\'t touch them.',
+  gunboat: 'GUNBOATS sail the canal fast and shell your base once they are in range. Sink them early.',
+  destroyer: 'DESTROYERS are armored warships with long-range guns. Hit the glowing engine at the stern.',
   aegis: 'AEGIS PRIESTS carry a shield and heal everyone nearby. Pop the shield on the back core, then go for the head.',
 };
 
@@ -236,6 +248,8 @@ export const HITZONES = {
   burrower: { head: [0, 0.55, 0.9, 0.35], limbs: [] },
   juggernaut: { head: [0, 2.2, 0.4, 0.45], limbs: [[-0.75, 0.55, 0, 0.45], [0.75, 0.55, 0, 0.45]] },
   bomber: { head: [0, 4.2, 1.2, 0.45], limbs: [[-1.4, 4.3, 0, 0.45], [1.4, 4.3, 0, 0.45]] },
+  gunboat: { head: [0, 1.25, -0.2, 0.34], limbs: [] },
+  destroyer: { head: [0, 2.2, -0.4, 0.5], limbs: [] },
   aegis: { head: [0, 2.05, 0.18, 0.34], limbs: [[-0.34, 0.42, 0, 0.3], [0.34, 0.42, 0, 0.3]] },
 };
 
@@ -345,6 +359,12 @@ export const THEMES = {
     hemi: ['#d8f0d0', '#2a4a20', 0.75], exposure: 1.05, decor: 'pine', rock: '#6a7a6a', fx: 'spores',
     pools: { color: '#3f9f8a', color2: '#6fc4a8', glow: false, n: 4 }, landmark: 'mushrooms', flowers: true,
   },
+  coast: {
+    sky: '#aee0ff', skyTop: '#3f9fe0', fog: [55, 140], groundA: '#7aa84a', groundB: '#94bc5a', edge: '#c8b27a', hill: '#6a9a4a',
+    road: ['#8e7a52', '#b89a66', '#c4a672', '#9a8058'], sun: ['#fff4d8', 2.8], amb: 0.6,
+    hemi: ['#e0f4ff', '#4a6a30', 0.8], exposure: 1.08, decor: 'pine', rock: '#9aa0a6', fx: 'petals',
+    pools: { color: '#3aa8e0', color2: '#6ad0ff', glow: false, n: 2 }, landmark: 'windmill', flowers: true,
+  },
   storm: {
     sky: '#6a7a8a', skyTop: '#2a3444', fog: [40, 110], groundA: '#4a5a4a', groundB: '#566656', edge: '#3a3a34', hill: '#44504a',
     road: ['#3a3a3a', '#555552', '#5f5f5a', '#8a8a80'], sun: ['#c8d4ff', 1.7], amb: 0.5,
@@ -412,5 +432,13 @@ export const MAPS = [
     id: 'storm', name: 'Storm Coast', sub: 'Rain, lightning and a long cliff road. The season finale.', theme: 'storm', season: 2,
     waves: 20, bosses: [9, 15, 20], hpScale: 1.5, intro: 8, budget: 0.9,
     roads: [[[-28, 0], [-20, -12], [-8, -15], [0, -6], [-8, 2], [-16, 8], [-10, 15], [2, 14], [8, 4], [16, -6], [24, -14], [26, -2], [20, 8], [26, 15]]],
+  },
+  {
+    id: 'harbor', name: 'Iron Harbor', sub: 'A road and a canal meet at the harbor. Warships shell your base from the water.', theme: 'coast', season: 2,
+    waves: 16, bosses: [8, 16], hpScale: 1.3, intro: 8, budget: 0.85, water: [1],
+    roads: [
+      [[-28, -14], [-16, -9], [-18, 1], [-6, 3], [2, -6], [12, -10], [20, -4], [24, 0]],
+      [[-28, 13], [-16, 15], [-4, 12], [6, 14], [14, 10], [20, 5], [24, 1]],
+    ],
   },
 ];

@@ -301,6 +301,18 @@ function headFactory(pitch, M) {
   pitch.add(door);
   return { barrels: [{ group: door, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.4, 1.0)], cam: [0, 1.6, -0.3] };
 }
+function headCarrier(pitch, M) {
+  const deck = mat('#5a6a7a', { metalness: 0.4, roughness: 0.5 });
+  part(pitch, new THREE.BoxGeometry(1.2, 0.35, 2.6), deck, 0, 0.05, 0);
+  part(pitch, new THREE.BoxGeometry(1.26, 0.04, 2.66), M.steelDark, 0, 0.24, 0);
+  part(pitch, new THREE.BoxGeometry(0.06, 0.02, 2.2), M.band, 0, 0.27, 0);
+  part(pitch, new THREE.BoxGeometry(0.34, 0.6, 0.6), M.steel, 0.42, 0.55, -0.3);
+  const radar = new THREE.Group();
+  radar.position.set(0.42, 0.95, -0.3);
+  pitch.add(radar);
+  part(radar, new THREE.BoxGeometry(0.34, 0.14, 0.04), M.steelLight, 0, 0.05, 0);
+  return { barrels: [{ group: radar, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.4, 1.4)], cam: [0, 2.2, -0.9] };
+}
 function headHelipad(pitch, M) {
   part(pitch, new THREE.CylinderGeometry(1.25, 1.25, 0.12, 20), M.steelDark, 0, 0.05, 0);
   part(pitch, new THREE.BoxGeometry(0.12, 0.02, 0.8), M.band, -0.28, 0.12, 0);
@@ -403,7 +415,7 @@ function addAccessory(root, yaw, acc, sk) {
   return anim;
 }
 
-const HEADS = { barracks: headBarracks, factory: headFactory, helipad: headHelipad, scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
+const HEADS = { carrier: headCarrier, barracks: headBarracks, factory: headFactory, helipad: headHelipad, scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
 export function createTurret(type, color, skinId = 'factory') {
   const root = new THREE.Group();

@@ -583,7 +583,7 @@ const mapWaves = () => G.map.waves + (G.hard ? campaign.hard().extraWaves : 0);
 const totalWaves = () => (G.mode === 'endless' ? Infinity : mapWaves());
 const isBossWave = (n) => (G.rules.bossEvery && n % G.rules.bossEvery === 0)
   || (G.mode === 'endless' ? n % 5 === 0 || G.map.bosses.includes(n) : G.map.bosses.includes(n) || (G.hard && n === mapWaves()));
-const GAPS = { scout: 0.55, mini: 0.4, heavy: 1.3, drone: 0.5, shield: 1.4, cloak: 0.9, splitter: 1.2, boss: 3, runner: 0.35, medic: 1.2, burrower: 1.0, juggernaut: 2.2, bomber: 1.6, aegis: 1.6 };
+const GAPS = { scout: 0.55, mini: 0.4, heavy: 1.3, drone: 0.5, shield: 1.4, cloak: 0.9, splitter: 1.2, boss: 3, runner: 0.35, medic: 1.2, burrower: 1.0, juggernaut: 2.2, bomber: 1.6, aegis: 1.6, gunboat: 0.8, destroyer: 1.8 };
 
 function seeded(seed) {
   let a = seed >>> 0;
@@ -593,10 +593,10 @@ function seeded(seed) {
 function buildWave(n) {
   const d = G.map.intro;
   const rand = seeded(n * 7919 + d * 131 + (G.mode === 'endless' ? 99 : 0) + (G.daily ? daily.today().seed % 100003 : 0));
-  const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d), runner: 4, medic: 6, burrower: 5, juggernaut: 8, bomber: 7, aegis: 6 };
-  const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2, runner: 1.6, medic: 0.6, burrower: 0.8, juggernaut: 0.5, bomber: 0.8, aegis: 0.45 };
+  const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d), runner: 4, medic: 6, burrower: 5, juggernaut: 8, bomber: 7, aegis: 6 , gunboat: 1, destroyer: 3 };
+  const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2, runner: 1.6, medic: 0.6, burrower: 0.8, juggernaut: 0.5, bomber: 0.8, aegis: 0.45 , gunboat: 1.6, destroyer: 0.7 };
   // later maps introduce new enemy species (ENEMIES[t].minMap)
-  const avail = Object.keys(weights).filter((t) => (t === 'scout' || n >= unlockAt[t]) && (ENEMIES[t].minMap || 0) <= d);
+  const avail = Object.keys(weights).filter((t) => (t === 'scout' || n >= unlockAt[t]) && (ENEMIES[t].minMap || 0) <= d && (!ENEMIES[t].naval || (G.map.water || []).length));
   let budget = 4 + n * 3.6 + (n > 8 ? (n - 8) * 0.8 : 0) + d * 1.2 * Math.min(1, n / 6) + (G.mode === 'endless' && n > 20 ? (n - 20) * 2 : 0);
   budget *= G.map.budget || 1;
   const picks = [];
@@ -691,7 +691,11 @@ function spawnEnemy(type, from) {
     e.path = from.path;
     e.s = Math.max(0, from.s - Math.random() * 1.2);
   } else {
-    e.path = world.paths[G.spawnCount++ % world.paths.length];
+    // maps with a water lane: ships sail it, everything else keeps to the roads
+    const water = G.map.water || [];
+    const pool = water.length ? world.paths.filter((_, i) => water.includes(i) === !!ENEMIES[type].naval) : world.paths;
+    const list = pool.length ? pool : world.paths;
+    e.path = list[G.spawnCount++ % list.length];
   }
   scene.add(e.group);
   scene.add(e.bar);
@@ -3074,6 +3078,7 @@ army.init({
   sens: () => P.settings.sens,
   toast: (msg) => floatyScreen(msg),
   onControl: () => releaseFire(),
+  damageBase: (n) => damageBase(n, null),
 });
 
 initMenu({

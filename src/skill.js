@@ -33,6 +33,7 @@ export const CHALLENGES = {
   neon: { text: 'Win with an average grade of A or better', check: (m) => m.waves > 0 && m.gradePoints / m.waves >= 3 },
   jungle: { text: 'Win with at most 3 enemies getting through', check: (m) => m.leaks <= 3 },
   storm: { text: 'Win with 150 manual kills', check: (m) => m.manualKills >= 150 },
+  harbor: { text: 'Win without letting a single ship through', check: (m) => m.leaks === 0 },
 };
 
 /* --------------------------------------------------------------- Mastery */

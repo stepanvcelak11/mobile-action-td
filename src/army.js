@@ -9,13 +9,14 @@
 import * as THREE from 'three';
 import { sfx, sfxAt } from './audio.js';
 
-export const DEPLOY_TYPES = ['barracks', 'factory', 'helipad'];
+export const DEPLOY_TYPES = ['barracks', 'factory', 'helipad', 'carrier'];
 export const UNITS = {
   soldier: { name: 'Rifleman', hp: 65, speed: 3.4, range: 8.5, dmg: 6.5, rate: 0.45, block: 2, air: false, hitsAir: 0.5, radius: 0.45, squad: 3, cap: 6, color: '#3a7bd5' },
   tank: { name: 'Light Tank', hp: 540, speed: 2.3, range: 13, dmg: 56, rate: 1.7, splash: 2.2, block: 5, air: false, hitsAir: 0, radius: 1.1, squad: 1, cap: 2, color: '#3a7bd5' },
+  jet: { name: 'Jet Fighter', hp: 170, speed: 13, range: 17, dmg: 28, rate: 0.75, splash: 1.6, block: 0, air: true, hitsAir: 1, radius: 1.3, squad: 1, cap: 2, alt: 9, color: '#3a7bd5' },
   heli: { name: 'Gunship', hp: 200, speed: 6.5, range: 15, dmg: 24, rate: 0.8, splash: 1.3, block: 0, air: true, hitsAir: 1, radius: 1.2, squad: 1, cap: 2, alt: 6.5, color: '#3a7bd5' },
 };
-const UNIT_OF = { barracks: 'soldier', factory: 'tank', helipad: 'heli' };
+const UNIT_OF = { barracks: 'soldier', factory: 'tank', helipad: 'heli', carrier: 'jet' };
 
 let H = null; // hooks from main.js
 const units = [];
@@ -103,7 +104,21 @@ function buildHeli() {
   add(tail, new THREE.BoxGeometry(0.02, 0.8, 0.08), dark, 0, 0, 0, false);
   return { g, body, rotor, tail, legs: [], muzzle: new THREE.Vector3(0, -0.1, 0.9), eye: [0, 0.15, 0.55], camH: 2.2, camBack: 7.0, camSide: 0 };
 }
-const BUILD = { soldier: buildSoldier, tank: buildTank, heli: buildHeli };
+function buildJet() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const blue = mat('#3a7bd5'), dark = mat('#1c2530'), glass = mat('#8fe3ff', { metalness: 0.2, roughness: 0.1, emissive: '#1a5a7a', emissiveIntensity: 0.6 });
+  add(body, new THREE.CylinderGeometry(0.28, 0.4, 3.2, 8).rotateX(Math.PI / 2), blue, 0, 0, 0);
+  add(body, new THREE.ConeGeometry(0.28, 0.9, 8).rotateX(Math.PI / 2), blue, 0, 0, 2.0);
+  add(body, new THREE.SphereGeometry(0.26, 10, 8), glass, 0, 0.24, 0.9).scale.set(1, 0.7, 1.6);
+  add(body, new THREE.BoxGeometry(3.4, 0.06, 1.1), blue, 0, 0, -0.2);
+  add(body, new THREE.BoxGeometry(1.4, 0.05, 0.5), dark, 0, 0.05, -1.4);
+  add(body, new THREE.BoxGeometry(0.06, 0.7, 0.6), dark, 0, 0.35, -1.4);
+  add(body, new THREE.CircleGeometry(0.3, 10), glowM('#ff9a3a'), 0, 0, -1.62, false).rotation.y = Math.PI;
+  return { g, body, legs: [], muzzle: new THREE.Vector3(0, -0.1, 2.3), eye: [0, 0.35, 0.8], camH: 2, camBack: 7, camSide: 0 };
+}
+const BUILD = { soldier: buildSoldier, tank: buildTank, heli: buildHeli, jet: buildJet };
 
 function hpBar() {
   const g = new THREE.Group();
@@ -254,7 +269,8 @@ function updateUnit(u, dt, time) {
       // circle over the rally point, strafe targets in range
       const rp = u.path.sample(u.s, _v).clone();
       u.anim += dt * 0.6;
-      const r = 5;
+      const r = u.kind === 'jet' ? 13 : 5;
+      if (u.kind === 'jet') u.anim += dt * 0.9;
       const want = _v2.set(rp.x + Math.cos(u.anim) * r, def.alt + Math.sin(time * 1.3 + u.anim) * 0.4, rp.z + Math.sin(u.anim) * r);
       u.pos.lerp(want, Math.min(1, dt * 1.2));
       const face = target ? target.center : want;
@@ -336,6 +352,25 @@ function lerpAngle(a, b, k) {
   return a + d * Math.min(1, k);
 }
 
+/* Warships shell the base once they are in range (a tracer + a splash at the base). */
+function shipsFire(dt) {
+  const base = H.world()?.base?.position;
+  if (!base) return;
+  for (const e of H.enemies()) {
+    if (!e.alive || !e.def.shootsBase) continue;
+    e._shipCd = (e._shipCd ?? 1 + Math.random() * 2) - dt;
+    if (e._shipCd > 0) continue;
+    const d = Math.hypot(e.group.position.x - base.x, e.group.position.z - base.z);
+    if (d > e.def.shootRange) continue;
+    e._shipCd = e.def.shotEvery;
+    const from = e.center.clone().setY(e.center.y + 0.6);
+    const to = base.clone().setY(2.5 + Math.random());
+    H.beams.line(from, to, '#ff7a3a', 0.07, 0.12);
+    setTimeout(() => { H.spark(to, '#ff9a3a', 16); H.smoke(to, 4); H.damageBase?.(e.def.shot); }, 250);
+    sfxAt('rocket', 0, d, 0.2);
+  }
+}
+
 /* Blocking: ground units hold enemies that walk into them (each unit holds `block` enemies). */
 function computeBlocks() {
   for (const e of H.enemies()) e._armyHold = false;
@@ -375,8 +410,20 @@ function viewModel() {
 const ctl = { jx: 0, jy: 0, fire: false, el: null, stick: null };
 function driveControlled(u, dt, s) {
   const def = u.def;
+  if (u.kind === 'jet') {
+    // the jet always flies forward: the stick turns it and changes altitude
+    u.yaw -= ctl.jx * dt * 1.6;
+    u.aimYaw = u.yaw;
+    const sp = def.speed * dt;
+    const nx = u.pos.x + Math.sin(u.yaw) * sp, nz = u.pos.z + Math.cos(u.yaw) * sp;
+    if (Math.abs(nx) < 70 && Math.abs(nz) < 60) { u.pos.x = nx; u.pos.z = nz; } else u.yaw += dt * 2.2; // turn back at the edge
+    u.alt = THREE.MathUtils.clamp((u.alt ?? def.alt) - ctl.jy * dt * 5, 4, 16);
+    u.pos.y += (u.alt - u.pos.y) * Math.min(1, dt * 3);
+    u.m.body.rotation.z = -ctl.jx * 0.6;
+    u.m.body.rotation.x = ctl.jy * 0.25;
+  }
   // joystick: up = forward in the aim direction
-  const f = -ctl.jy, r = ctl.jx;
+  const f = u.kind === 'jet' ? 0 : -ctl.jy, r = u.kind === 'jet' ? 0 : ctl.jx;
   if (Math.abs(f) + Math.abs(r) > 0.05) {
     const sp = def.speed * (u.kind === 'heli' ? 1.6 : 1.3) * dt;
     const sin = Math.sin(u.aimYaw), cos = Math.cos(u.aimYaw);
@@ -553,6 +600,7 @@ export const army = {
   update(dt, time) {
     if (!H) return;
     computeBlocks();
+    shipsFire(dt);
     for (let i = units.length - 1; i >= 0; i--) if (units[i].alive) updateUnit(units[i], dt, time);
     const fpv = document.body.classList.contains('fpv') && !controlled;
     const t = H.active();
@@ -582,6 +630,7 @@ export const army = {
     cam.lookAt(_v2.copy(cam.position).addScaledVector(dir, 10));
     const fov = u.kind === 'heli' ? 80 : 75;
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    if (u.kind === 'jet') u.m.body.visible = false; // cockpit view: no fuselage in front of the lens
     // soldier: hide the body, show a rifle in front of the camera
     if (u.kind === 'soldier') {
       u.m.body.visible = false;

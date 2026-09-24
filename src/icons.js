@@ -125,6 +125,7 @@ export function turretIcon(type) {
     rail: `<rect x="17" y="21" width="14" height="9" rx="2" fill="#9aa6b2"/><rect x="20" y="1" width="2.4" height="22" fill="${steel}"/><rect x="25.6" y="1" width="2.4" height="22" fill="${steel}"/>${[5, 10, 15].map((y) => `<rect x="18" y="${y}" width="12" height="2.4" rx="1.2" fill="${c}"/>`).join('')}`,
     barracks: `<path d="M8 30L24 8l16 22z" fill="#6a7a4a" stroke="${dark}" stroke-width="2"/><rect x="20" y="20" width="8" height="10" fill="${dark}"/><rect x="30" y="0" width="2" height="14" fill="${steel}"/><path d="M32 1h9l-3 3 3 3h-9z" fill="${c}"/>`,
     factory: `<rect x="8" y="12" width="32" height="18" rx="2" fill="#9aa6b2"/>${[12, 20, 28].map((x) => `<rect x="${x}" y="16" width="6" height="14" fill="${dark}"/>`).join('')}<rect x="34" y="2" width="4" height="12" fill="${steel}"/><rect x="10" y="8" width="22" height="5" fill="${c}"/>`,
+    carrier: `<path d="M4 26h40l-5 9H9z" fill="#9aa6b2" stroke="${dark}" stroke-width="2"/><rect x="28" y="14" width="7" height="12" fill="${steel}"/><path d="M10 22l12-4 12 4" stroke="${c}" stroke-width="3" fill="none"/><path d="M16 12l6 3-6 3z" fill="${c}"/>`,
     helipad: `<ellipse cx="24" cy="24" rx="17" ry="7" fill="#9aa6b2"/><path d="M18 19v10M30 19v10M18 24h12" stroke="${c}" stroke-width="3"/><path d="M6 6h36" stroke="${steel}" stroke-width="2.5"/><rect x="22" y="6" width="4" height="8" fill="${dark}"/>`,
   };
   return svg(heads[type] + base, g.def);
