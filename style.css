@@ -972,3 +972,30 @@ body.layout-edit #fpv-powers > * { pointer-events: none; }
 #ios-install b { color: var(--accent-2); }
 #ios-install .share { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; }
 #ios-install button { margin-left: auto; flex: none; border: 0; background: var(--panel-2); color: var(--muted); border-radius: 10px; padding: 8px 10px; font-weight: 800; }
+/* ---------------------------------------------------------------- I1 fixes */
+/* briefing: DEPLOY stays on screen while the list scrolls */
+.brief .brief-actions { position: sticky; bottom: -16px; z-index: 2; margin: 14px -16px -16px; padding: 10px 16px calc(12px + var(--sab)); background: var(--panel-solid); border-top: 1px solid var(--panel-border); box-shadow: 0 -10px 18px -10px rgba(0, 0, 0, 0.45); }
+/* new-enemy card slides under the tutorial bubble instead of on top of it */
+body.coach-on #tip { top: calc(58px + var(--coach-h, 56px) + 8px + var(--sat)); }
+/* shop: skin chip with a real portrait, big deal art */
+.rchip .rc-pic { width: 26px; height: 22px; object-fit: contain; }
+.deal-big .deal-art.big { position: relative; width: 100%; border-radius: 10px; background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rc) 40%, transparent), transparent 70%); }
+.deal-big .deal-art.big em { position: absolute; right: 6px; bottom: 2px; font-style: normal; font-weight: 900; font-size: 15px; text-shadow: 0 2px 4px #000; color: #fff; }
+.deal-big .deal-art.big svg { height: 80%; }
+@media (max-height: 500px) and (orientation: landscape) {
+  body.coach-on #tip { top: calc(46px + var(--coach-h, 44px) + 6px + var(--sat)); }
+  /* battle tab: both columns scroll on their own, PLAY sits at the top of the left one (never over the quests) */
+  .m-content.tab-battle { overflow: hidden; padding-bottom: 6px; }
+  .tab-battle .battle-grid { height: 100%; }
+  .tab-battle .hero, .tab-battle .side { overflow-y: auto; min-height: 0; touch-action: pan-y pan-x; overscroll-behavior: contain; padding-bottom: 10px; }
+  .tab-battle .hero-actions { position: static; margin: 4px 0 6px; }
+  .tab-battle .side { padding-bottom: 10px; }
+}
+@media (orientation: portrait) {
+  body.coach-on #tip { top: calc(96px + var(--coach-h, 64px) + 8px + var(--sat)); }
+}
+
+/* F1: zoom button only matters on the map view */
+body.fpv #btn-zoom { display: none; }
+#game { touch-action: none; }
+@media (orientation: portrait) { #hud-pills { margin-left: calc(138px * var(--ui)); } }

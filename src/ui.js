@@ -49,7 +49,7 @@ export function rewardHtml(rw) {
   if (rw.chest) parts.push(`<span class="rchip chest">${chestIcon(rw.chest, CHESTS[rw.chest].color)}<b>${CHESTS[rw.chest].name}</b></span>`);
   for (const [a, n] of Object.entries(rw.abilities || {})) parts.push(`<span class="rchip">${abilityIcon(a)}×${n}</span>`);
   for (const [t, n] of Object.entries(rw.cards || {})) parts.push(`<span class="rchip">${turretIcon(t)}×${n}</span>`);
-  if (rw.skin) parts.push(`<span class="rchip skin" style="--rc:${RARITY_COLORS[SKINS[rw.skin].rarity]}"><i style="background:${SKINS[rw.skin].steel}"></i>${SKINS[rw.skin].name}</span>`);
+  if (rw.skin) parts.push(`<span class="rchip skin" style="--rc:${RARITY_COLORS[SKINS[rw.skin].rarity]}">${pic(turretPortrait('cannon', rw.skin), 'rc-pic')}${SKINS[rw.skin].name}</span>`);
   if (rw.passXp) parts.push(`<span class="rchip">+${rw.passXp} XP</span>`);
   return parts.join('');
 }
@@ -490,7 +490,13 @@ function renderShop(c) {
       <h3>Daily deals <small>new every day</small></h3>
       <div class="deals">${deals.map((d, i) => {
         const done = P.daily.bought.includes(d.id) || (d.skin && P.skins[d.skin]);
-        return `<div class="deal${done ? ' done' : ''}"><div class="deal-art">${rewardHtml(d.reward)}</div><b>${esc(d.title)}</b>
+        const card = d.reward.cards && Object.entries(d.reward.cards)[0];
+        const art = d.reward.skin ? pic(turretPortrait('cannon', d.reward.skin))
+          : card ? `${pic(turretPortrait(card[0], skinOf(card[0])))}<em>×${card[1]}</em>`
+          : d.reward.abilities ? `${abilityIcon(Object.keys(d.reward.abilities)[0])}<em>×${Object.values(d.reward.abilities)[0]}</em>`
+          : rewardHtml(d.reward);
+        const rc = d.reward.skin ? RARITY_COLORS[SKINS[d.reward.skin].rarity] : card ? TURRETS[card[0]].color : d.reward.abilities ? ABILITIES[Object.keys(d.reward.abilities)[0]].color : '#9aa6b2';
+        return `<div class="deal deal-big${done ? ' done' : ''}" style="--rc:${rc}"><div class="deal-art big">${art}</div><b>${esc(d.title)}</b>
           <button class="btn ${!done && canPay(d.cost) ? 'primary' : ''}" data-deal="${i}" ${done || !canPay(d.cost) ? 'disabled' : ''}>${done ? 'SOLD' : costHtml(d.cost)}</button></div>`;
       }).join('')}</div>
       <h3>Chests</h3>

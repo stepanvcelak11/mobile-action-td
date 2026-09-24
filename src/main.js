@@ -243,6 +243,7 @@ function loadMap(id) {
   applyTheme(th);
   world = buildWorld(map, th);
   scene.add(world.root);
+  resetCam();
   pickables = world.plots.map((p) => p.group);
   buildMarkers();
 }
@@ -286,21 +287,98 @@ function resetGame(mode) {
 /* ------------------------------------------------------------------ Camera */
 const _m4 = new THREE.Matrix4();
 const UP = new V3(0, 1, 0);
-function topPose() {
+// Tactical camera: the map is fitted to the screen (HUD margins included), then the player can
+// pinch / wheel to zoom, drag to pan, double-tap to jump in, and an idle zoomed camera follows the fight.
+const CAM = { zoom: 1, pan: new V3(), fit: null, lastInput: -1e9 };
+const CAM_MAX_ZOOM = 3;
+const _fitCam = new THREE.PerspectiveCamera();
+const _fitV = new V3();
+function computeFit() {
   const aspect = window.innerWidth / window.innerHeight;
   const portrait = aspect < 0.9;
-  const dir = portrait ? new V3(30, 35, 0) : new V3(0, 35, 30);
-  const d = dir.length();
-  const vt = Math.tan(THREE.MathUtils.degToRad(CFG.topFov / 2));
-  const needW = portrait ? 19 : 33;
-  const needH = portrait ? 21 : 14;
-  const s = THREE.MathUtils.clamp(Math.max(needW / (d * vt * aspect), needH / (d * vt)), 1, 2.6);
-  const pos = dir.multiplyScalar(s);
-  if (portrait) pos.x += 2;
-  const target = new V3(portrait ? 2 : 0, 0, portrait ? 0 : 1);
-  pos.add(target);
+  const pts = [];
+  for (const path of world.paths) for (let i = 0; i < path.pts.length; i += 8) pts.push(path.pts[i]);
+  for (const pl of world.plots) pts.push(pl.pos);
+  const b = world.base.position;
+  for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) pts.push(new V3(b.x + dx, 3, b.z + dz));
+  const box = new THREE.Box3().setFromPoints(pts);
+  const target = box.getCenter(new V3()).setY(0);
+  const dir = (portrait ? new V3(30, 35, 0) : new V3(0, 35, 30)).normalize();
+  // NDC window left free by the HUD: pills on top, START WAVE at the bottom, abilities on the left
+  const win = portrait ? { l: -0.9, r: 0.92, b: -0.74, t: 0.78 } : { l: -0.8, r: 0.95, b: -0.7, t: 0.8 };
+  _fitCam.fov = CFG.topFov;
+  _fitCam.aspect = aspect;
+  _fitCam.near = 0.1; _fitCam.far = 1000;
+  _fitCam.updateProjectionMatrix();
+  // the NDC window is off-centre, so fit around its centre by shifting the aim point
+  let lo = 8, hi = 260;
+  for (let k = 0; k < 24; k++) {
+    const mid = (lo + hi) / 2;
+    _fitCam.position.copy(target).addScaledVector(dir, mid);
+    _fitCam.lookAt(target);
+    _fitCam.updateMatrixWorld();
+    let ok = true;
+    for (const q of pts) {
+      _fitV.copy(q).project(_fitCam);
+      if (_fitV.x < win.l || _fitV.x > win.r || _fitV.y < win.b || _fitV.y > win.t) { ok = false; break; }
+    }
+    if (ok) hi = mid; else lo = mid;
+  }
+  CAM.fit = { dir, target, dist: hi, box };
+}
+function clampPan() {
+  const f = CAM.fit;
+  if (!f) return;
+  const k = 1 - 1 / CAM.zoom;
+  const hx = (f.box.max.x - f.box.min.x) / 2 * k + 1, hz = (f.box.max.z - f.box.min.z) / 2 * k + 1;
+  CAM.pan.x = THREE.MathUtils.clamp(CAM.pan.x, -hx, hx);
+  CAM.pan.z = THREE.MathUtils.clamp(CAM.pan.z, -hz, hz);
+  CAM.pan.y = 0;
+}
+function resetCam() { CAM.zoom = 1; CAM.pan.set(0, 0, 0); CAM.fit = null; updateZoomBtn(); }
+function topPose() {
+  if (!CAM.fit) computeFit();
+  const f = CAM.fit;
+  const target = f.target.clone().add(CAM.pan);
+  const pos = target.clone().addScaledVector(f.dir, f.dist / CAM.zoom);
   const quat = new THREE.Quaternion().setFromRotationMatrix(_m4.lookAt(pos, target, UP));
   return { pos, quat, fov: CFG.topFov };
+}
+/** Zoom to `z` keeping the ground point under screen (sx, sy) where it is. */
+function zoomAt(z, sx, sy) {
+  const before = sx != null ? groundAtScreen(sx, sy) : null;
+  CAM.zoom = THREE.MathUtils.clamp(z, 1, CAM_MAX_ZOOM);
+  clampPan();
+  applyTopPose();
+  if (before) {
+    const after = groundAtScreen(sx, sy);
+    if (after) { CAM.pan.add(before.sub(after)); clampPan(); applyTopPose(); }
+  }
+  CAM.lastInput = performance.now();
+  updateZoomBtn();
+}
+function panByScreen(x0, y0, x1, y1) {
+  const a = groundAtScreen(x0, y0), b = groundAtScreen(x1, y1);
+  if (!a || !b) return;
+  CAM.pan.add(a.sub(b));
+  clampPan();
+  applyTopPose();
+  CAM.lastInput = performance.now();
+}
+/** A zoomed-in camera left alone drifts toward the enemies closest to the base. */
+function followFight(dt) {
+  if (CAM.zoom < 1.05 || performance.now() - CAM.lastInput < 4000 || !G.enemies.length) return;
+  const lead = [...G.enemies].filter((e) => e.alive).sort((a, b) => b.s / b.path.length - a.s / a.path.length).slice(0, 3);
+  if (!lead.length) return;
+  const focus = new V3();
+  for (const e of lead) focus.add(e.center);
+  focus.multiplyScalar(1 / lead.length).sub(CAM.fit.target).setY(0);
+  CAM.pan.lerp(focus, 1 - Math.exp(-dt * 1.2));
+  clampPan();
+}
+function updateZoomBtn() {
+  const b = document.getElementById('btn-zoom');
+  if (b) b.querySelector('small').textContent = `${CAM.zoom.toFixed(1)}×`;
 }
 function applyTopPose() {
   const p = topPose();
@@ -339,6 +417,7 @@ function updateCamera(dt) {
     return;
   }
   if (G.view === 'TOP') {
+    followFight(dt);
     applyTopPose();
     if (G.shake > 0) camera.position.add(new V3((Math.random() - 0.5) * G.shake, 0, (Math.random() - 0.5) * G.shake));
     return;
@@ -419,6 +498,7 @@ function enterFPV(turret) {
   sfx('whoosh');
   updateFpvButtons();
   coachEvent('fpv');
+  emit('fpv', { type: turret.type });
 }
 function exitFPV() {
   if (G.view !== 'FPV' && G.view !== 'TO_FPV') return;
@@ -540,7 +620,7 @@ function startWave() {
   prepareNextWave();
   banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? '⚠ BOSS INCOMING ⚠' : `${G.queue.length} hostiles`);
   sfx('wave');
-  if (early) skill.waveEnd();
+  if (early) { const g = skill.waveEnd(); emit('wave', { n: G.wave - 1, grade: g?.grade || null, score: g?.score || 0, early: true }); }
   skill.waveStart(G.wave);
   music.mode('wave');
   if (isBossWave(G.wave) && G.launchMode === 'campaign') campaign.talk(G.map.id, 'boss');
@@ -765,6 +845,7 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   let dmg = base;
   let crit = false;
   e.lastZone = zone;
+  if (manual) { G.lastHitZone = zone; coachEvent('manualHit'); }
   const rm = run.active ? run.mods : null;
   if (zone === 'head' && G.rules.head !== 1) dmg *= G.rules.head / HEADSHOT_MULT;
   else if (manual && zone !== 'head') dmg *= G.rules.body;
@@ -874,10 +955,21 @@ function killEnemy(e, point, st, manual) {
   if (manual && G.combo >= 10) reward = Math.round(reward * 1.2);
   if (G.goldRushT > 0) reward *= 2;
   reward = Math.round(reward * G.rules.gold * G.rules.killGold * (run.active ? run.mods.gold : 1));
+  const owner = st?.owner;
   skill.kill({ type: st?.owner?.type, manual, zone: e.lastZone });
+  emit('kill', { type: e.type, turret: st?.owner?.type || null, manual, zone: e.lastZone, weak: e.lastZone === 'weak', combo: G.combo, boss: e.type === 'boss', elite: !!e.elite });
+  if (e.type === 'boss') emit('highlight', { kind: 'bosskill', value: 1 });
+  if (manual) {
+    const now = performance.now();
+    recentManualKills.push(now);
+    while (recentManualKills.length && now - recentManualKills[0] > 1000) recentManualKills.shift();
+    if (recentManualKills.length >= 3) { emit('highlight', { kind: 'multikill', value: recentManualKills.length }); recentManualKills.length = 0; }
+    const dist = owner ? c.distanceTo(owner.plot.pos) : 0;
+    if (e.lastZone === 'head' && dist > 40) emit('highlight', { kind: 'longshot', value: Math.round(dist) });
+    else if (e.lastZone === 'head') emit('highlight', { kind: 'headshot', value: Math.round(dist) });
+  }
   world.disturb?.(c, 8 * big);
   // hypercharge fills from kills (manual kills count double)
-  const owner = st?.owner;
   if (owner && owner.powers?.hyper && owner.hyperT <= 0) {
     owner.hyperCharge = Math.min(HYPER_KILLS, owner.hyperCharge + (manual ? 2 : 1) * (1 + 0.15 * perk('overcharge')));
   }
@@ -932,7 +1024,8 @@ function checkWaveEnd() {
     if (i > 0) { G.gold += i; floatyScreen(`WAR BONDS +${i}`); }
   }
   G.state = STATE.IDLE;
-  skill.waveEnd();
+  const grade = skill.waveEnd();
+  emit('wave', { n: G.wave, grade: grade?.grade || null, score: grade?.score || 0 });
   music.mode('calm');
   if (run.offerDue(G.wave)) {
     G.paused = true;
@@ -964,6 +1057,7 @@ function endGame(won) {
   const wavesDone = won ? G.wave : G.wave - 1;
   G.skillRes = skill.endMap(won, hpFrac);
   const stars = won ? G.skillRes.stars : 0;
+  emit('match', { won, map: G.map.id, mode: G.mode, hard: !!G.hard, stars, waves: wavesDone, kills: G.kills, hpFrac, daily: !!G.daily, stats: { ...G.stats } });
   if (won && G.hard) campaign.markHard(G.map.id);
   if (run.active) G.runPicked = run.picked;
   run.end();
@@ -996,11 +1090,18 @@ function endGame(won) {
   }, won ? 1400 : 1100);
 }
 
+/* ---------------------------------------------------- Events for other modules */
+// achievements.js, clip.js and friends listen to window 'sl:<name>' events, so they never touch main.js.
+const emit = (name, detail) => window.dispatchEvent(new CustomEvent(`sl:${name}`, { detail }));
+const recentManualKills = [];
+
 /* ------------------------------------------------------------ Combo / skill */
 const comboMult = () => 1 + Math.min(G.combo, 20) * 0.025;
 function comboHit(weak) {
   skill.shot(G.active?.type, true);
   skill.hit({ manual: true, weak });
+  emit('shot', { turret: G.active?.type, manual: true });
+  emit('hit', { turret: G.active?.type, zone: G.lastHitZone || null, weak });
   G.combo++;
   G.stats.hits++;
   if (weak) { G.stats.weak++; questProgress('weak'); }
@@ -1010,6 +1111,7 @@ function comboHit(weak) {
 }
 function comboMiss() {
   skill.shot(G.active?.type, true);
+  emit('shot', { turret: G.active?.type, manual: true });
   const keep = run.active && run.mods.comboKeep;
   if (G.combo >= 3) floatyScreen(keep ? 'COMBO HALVED' : 'COMBO LOST', 'miss');
   G.combo = keep ? Math.floor(G.combo / 2) : 0;
@@ -1157,6 +1259,7 @@ function buildTurret(plot, type = 'cannon') {
   bump('hud-gold');
   updateHud(true);
   coachEvent('build');
+  emit('build', { type });
   return true;
 }
 
@@ -1173,6 +1276,7 @@ function buyUpgrade(t, branch) {
   t.stats = statsFor(t);
   questProgress('upgrades');
   coachEvent('upgrade');
+  emit('upgrade', { type: t.type, branch, tier: t.picks[branch] });
   sparks.emit(t.plot.pos.clone().setY(2), TREES[t.type][branch].color, 50, 7, 0.7, 5, 0.8);
   sfx(t.picks[branch] === 5 ? 'levelup' : 'build');
   if (G.view === 'FPV' || G.view === 'TO_FPV') banner(node.name.toUpperCase(), node.desc);
@@ -1884,6 +1988,7 @@ function useAbility(id) {
 }
 
 function spendAbility(id) {
+  emit('ability', { id });
   P.abilities[id] = charges(id) - 1;
   G.cd[id] = abilityCd(id);
   questProgress('abilities');
@@ -2417,9 +2522,21 @@ function onFpvTap(x, y) {
 }
 
 let tapStart = null;
+const topPointers = new Map();
+let pinch = null, panning = null, lastTap = null;
 canvas.addEventListener('pointerdown', (ev) => {
   unlockAudio();
   if (G.view !== 'TOP') return;
+  topPointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (topPointers.size === 2) {
+    // second finger: pinch-zoom, never a tap
+    if (tapStart) { clearTimeout(tapStart.timer); tapStart = null; }
+    panning = null;
+    const [a, b] = [...topPointers.values()];
+    pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: CAM.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    return;
+  }
+  if (topPointers.size > 2) return;
   const ts = { x: ev.clientX, y: ev.clientY, t: performance.now(), id: ev.pointerId, long: false };
   tapStart = ts;
   // long-press on a turret opens its upgrade tree
@@ -2430,17 +2547,53 @@ canvas.addEventListener('pointerdown', (ev) => {
   }, 450);
 });
 canvas.addEventListener('pointermove', (ev) => {
-  if (tapStart && tapStart.id === ev.pointerId && Math.hypot(ev.clientX - tapStart.x, ev.clientY - tapStart.y) > 14) clearTimeout(tapStart.timer);
+  if (G.view !== 'TOP' || !topPointers.has(ev.pointerId)) return;
+  const prev = topPointers.get(ev.pointerId);
+  const cur = { x: ev.clientX, y: ev.clientY };
+  topPointers.set(ev.pointerId, cur);
+  if (pinch && topPointers.size >= 2) {
+    const [a, b] = [...topPointers.values()];
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    zoomAt(pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0, mx, my);
+    panByScreen(pinch.mx, pinch.my, mx, my);
+    pinch.mx = mx; pinch.my = my;
+    return;
+  }
+  if (tapStart && tapStart.id === ev.pointerId && Math.hypot(ev.clientX - tapStart.x, ev.clientY - tapStart.y) > 14) {
+    clearTimeout(tapStart.timer);
+    if (CAM.zoom > 1.02 && !G.targeting) panning = ev.pointerId;
+  }
+  if (panning === ev.pointerId) panByScreen(prev.x, prev.y, cur.x, cur.y);
 });
-canvas.addEventListener('pointerup', (ev) => {
+function topPointerEnd(ev) {
+  topPointers.delete(ev.pointerId);
+  if (topPointers.size < 2) pinch = null;
+  if (panning === ev.pointerId) { panning = null; if (tapStart?.id === ev.pointerId) tapStart = null; return; }
   if (!tapStart || tapStart.id !== ev.pointerId) return;
   clearTimeout(tapStart.timer);
   const moved = Math.hypot(ev.clientX - tapStart.x, ev.clientY - tapStart.y);
   const quick = performance.now() - tapStart.t < 600;
   const long = tapStart.long;
   tapStart = null;
-  if (moved < 14 && quick && !long) onTopTap(ev.clientX, ev.clientY);
-});
+  if (moved >= 14 || !quick || long) return;
+  // double tap on open ground zooms in there (or back out)
+  const now = performance.now();
+  const onGround = !G.targeting && !pickPlot(ev.clientX, ev.clientY);
+  if (onGround && lastTap && now - lastTap.t < 320 && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < 40) {
+    lastTap = null;
+    zoomAt(CAM.zoom > 1.3 ? 1 : 2.2, ev.clientX, ev.clientY);
+    return;
+  }
+  lastTap = onGround ? { t: now, x: ev.clientX, y: ev.clientY } : null;
+  onTopTap(ev.clientX, ev.clientY);
+}
+canvas.addEventListener('pointerup', topPointerEnd);
+canvas.addEventListener('pointercancel', topPointerEnd);
+canvas.addEventListener('wheel', (ev) => {
+  if (G.view !== 'TOP') return;
+  ev.preventDefault();
+  zoomAt(CAM.zoom * Math.exp(-ev.deltaY * 0.0015), ev.clientX, ev.clientY);
+}, { passive: false });
 
 function aimBy(dx, dy, sens) {
   const t = G.active;
@@ -2551,6 +2704,10 @@ document.addEventListener('mousemove', (ev) => {
 /* ------------------------------------------------------------ UI buttons */
 function setSpeedIcon() {
   $('btn-speed').innerHTML = uiIcon(G.speed === 2 ? 'speed2' : 'speed1') + `<small>${G.speed}×</small>`;
+  if (!$('btn-zoom').innerHTML) {
+    $('btn-zoom').innerHTML = '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="20" cy="20" r="12" fill="none" stroke="#eef2f6" stroke-width="5"/><path d="M29 29l11 11" stroke="#eef2f6" stroke-width="6" stroke-linecap="round"/><path d="M14 20h12M20 14v12" stroke="#ffcf5a" stroke-width="4" stroke-linecap="round"/></svg><small>1.0×</small>';
+    updateZoomBtn();
+  }
 }
 function fillIcons() {
   $('btn-pause').innerHTML = uiIcon('pause');
@@ -2589,6 +2746,12 @@ for (const id of ['build-card', 'turret-card', 'abilities', 'fpv-corner', 'hud-l
   $(id).addEventListener('pointerdown', (ev) => ev.stopPropagation());
 }
 
+on('btn-zoom', () => {
+  if (G.view !== 'TOP') return;
+  const steps = [1, 1.8, 2.6];
+  const next = steps.find((z) => z > CAM.zoom + 0.05) || 1;
+  zoomAt(next, window.innerWidth / 2, window.innerHeight / 2);
+});
 on('btn-speed', () => {
   G.speed = G.speed === 1 ? 2 : 1;
   setSpeedIcon();
@@ -2641,6 +2804,7 @@ function onResize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  CAM.fit = null;
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 150));
@@ -2652,6 +2816,7 @@ function hideScreens() {
 function showMenu() {
   hideScreens();
   setCoach(null);
+  $('tip').classList.remove('show');
   closeSheets();
   forceTopView();
   clearField();
@@ -2866,8 +3031,8 @@ const COACH = [
   { text: 'Tap a glowing pad next to the road to build your first turret.', next: 'build' },
   { text: 'Nice! Press START WAVE at the bottom. Turrets fire on their own.', next: 'wave' },
   { text: 'Tap your turret to jump inside and take control!', next: 'fpv' },
-  { text: 'Drag the left half to aim, hold FIRE. HEADSHOTS deal ×2 and hitting legs or tank tracks slows enemies!', next: 'manualKill' },
-  { text: 'Great shot! Tap ⬆ (right side) to upgrade this turret from inside.', next: 'card' },
+  { text: 'Drag the left half to aim, hold FIRE. HEADSHOTS deal ×2 and hitting legs or tank tracks slows enemies!', next: 'manualKill', alt: 'manualHit', fpvOnly: true },
+  { text: 'Great shot! Tap ⬆ (right side) to upgrade this turret from inside.', next: 'card', fpvOnly: true },
   { text: 'Pick a node and press BUY. Then tap MAP to go back. Tip: hold a turret on the map to upgrade it.', next: 'exit' },
 ];
 function coachStep() {
@@ -2884,16 +3049,24 @@ function coachStep() {
 }
 function coachEvent(ev) {
   if (G.tut < 0 || G.tut >= COACH.length) return;
-  if (COACH[G.tut].next === ev) {
+  const step = COACH[G.tut];
+  if (step.next === ev || step.alt === ev) {
     G.tut++;
+    coachStep();
+  } else if (ev === 'exit' && step.fpvOnly) {
+    // left the turret before finishing the in-turret steps: guide back inside instead of leaving stale FPV text
+    G.tut = COACH.findIndex((c) => c.next === 'fpv');
     coachStep();
   }
 }
 function setCoach(text) {
   const el = $('coach');
-  if (!text) { el.classList.remove('show'); return; }
+  if (!text) { el.classList.remove('show'); document.body.classList.remove('coach-on'); return; }
   el.innerHTML = `<span class="coach-ico">💡</span><span>${text}</span>`;
   el.classList.add('show');
+  document.body.classList.add('coach-on');
+  // the new-enemy card sits right under the coach bubble instead of on top of it
+  requestAnimationFrame(() => document.documentElement.style.setProperty('--coach-h', `${el.offsetHeight}px`));
 }
 
 /* ------------------------------------------- Turret powers: gadget + hypercharge */
