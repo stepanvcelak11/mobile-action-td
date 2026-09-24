@@ -269,6 +269,7 @@ function clearField() {
   G.goldRushT = G.overclockT = G.shieldT = G.coolantT = 0;
   // (runs once during boot too, before the game-feel section at the end of this file exists)
   if (G.fx) { clearDebris(); G.fx.stop = G.fx.slow = 0; CAM.shot = null; }
+  if (typeof linkLines !== 'undefined' && linkLines) { scene.remove(linkLines); linkLines = null; }
   baseShield.visible = false;
   projectiles.clear();
   beams.clear();
@@ -921,6 +922,7 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   if (zone === 'head') dmg *= HEADSHOT_MULT + 0.15 * perk('headhunter') + (st.headBonus || 0);
   if (st.crushing && ((e.def.armor || 0) > 0 || e.type === 'boss')) dmg *= 1 + st.crushing;
   if (e.markT > 0) dmg *= 1.4;
+  dmg *= reaction(e, st.owner?.type, manual);
   if (st.crit && Math.random() < st.crit) { dmg *= 2; crit = true; }
   if (e.type === 'boss') dmg *= 1 + (st.bossDmg || 0);
   if (st.shatter && e.stunT > 0) dmg *= 1.5;
@@ -1221,6 +1223,8 @@ function statsFor(t) {
   if (sp === 'venomrounds') addFx({ burn: 12 });
   if (t.hyperT > 0 && t.powers?.hyper) addFx({ dmg: 0.4, rate: 0.4, range: 0.2, ...t.powers.hyper.fx });
   if (t.buffT > 0 && t.buffFx) addFx(t.buffFx);
+  t.synergies = synergiesFor(t);
+  for (const s of t.synergies) addFx(s.fx);
   const g = (k) => f[k] || 0;
   const servo = 1 + 0.08 * perk('servo');
   const lb = levelBonus(t.type);
@@ -1337,6 +1341,7 @@ function buildTurret(plot, type = 'cannon') {
   applyTurretPose(t);
   plot.turret = t;
   G.turrets.push(t);
+  refreshSynergies();
   sparks.emit(plot.pos.clone().setY(0.6), d.color, 40, 6, 0.6, 6, 0.6);
   smoke.emit(plot.pos.clone().setY(0.4), '#9a8a70', 12, 3, 0.9, -0.5, 0.2, 3);
   sfx('build');
@@ -1379,6 +1384,7 @@ function sellTurret(t) {
   t.plot.group.remove(t.root);
   t.plot.turret = null;
   G.turrets.splice(G.turrets.indexOf(t), 1);
+  refreshSynergies();
   skill.sold();
   smoke.emit(t.plot.pos.clone().setY(0.8), '#8a8a8a', 20, 3, 1, -0.5, 0.4, 2);
   floaty(t.plot.pos.clone().setY(2), `+${v}`, '');
@@ -2473,7 +2479,7 @@ function refreshBuildCard() {
     ? `${d.name}: not allowed in today's challenge.`
     : locked
     ? `${d.name}: ${d.desc} Unlock it in the Armory for ${unlockCost(G.buildType)} coins or find its card in a chest.`
-    : `${d.name}: ${d.desc} Range ${d.range} m.`);
+    : `${d.name}: ${d.desc} Range ${d.range} m.${AURAS[G.buildType] ? ` Aura ${AURAS[G.buildType].name}: ${AURAS[G.buildType].text} for turrets within ${AURAS[G.buildType].r} m.` : ''}`);
   const btn = $('build-confirm');
   const cost = buildCost(G.buildType);
   btn.disabled = locked || G.gold < cost;
@@ -2533,6 +2539,7 @@ function renderTreeSheet(force) {
   if (pw.gadget) bits.push(`<button class="pw gadget" id="tc-gadget" ${t.gadgetUses <= 0 || t.gadgetCd > 0 ? 'disabled' : ''} style="--pc:${GADGETS[pw.gadget].color}">${gadgetIcon(pw.gadget, GADGETS[pw.gadget].color)}<span><b>${GADGETS[pw.gadget].name}</b><small>${t.gadgetUses} left · tap to use</small></span></button>`);
   if (pw.star) bits.push(`<div class="pw star"><span class="pw-star">${traitIcon()}</span><span><b>${STAR_POWERS[pw.star].name}</b><small>${STAR_POWERS[pw.star].desc}</small></span></div>`);
   if (pw.hyper) bits.push(`<button class="pw hyper" id="tc-hyper" ${t.hyperCharge >= HYPER_KILLS && t.hyperT <= 0 ? '' : 'disabled'}>${hyperIcon()}<span><b>${pw.hyper.name}</b><small>${t.hyperT > 0 ? 'ACTIVE' : `${Math.floor(t.hyperCharge)}/${HYPER_KILLS} kills`}</small></span></button>`);
+  for (const sy of t.synergies || []) bits.push(`<div class="pw syn" style="--pc:${sy.color}"><i class="syn-dot"></i><span><b>${sy.name}</b><small>${sy.text} · from ${TURRETS[sy.from].name}</small></span></div>`);
   for (const gr of pw.gears || []) bits.push(`<div class="pw gear" style="--pc:${GEARS[gr].color}">${gearIcon(GEARS[gr].color)}<span><b>${GEARS[gr].name}</b><small>${GEARS[gr].desc}</small></span></div>`);
   $('tc-powers').innerHTML = bits.join('') || '<small class="pw-none">No tactics, traits or mods yet — level this turret up in the Armory to unlock them.</small>';
   $('tc-gadget')?.addEventListener('click', () => useGadget(t));
@@ -3529,6 +3536,7 @@ function updateReadability(dt) {
   updateBossBar();
   if (tipQueue.length && G.view === 'TOP' && !$('tip').classList.contains('show')) showTip(tipQueue.shift());
   updateBars();
+  updateLinks();
 }
 
 // Chevrons flowing from each spawn along the road while the next wave waits.
@@ -4153,3 +4161,89 @@ function openBunkerPicker(kind) {
 }
 on('btn-bunker', () => goBunker());
 $('btn-bunker').style.display = 'none';
+
+
+/* ================================================================ Synergies and reactions */
+// Neighbour auras: a turret boosts every other turret within its aura radius (once per aura kind).
+const AURAS = {
+  tesla: { name: 'Power Grid', r: 13, fx: { rate: 0.12 }, color: '#b46bff', text: '+12% fire rate' },
+  storm: { name: 'Static Field', r: 13, fx: { chain: 1 }, color: '#9ab0ff', text: 'lightning jumps to +1 enemy' },
+  sniper: { name: 'Spotter', r: 15, fx: { range: 0.1, detect: 1 }, color: '#e8e0c8', text: '+10% range, sees cloaked enemies' },
+  mortar: { name: 'Artillery Net', r: 13, fx: { splash: 0.6 }, color: '#b0a070', text: '+0.6 m blast radius' },
+  howitzer: { name: 'Artillery Net', r: 13, fx: { splash: 0.6 }, color: '#8a9a6a', text: '+0.6 m blast radius' },
+  cryo: { name: 'Cold Snap', r: 13, fx: { slow: 0.12 }, color: '#8fe3ff', text: 'hits slow enemies by 12%' },
+  gatling: { name: 'Ammo Feed', r: 13, fx: { dmg: 0.08 }, color: '#46d46a', text: '+8% damage' },
+  venom: { name: 'Toxic Mist', r: 13, fx: { burn: 4 }, color: '#8fe04a', text: 'hits add +4 poison/s' },
+};
+function synergiesFor(t) {
+  const out = [];
+  const seen = new Set();
+  for (const u of G.turrets) {
+    if (u === t || !t.plot) continue;
+    const a = AURAS[u.type];
+    if (!a || seen.has(a.name) || u.plot.pos.distanceTo(t.plot.pos) > a.r) continue;
+    seen.add(a.name);
+    out.push({ ...a, from: u.type, src: u });
+  }
+  return out;
+}
+function refreshSynergies() {
+  for (const x of G.turrets) x.stats = statsFor(x);
+  buildLinks();
+}
+
+// thin glowing lines between linked turrets, map view only
+var linkLines = null;   // var: clearField() runs during boot, before this section
+function buildLinks() {
+  if (linkLines) { scene.remove(linkLines); linkLines.geometry.dispose(); linkLines = null; }
+  const pos = [], col = [];
+  const c = new THREE.Color();
+  for (const t of G.turrets) for (const s of t.synergies || []) {
+    const a = s.src.plot.pos, b = t.plot.pos;
+    pos.push(a.x, 0.35, a.z, b.x, 0.35, b.z);
+    c.set(s.color);
+    col.push(c.r, c.g, c.b, c.r * 0.4, c.g * 0.4, c.b * 0.4);
+  }
+  if (!pos.length) return;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  linkLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, toneMapped: false, depthWrite: false }));
+  linkLines.renderOrder = 3;
+  scene.add(linkLines);
+}
+function updateLinks() {
+  if (!linkLines) return;
+  linkLines.visible = G.view === 'TOP' || G.view === 'TO_TOP';
+  linkLines.material.opacity = 0.45 + 0.35 * Math.sin(G.time * 3);
+}
+
+// Reactions between damage types
+const HEAVY = new Set(['cannon', 'mortar', 'howitzer', 'rail', 'sniper', 'harpoon', 'bouncer', 'plasma', 'silo', 'rocket']);
+function reaction(e, src, manual) {
+  if (!src) return 1;
+  if (e.frozen && HEAVY.has(src)) {
+    e.stunT = Math.min(e.stunT, 0.05);          // the ice breaks
+    popReaction(e, 'SHATTER', '#bff4ff', manual);
+    return 2;
+  }
+  if (e.frozen && (src === 'laser' || src === 'prism')) {
+    popReaction(e, 'THERMAL SHOCK', '#ff7a3c', manual);
+    return 1.6;
+  }
+  if (e.burnT > 0 && (src === 'tesla' || src === 'storm') && !(e.detCd > G.time)) {
+    e.detCd = G.time + 1.2;
+    const at = e.center.clone();
+    G.timers.push({ t: 0.02, fn: () => explode(at, 2.8, 32 * (1 + 0.1 * G.wave), { ...NO_STATS, vfx: 2 }, false, null, false, false) });
+    popReaction(e, 'DETONATE', '#ffb347', manual);
+  }
+  return 1;
+}
+function popReaction(e, text, color, manual) {
+  sparks.emit(e.center, color, 18, 6, 0.45, 4, 0.4);
+  if (!(e.reactT > G.time)) {
+    e.reactT = G.time + 0.6;
+    floaty(e.center.clone().setY(e.center.y + 1.2), text, manual ? 'weak' : 'dmg');
+  }
+  emit('reaction', { kind: text.toLowerCase().replace(' ', '_'), manual });
+}
