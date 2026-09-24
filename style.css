@@ -1080,3 +1080,17 @@ body.fpv #btn-zoom { display: none; }
   .ch-stage { height: 130px; } .chest-big { width: 110px; } .ch-rays { width: 260px; height: 260px; }
   .ch-card { width: 130px; } .ch-art svg, .ch-art img { width: 60px; height: 60px; }
 }
+
+/* ------------------------------------------------------------ G3 boss bar */
+#bossbar { position: fixed; left: 50%; top: calc(52px + var(--sat)); transform: translate(-50%, -10px); width: min(420px, calc(100vw - 200px)); z-index: 10; opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; }
+#bossbar.show { opacity: 1; transform: translate(-50%, 0); }
+.bb-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #fff; text-shadow: 0 1px 4px #000; }
+.bb-top b { font-size: 13px; font-weight: 900; letter-spacing: 0.12em; }
+.bb-top small { font-size: 10px; font-weight: 900; letter-spacing: 0.1em; color: #ffb4a0; }
+#bossbar.open .bb-top small { color: #ffe14a; animation: blink 0.4s steps(2) infinite; }
+.bb-track { position: relative; height: 10px; margin-top: 3px; border-radius: 99px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 90, 110, 0.6); overflow: hidden; }
+.bb-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff3355, #ff9a3a); transition: width 0.15s linear; }
+#bossbar.p2 .bb-fill { background: linear-gradient(90deg, #ff0044, #ff3355); }
+.bb-mark { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: #fff; opacity: 0.7; }
+@media (orientation: portrait) { #bossbar { top: calc(100px + var(--sat)); width: calc(100vw - 120px); } }
+body.fpv #bossbar { top: calc(46px + var(--sat)); }

@@ -613,8 +613,8 @@ function prepareNextWave() {
 /** Calling the next wave early pays for the distance the living enemies still have to walk. */
 const earlyBonus = () => {
   let road = 0;
-  for (const e of G.enemies) if (e.alive) road += (1 - e.s / e.path.length) * e.def.reward * 0.35;
-  return Math.round(10 + G.wave * 3 + road);
+  for (const e of G.enemies) if (e.alive && e.type !== 'boss') road += (1 - e.s / e.path.length) * e.def.reward * 0.35;
+  return Math.round(10 + G.wave * 3 + Math.min(road, 30 + G.wave * 6));
 };
 function canCallEarly() {
   return G.state === STATE.WAVE && !G.queue.length && G.wave < totalWaves();
@@ -660,9 +660,11 @@ function spawnEnemy(type, from) {
   scene.add(e.bar);
   G.enemies.push(e);
   placeEnemy(e, 0);
+  if (type === 'boss' && !from) initBoss(e);
+  else if (!from) maybeElite(e);
   if (!from) {
     sparks.emit(e.path.pts[0].clone().setY(2.3), '#ff3355', type === 'boss' ? 80 : 14, 6, 0.6, 4, 0.2);
-    if (type === 'boss') { banner('BOSS', 'Shoot the glowing core'); sfx('boom'); }
+    if (type === 'boss') sfx('boom');
     if (!G.seen.has(type)) {
       G.seen.add(type);
       if (ENEMY_TIPS[type] && !P.seen?.[type]) {
@@ -748,7 +750,9 @@ function updateEnemies(dt) {
     // crippled legs / tracks slow the enemy for good
     if (e.cripple) slow *= 1 - Math.min(0.5, e.cripple * 0.12);
 
-    const sp = e.def.speed * e.speedMult * slow;
+    updateElite(e, dt);
+    updateBoss(e, dt);
+    const sp = e.def.speed * e.speedMult * slow * (e.elite?.id === 'swift' ? 1.45 : 1);
     e.s += sp * dt;
     e.anim += dt * Math.max(sp, 0.2) * 2.2;
     if (e.s >= e.path.length) {
@@ -873,7 +877,13 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
     if (rm.crit && Math.random() < rm.crit) { dmg *= 2; crit = true; }
     if (manual && zone === 'head' && rm.ammoOnHead) G.heat = Math.max(0, G.heat - 12);
   }
+  if (e.type === 'boss' && e.bossName && weak) {
+    if (e.wpOpen) dmg *= 1.5;          // the open core takes extra
+    else weak = false;                  // a closed core is just armour
+  }
   if (weak) dmg *= st.weakMul;
+  dmg *= wardenCut(e);
+  e.lastHitT = G.time;
   if (zone === 'head') dmg *= HEADSHOT_MULT + 0.15 * perk('headhunter') + (st.headBonus || 0);
   if (st.crushing && ((e.def.armor || 0) > 0 || e.type === 'boss')) dmg *= 1 + st.crushing;
   if (e.markT > 0) dmg *= 1.3;
@@ -972,7 +982,7 @@ function killEnemy(e, point, st, manual) {
   let reward = Math.round(e.def.reward * (1 + 0.1 * perk('bounty'))) + (st?.bounty || 0);
   if (manual && G.combo >= 10) reward = Math.round(reward * 1.2);
   if (G.goldRushT > 0) reward *= 2;
-  reward = Math.round(reward * G.rules.gold * G.rules.killGold * (run.active ? run.mods.gold : 1));
+  reward = Math.round(reward * G.rules.gold * G.rules.killGold * (run.active ? run.mods.gold : 1) * (e.elite ? 2 : 1));
   const owner = st?.owner;
   skill.kill({ type: st?.owner?.type, manual, zone: e.lastZone });
   emit('kill', { type: e.type, turret: st?.owner?.type || null, manual, zone: e.lastZone, weak: e.lastZone === 'weak', combo: G.combo, boss: e.type === 'boss', elite: !!e.elite });
@@ -1016,6 +1026,7 @@ function killEnemy(e, point, st, manual) {
   if (e.def.split) {
     for (let k = 0; k < e.def.split; k++) spawnEnemy('mini', e);
   }
+  if (e.elite?.id === 'brood') for (let k = 0; k < 3; k++) spawnEnemy('mini', e);
   updateHud();
 }
 
@@ -3369,6 +3380,7 @@ function updateReadability(dt) {
   if (ringMesh.instanceColor) ringMesh.instanceColor.needsUpdate = true;
   updateWaveArrows(dt, top);
   updateThreats();
+  updateBossBar();
 }
 
 // Chevrons flowing from each spawn along the road while the next wave waits.
@@ -3553,4 +3565,99 @@ function tryVent() {
     emit('vent', { perfect: false });
   }
   return true;
+}
+
+
+/* ================================================================ Elite enemies (H1) */
+const ELITES = {
+  swift: { name: 'Swift', color: '#ff9a1a', text: 'moves 45 % faster' },
+  regen: { name: 'Regenerating', color: '#7affc0', text: 'heals itself when you stop hitting it' },
+  warden: { name: 'Warden', color: '#5fd8ff', text: 'enemies next to it take 30 % less damage' },
+  brood: { name: 'Brood', color: '#ff5aff', text: 'bursts into three crawlers when it dies' },
+};
+const haloGeo = new THREE.TorusGeometry(1, 0.07, 6, 28).rotateX(Math.PI / 2);
+const haloMats = {};
+function maybeElite(e) {
+  if (e.type === 'boss' || e.type === 'mini' || G.wave < 4) return;
+  const chance = Math.min(0.22, 0.025 * (G.wave - 3)) * (G.hard ? 1.5 : 1);
+  if (Math.random() >= chance) return;
+  const ids = Object.keys(ELITES);
+  const id = ids[Math.floor(Math.random() * ids.length)];
+  e.elite = { id, ...ELITES[id] };
+  e.maxHp = e.hp = Math.round(e.hp * 1.6);
+  e.lastHitT = -99;
+  const m = haloMats[id] ||= new THREE.MeshBasicMaterial({ color: ELITES[id].color, transparent: true, opacity: 0.85, toneMapped: false });
+  const halo = new THREE.Mesh(haloGeo, m);
+  const r = e.def.radius * 0.9;
+  halo.scale.set(r, r, r);
+  halo.position.y = e.def.barY - 0.55;
+  e.group.add(halo);
+  e.halo = halo;
+  if (!G.seenElite?.has(id)) {
+    (G.seenElite ||= new Set()).add(id);
+    banner(`ELITE ${ELITES[id].name.toUpperCase()}`, ELITES[id].text);
+  }
+}
+function updateElite(e, dt) {
+  if (!e.elite) return;
+  if (e.halo) { e.halo.rotation.y += dt * 2; e.halo.material.opacity = 0.55 + 0.35 * Math.sin(G.time * 5); }
+  if (e.elite.id === 'regen' && G.time - e.lastHitT > 1.5 && e.hp < e.maxHp) {
+    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.05 * dt);
+    if (Math.random() < dt * 4) sparks.emit(e.center, '#7affc0', 2, 1.5, 0.4, -2, 0.6);
+  }
+}
+/** Warden aura: damage to anything standing next to a Warden is cut by 30 %. */
+function wardenCut(e) {
+  if (e.elite?.id === 'warden') return 1;
+  for (const w of G.enemies) {
+    if (w !== e && w.alive && w.elite?.id === 'warden' && w.center.distanceTo(e.center) < 4.5) return 0.7;
+  }
+  return 1;
+}
+
+/* ================================================================ Boss fights (G3) */
+const BOSS_NAMES = { valley: 'The Warden of Green', dunes: 'Dune Tyrant', frost: 'Frost Colossus', canyon: 'Canyon Crusher', swamp: 'Bog Hydra', magma: 'Magmaw', neon: 'Neon Leviathan' };
+const CORE_CYCLE = 7.5, CORE_OPEN = 2.5;
+function initBoss(e) {
+  e.bossName = (BOSS_NAMES[G.map.id] || 'The Serpent') + (G.enemies.filter((o) => o.type === 'boss').length > 1 ? ' II' : '');
+  e.phase = 1;
+  e.coreT = 0;
+  e.wpOpen = false;
+  banner(e.bossName.toUpperCase(), 'Its core opens for a moment — hit it then');
+  if (G.view === 'TOP' || G.view === 'TO_TOP') CAM.shot = { focus: e.group.position.clone().setY(0), t: 1.6, T: 1.6 };
+  slowMo(0.8);
+}
+function updateBoss(e, dt) {
+  if (e.type !== 'boss' || !e.bossName) return;
+  e.coreT += dt;
+  const open = (e.coreT % CORE_CYCLE) >= CORE_CYCLE - CORE_OPEN;
+  if (open && !e.wpOpen) floaty(e.center.clone().setY(e.center.y + 2.5), 'CORE OPEN!', 'weak');
+  e.wpOpen = open;
+  const target = open ? 1.35 + 0.1 * Math.sin(G.time * 12) : 0.55;
+  e.wp.scale.setScalar(e.wp.scale.x + (target - e.wp.scale.x) * Math.min(1, dt * 10));
+  if (e.phase === 1 && e.hp < e.maxHp * 0.5) {
+    e.phase = 2;
+    e.speedMult *= 1.2;
+    const escort = ENEMIES.runner && (ENEMIES.runner.minMap || 0) <= G.map.intro ? 'runner' : 'scout';
+    for (let k = 0; k < 4; k++) G.timers.push({ t: k * 0.35, fn: () => { if (e.alive) spawnEnemy(escort, e); } });
+    banner(`${e.bossName.toUpperCase()} IS ENRAGED`, 'Phase 2 — reinforcements incoming');
+    G.shake = Math.max(G.shake, 0.7);
+    sparks.emit(e.center, '#ff3355', 60, 9, 0.8, 4, 0.6);
+    sfx('boom');
+  }
+}
+function updateBossBar() {
+  const bar = $('bossbar');
+  const boss = G.view !== 'MENU' && inGame() ? G.enemies.find((o) => o.alive && o.type === 'boss' && o.bossName) : null;
+  bar.classList.toggle('show', !!boss);
+  if (!boss) return;
+  const key = `${boss.bossName}|${boss.phase}|${boss.wpOpen}`;
+  if (bar.dataset.key !== key) {
+    bar.dataset.key = key;
+    bar.querySelector('b').textContent = boss.bossName.toUpperCase();
+    bar.querySelector('small').textContent = boss.wpOpen ? 'CORE OPEN — SHOOT IT!' : boss.phase === 2 ? 'PHASE 2 · ENRAGED' : 'PHASE 1';
+    bar.classList.toggle('open', boss.wpOpen);
+    bar.classList.toggle('p2', boss.phase === 2);
+  }
+  bar.querySelector('.bb-fill').style.width = `${Math.max(0, boss.hp / boss.maxHp) * 100}%`;
 }
