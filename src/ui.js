@@ -9,6 +9,7 @@ import {
   ROAD, claimRoad, roadClaimable, PASS, PASS_TIER_XP, PASS_PRICE, passTier, SEASON, seasonDaysLeft, claimPass, buyPremium, passClaimable,
   questText, claimQuest, questsClaimable, dailyDeals, buyDeal, SHOP_CHESTS, SHOP_COINS, canPay, pay, claimGift,
   buySkin, selectSkin, skinOf, refreshDaily, DEFAULT_SETTINGS,
+  abilityLevel, abilityPower, abilityCdMult, canLevelAbility, levelAbility, AB_MAX, AB_CARD_NEED, AB_COIN_NEED,
   powerState, buyGadget, buyStar, selectPower, buyGear, buyHyper, setLoadout, slotInfo, startUnlock, skipCost, takeSlot,
   deckOf, setDeck, DECK_SIZE,
 } from './meta.js';
@@ -52,6 +53,7 @@ export function rewardHtml(rw) {
   if (rw.gems) parts.push(`<span class="rchip">${gemIcon()}${rw.gems}</span>`);
   if (rw.chest) parts.push(`<span class="rchip chest">${chestIcon(rw.chest, CHESTS[rw.chest].color)}<b>${CHESTS[rw.chest].name}</b></span>`);
   for (const [a, n] of Object.entries(rw.abilities || {})) parts.push(`<span class="rchip">${abilityIcon(a)}×${n}</span>`);
+  for (const [a, n] of Object.entries(rw.abCards || {})) parts.push(`<span class="rchip">${abilityIcon(a)}${n} cards</span>`);
   for (const [t, n] of Object.entries(rw.cards || {})) parts.push(`<span class="rchip">${turretIcon(t)}×${n}</span>`);
   if (rw.skin) parts.push(`<span class="rchip skin" style="--rc:${RARITY_COLORS[SKINS[rw.skin].rarity]}">${pic(turretPortrait('cannon', rw.skin), 'rc-pic')}${SKINS[rw.skin].name}</span>`);
   if (rw.passXp) parts.push(`<span class="rchip">+${rw.passXp} XP</span>`);
@@ -369,11 +371,29 @@ function renderArmory(c) {
     body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t, null); }));
     $('a-deck').addEventListener('click', () => openDeck());
   } else if (armoryTab === 'abilities') {
-    body.innerHTML = `${loadoutHtml('a-loadout')}<div class="grid">${ABILITY_ORDER.map((a) => `<div class="card"><div class="card-row">
-      <div class="ab-ico">${abilityIcon(a)}</div><div class="c-main"><div class="c-name">${ABILITIES[a].name} <span class="count">×${P.abilities[a] || 0}</span></div>
-      <div class="c-desc">${ABILITIES[a].desc}</div><div class="c-stat">Cooldown ${ABILITIES[a].cooldown}s · 1 charge per use</div></div></div></div>`).join('')}</div>
-      <p class="menu-note">Ability charges drop from chests, quests, the Battle Pass and the Trophy Road, and the Shop sells them in daily deals.</p>`;
+    body.innerHTML = `${loadoutHtml('a-loadout')}<div class="abcards">${ABILITY_ORDER.map((a) => {
+      const L = abilityLevel(a);
+      const need = AB_CARD_NEED[L - 1];
+      const have = P.abCards[a] || 0;
+      const can = canLevelAbility(a);
+      return `<div class="abcard${can ? ' can' : ''}" style="--ac:${ABILITIES[a].color}">
+        <div class="abc-top"><div class="abc-ico">${abilityIcon(a)}</div><div class="abc-lv"><small>LV</small><b>${L}</b></div></div>
+        <b class="abc-name">${ABILITIES[a].name}</b>
+        <small class="abc-desc">${ABILITIES[a].desc}</small>
+        <div class="abc-now">Power <b>+${Math.round((abilityPower(a) - 1) * 100)}%</b> · Cooldown <b>${Math.round(ABILITIES[a].cooldown * abilityCdMult(a))} s</b> · Charges <b>×${P.abilities[a] || 0}</b></div>
+        ${L < AB_MAX ? `<div class="bar"><i style="width:${Math.min(100, (have / need) * 100)}%"></i><span>${have}/${need} cards</span></div>
+          <button class="btn sm ${can ? 'primary' : ''}" data-ablv="${a}" ${can ? '' : 'disabled'}>LEVEL UP · ${coinIcon()}${AB_COIN_NEED[L - 1]}</button>` : '<div class="abc-max">MAX LEVEL</div>'}
+      </div>`;
+    }).join('')}</div>
+      <p class="menu-note">Charges are used up in matches; ability cards level an ability up for good: +15% power and −5% cooldown per level. Both drop from chests; charges also come from quests, the Pass, the Road and the Shop.</p>`;
     $('a-loadout').addEventListener('click', () => openLoadout());
+    body.querySelectorAll('[data-ablv]').forEach((b) => b.addEventListener('click', () => {
+      const a = b.dataset.ablv;
+      if (!levelAbility(a)) return;
+      sfx('levelup');
+      toast(`${ABILITIES[a].name} → LEVEL ${abilityLevel(a)}`);
+      renderMenu();
+    }));
   } else if (armoryTab === 'enemies') {
     body.innerHTML = `<div class="codex">${Object.entries(ENEMIES).map(([k, e]) => `<div class="ecard">
       <div class="ec-pic">${pic(enemyPortrait(k))}</div>
@@ -855,6 +875,7 @@ export function openChest(kind) {
     const list = [{ tier: 1, color: '#ffc62e', art: coinIcon(), n: rw.coins, prefix: '+', label: 'Coins' }];
     if (rw.gems) list.push({ tier: 2, color: '#5ad8ff', art: gemIcon(), n: rw.gems, prefix: '+', label: 'Gems' });
     for (const [a, n] of Object.entries(rw.abilities)) list.push({ tier: 1, color: ABILITIES[a].color, art: abilityIcon(a), n, prefix: '×', label: ABILITIES[a].name });
+    for (const [a, n] of Object.entries(rw.abCards || {})) list.push({ tier: 2, color: ABILITIES[a].color, art: abilityIcon(a), n, prefix: '×', label: `${ABILITIES[a].name} cards` });
     for (const [t, n] of Object.entries(rw.cards)) {
       const isNew = rw.unlocked.includes(t);
       list.push({ tier: isNew ? 3 : 2, color: TURRETS[t].color, art: pic(turretPortrait(t, skinOf(t))) || turretIcon(t), n, prefix: '×', label: isNew ? `NEW TURRET · ${TURRETS[t].name}` : `${TURRETS[t].name} cards`, isNew });

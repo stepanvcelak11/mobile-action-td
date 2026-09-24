@@ -20,6 +20,8 @@ export function ensureMeta() {
   P.abilities ??= { strike: 5, emp: 3, repair: 2, freeze: 2 };
   for (const [k, n] of Object.entries({ nuke: 1, goldrush: 2, overclock: 2, shieldwall: 1, tarpit: 2, blackhole: 1 })) P.abilities[k] ??= n;
   P.loadout ??= ['strike', 'emp', 'repair', 'freeze'];
+  P.abLv ??= {};
+  P.abCards ??= {};
   P.powers ??= {};
   P.slots ??= [null, null, null, null];
   P.skins ??= { factory: true };
@@ -202,6 +204,29 @@ export const CHESTS = {
   epic: { name: 'Epic Chest', color: '#b46bff', coins: [700, 1000], cards: 100, kinds: 5, charges: [3, 5], gems: [0.7, 20, 40], skin: 0.12, locked: 0.5 },
 };
 
+/* ------------------------------------------------------- ability levels */
+// Abilities level 1..5 with ability cards (from chests) + coins. Each level: +15 % power
+// (damage, heal, duration, radius) and −5 % cooldown — applied in main.js via abilityLevel().
+export const AB_MAX = 5;
+export const AB_CARD_NEED = [8, 20, 40, 80];
+export const AB_COIN_NEED = [250, 700, 1800, 4500];
+export const abilityLevel = (id) => Math.min(AB_MAX, P.abLv?.[id] || 1);
+export const abilityPower = (id) => 1 + 0.15 * (abilityLevel(id) - 1);
+export const abilityCdMult = (id) => 1 - 0.05 * (abilityLevel(id) - 1);
+export function canLevelAbility(id) {
+  const L = abilityLevel(id);
+  return L < AB_MAX && (P.abCards[id] || 0) >= AB_CARD_NEED[L - 1] && P.coins >= AB_COIN_NEED[L - 1];
+}
+export function levelAbility(id) {
+  if (!canLevelAbility(id)) return false;
+  const L = abilityLevel(id);
+  P.abCards[id] -= AB_CARD_NEED[L - 1];
+  P.coins -= AB_COIN_NEED[L - 1];
+  P.abLv[id] = L + 1;
+  save();
+  return true;
+}
+
 export function rollChest(kind) {
   const c = CHESTS[kind];
   const r = Math.random;
@@ -226,6 +251,16 @@ export function rollChest(kind) {
     out.abilities[a] = (out.abilities[a] || 0) + 1;
   }
   if (r() < c.gems[0]) out.gems = Math.round(c.gems[1] + r() * (c.gems[2] - c.gems[1]));
+  // ability cards: about a fifth of the chest's card count, split over one or two abilities
+  out.abCards = {};
+  let abLeft = Math.max(1, Math.round(c.cards * 0.2));
+  const abKinds = c.cards >= 40 ? 2 : 1;
+  for (let i = 0; i < abKinds && abLeft > 0; i++) {
+    const a = ABILITY_ORDER[Math.floor(r() * ABILITY_ORDER.length)];
+    const n = i === abKinds - 1 ? abLeft : Math.ceil(abLeft / 2);
+    out.abCards[a] = (out.abCards[a] || 0) + n;
+    abLeft -= n;
+  }
   if (r() < c.skin) {
     const missing = SKIN_ORDER.filter((s) => !P.skins[s]);
     if (missing.length) out.skin = missing[Math.floor(r() * missing.length)];
@@ -243,6 +278,7 @@ export function grant(rw) {
     if (!P.unlocked[t]) { P.unlocked[t] = true; P.tlevel[t] = 1; P.cards[t] = Math.max(0, P.cards[t] - 1); rw.unlocked.push(t); }
   }
   for (const [a, n] of Object.entries(rw.abilities || {})) P.abilities[a] = (P.abilities[a] || 0) + n;
+  for (const [a, n] of Object.entries(rw.abCards || {})) P.abCards[a] = (P.abCards[a] || 0) + n;
   if (rw.skin) P.skins[rw.skin] = true;
   if (rw.chest) P.pendingChests.push(rw.chest);
   if (rw.passXp) addPassXp(rw.passXp);
