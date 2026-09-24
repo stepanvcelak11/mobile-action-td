@@ -80,7 +80,7 @@ function ensureCss() {
   #cp-map .go{background:linear-gradient(180deg,#ffb04a,#f07f12);color:#1c1206}
   #cp-map .hard{background:linear-gradient(180deg,#ff6a6a,#b8202a);color:#fff}
   #cp-map .hard[disabled]{opacity:.4;cursor:default}
-  #cp-talk{position:fixed;left:50%;bottom:calc(var(--sab,0px) + 14px);transform:translateX(-50%);z-index:58;width:min(560px,calc(100% - 24px));display:flex;gap:12px;align-items:flex-start;
+  #cp-talk{position:fixed;left:50%;top:calc(var(--sat,0px) + 150px);transform:translateX(-50%);z-index:58;width:min(560px,calc(100% - 24px));display:flex;gap:12px;align-items:flex-start;
     padding:12px 14px;border-radius:16px;background:var(--panel-solid,#12171f);border:1px solid var(--panel-border,#333);box-shadow:var(--shadow);cursor:pointer;animation:cpIn .3s ease-out both}
   #cp-talk .who{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:12px;letter-spacing:.06em}
   #cp-talk .who.HQ{background:linear-gradient(160deg,#4ab0ff,#1f5fa8);color:#fff}
@@ -88,6 +88,8 @@ function ensureCss() {
   #cp-talk p{margin:2px 0 0;font-size:14px;line-height:1.4;font-weight:600}
   #cp-talk small{display:block;font-size:11px;color:var(--muted,#9aa);font-weight:800;letter-spacing:.1em}
   #cp-talk .tap{position:absolute;right:12px;bottom:6px;font-size:10px;color:var(--muted,#9aa);font-weight:700}
+  @media (orientation:landscape){#cp-talk{top:calc(var(--sat,0px) + 70px)}}
+  #result.show ~ #cp-talk,#cp-talk.on-result{top:calc(var(--sat,0px) + 12px)}
   @keyframes cpIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}`;
   document.head.appendChild(s);
 }

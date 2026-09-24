@@ -11,6 +11,9 @@ import {
   buySkin, selectSkin, skinOf, refreshDaily, DEFAULT_SETTINGS,
   powerState, buyGadget, buyStar, selectPower, buyGear, buyHyper, setLoadout, slotInfo, startUnlock, skipCost, takeSlot,
 } from './meta.js';
+import { daily } from './daily.js';
+import { campaign } from './campaign.js';
+import { skill } from './skill.js';
 import { turretIcon, uiIcon, enemyIcon, abilityIcon, coinIcon, gemIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, starPowerIcon, gearIcon, navIcon, settingsIcon } from './icons.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -176,6 +179,8 @@ function renderBattle(c) {
           <button class="btn primary big play-btn" id="b-play">${uiIcon('wave')}PLAY</button>
           <button class="btn" id="b-endless" ${ms.cleared ? '' : 'disabled'}>∞ ENDLESS${ms.endlessBest ? ` · ${ms.endlessBest}` : ''}</button>
         </div>
+        <div class="hero-extra"><button class="btn" id="b-world">WORLD MAP</button>${ms.stars >= 3 ? `<button class="btn" id="b-hard">HARD${campaign.hardDone(m.id) ? ' ✓' : ''}</button>` : ''}</div>
+        <div class="hero-challenge"><small>3rd star</small> ${skill.challenge(m.id).text}${skill.challenge(m.id).done ? ' ✓' : ''}</div>
         ${loadoutHtml()}
         <div class="map-row" id="map-row">
           ${MAPS.map((mm, i) => {
@@ -187,6 +192,7 @@ function renderBattle(c) {
         </div>
       </section>
       <section class="side">
+        <div id="daily-card"></div>
         <div class="card-panel slots-panel">
           <h3>Chest slots <small>win matches to fill them · one unlocks at a time</small></h3>
           <div class="cslots">${[0, 1, 2, 3].map(slotHtml).join('')}</div>
@@ -209,6 +215,12 @@ function renderBattle(c) {
     </div>`;
   $('b-play').addEventListener('click', () => showBriefing(m.id, 'campaign'));
   $('b-endless').addEventListener('click', () => showBriefing(m.id, 'endless'));
+  $('b-hard')?.addEventListener('click', () => { handlers.click?.(); handlers.play?.(m.id, 'campaign', true); });
+  $('b-world').addEventListener('click', () => {
+    handlers.click?.();
+    campaign.openMap({ state: (id) => mapState(id), onPlay: (id, hard) => (hard ? handlers.play?.(id, 'campaign', true) : showBriefing(id, 'campaign')) });
+  });
+  daily.renderCard($('daily-card'), () => { handlers.click?.(); handlers.play?.(daily.today().mapId, 'daily'); });
   $('b-loadout').addEventListener('click', () => openLoadout());
   c.querySelectorAll('.map-chip').forEach((b) => b.addEventListener('click', () => {
     if (!mapState(b.dataset.map).unlocked) return;
@@ -711,6 +723,9 @@ function openSettings() {
       <div class="set-row"><span>Aim sensitivity</span><input type="range" min="0.3" max="3" step="0.05" value="${s.sens}" data-range="sens"><b id="v-sens">${s.sens.toFixed(2)}×</b></div>
       <div class="set-row"><span>Cockpit view</span>${seg('cockpit', [[true, 'ON'], [false, 'OFF']])}<small>Sit inside the turret with its frame and dashboard around you</small></div>
       <div class="set-row"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-range="volume"><b id="v-volume">${Math.round(s.volume * 100)}%</b></div>
+      <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
+      <div class="set-row"><span>Graphics</span>${seg('quality', [['auto', 'AUTO'], ['low', 'LOW'], ['medium', 'MID'], ['high', 'HIGH']])}<small>Auto lowers the resolution when your phone struggles</small></div>
+      <div class="set-row"><span>FPS meter</span>${seg('fps', [[false, 'OFF'], [true, 'ON']])}</div>
       <div class="set-row"><span>Left-handed</span>${seg('leftHanded', [[false, 'OFF'], [true, 'ON']])}<small>FIRE on the left, aim on the right</small></div>
       <div class="set-row"><span>Button layout</span><button class="btn" id="set-layout">CUSTOMIZE</button><button class="btn ghost" id="set-layout-reset">RESET</button></div>
       <div class="set-row danger"><span>Progress</span><button class="btn ghost" id="set-reset">RESET ALL PROGRESS</button></div>

@@ -49,7 +49,7 @@ def run(p, name, w, h):
     pg.on('console', lambda m: m.type == 'error' and errs.append(m.text))
     t0 = time.time()
     pg.goto(BASE, wait_until='load', timeout=60000)
-    pg.wait_for_function('window.__game && window.__game.G', timeout=60000)
+    pg.wait_for_function("window.__game && window.__game.G && !document.getElementById('loader')", timeout=60000)
     check(True, f'{name}: boot {time.time() - t0:.1f}s')
     check(pg.evaluate("document.querySelector('link[rel=manifest]') !== null"), f'{name}: manifest linked')
 

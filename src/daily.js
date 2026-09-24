@@ -25,7 +25,7 @@ const MUTATORS = [
   { id: 'swarm', name: 'Swarm', text: 'Twice as many enemies with half HP', count: 2, hp: 0.5 },
   { id: 'poor', name: 'Tight Budget', text: 'No gold from kills, +100% wave bonus', killGold: 0, waveGold: 2 },
   { id: 'bosses', name: 'Boss Parade', text: 'A boss every 3 waves', bossEvery: 3 },
-  { id: 'dark', name: 'Blackout', text: 'Night: short view distance', night: true },
+  { id: 'bounty', name: 'Gold Rush', text: '+60% gold, enemies have 25% more HP', gold: 1.6, hp: 1.25 },
 ];
 const WEEKLY = [
   { id: 'heads', name: 'Headhunters', text: 'Headshots ×3, body shots −30%', head: 3, body: 0.7 },
@@ -51,7 +51,8 @@ function todayKey(d = new Date()) { return d.toISOString().slice(0, 10); }
 function weekIndex(d = new Date()) { return Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86400000 + 3) / 7); }
 
 async function api(path, body) {
-  if (!LEADERBOARD_URL) return null;
+  // Automated browsers (tests) never touch the real leaderboard.
+  if (!LEADERBOARD_URL || navigator.webdriver) return null;
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 5000);
@@ -116,6 +117,8 @@ export const daily = {
   },
   setNick(n) { const s = load(); s.nick = String(n).slice(0, 16); store(s); },
   async submit(score, wave) {
+    wave = Math.max(0, wave | 0);
+    score = Math.max(0, Math.round(score) || 0);
     const s = load();
     const key = todayKey();
     s.days = s.days || {};

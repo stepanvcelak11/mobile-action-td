@@ -72,7 +72,7 @@ export function unlockTurret(id) {
 export const starsFor = (hpFrac) => (hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1);
 
 /** Records the end of a run. Returns a summary for the results screen. */
-export function recordResult(mapId, mode, { won, wave, hpFrac }) {
+export function recordResult(mapId, mode, { won, wave, hpFrac, stars }) {
   const ms = mapState(mapId);
   const out = { stars: 0, newStars: 0, tpStars: 0, unlockedMap: null, endlessBest: false };
   if (mode === 'endless') {
@@ -80,7 +80,7 @@ export function recordResult(mapId, mode, { won, wave, hpFrac }) {
   } else {
     ms.best = Math.max(ms.best, wave);
     if (won) {
-      out.stars = starsFor(hpFrac);
+      out.stars = stars ?? starsFor(hpFrac);
       out.newStars = Math.max(0, out.stars - ms.stars);
       out.tpStars = out.newStars * TP_PER_STAR;
       P.tp += out.tpStars;

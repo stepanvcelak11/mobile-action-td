@@ -3,7 +3,13 @@ import * as THREE from 'three';
 import { buildWorld } from './world.js';
 import { createTurret, createEnemy, setTurretRank } from './entities.js';
 import { Particles, Projectiles, Beams, AmbientFx, Rings } from './effects.js';
-import { sfx, unlockAudio, setVolume } from './audio.js';
+import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph } from './audio.js';
+import { music } from './music.js';
+import { createPerf } from './perf.js';
+import { skill } from './skill.js';
+import { run } from './roguelite.js';
+import { daily } from './daily.js';
+import { campaign } from './campaign.js';
 import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, TARGETED_ABILITIES, HITZONES, HEADSHOT_MULT, MAPS, THEMES } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, HYPER_KILLS, HYPER_TIME, GADGET_USES, GADGET_CD } from './powers.js';
 import { TREES, canBuy } from './trees.js';
@@ -91,6 +97,7 @@ Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 32, bottom: -32, n
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
 scene.add(sun);
+const perf = createPerf(renderer, { sun });
 
 const muzzleLight = new THREE.PointLight('#ffb050', 0, 9, 2);
 scene.add(muzzleLight);
@@ -164,6 +171,7 @@ const G = {
   timeScale: 1,
   speed: 1,
   paused: false,
+  rules: { speed: 1, hp: 1, gold: 1, baseHp: 1, count: 1, killGold: 1, waveGold: 1, bossEvery: 0, only: null, head: 1, body: 1, heat: 1, manual: 1, cd: 1, autoRate: 1 },
   kills: 0,
   xpEarned: 0,
   levelStart: 1,
@@ -444,8 +452,10 @@ function nextTurret() {
 }
 
 /* ------------------------------------------------------------------- Waves */
-const totalWaves = () => (G.mode === 'endless' ? Infinity : G.map.waves);
-const isBossWave = (n) => (G.mode === 'endless' ? n % 5 === 0 || G.map.bosses.includes(n) : G.map.bosses.includes(n));
+const mapWaves = () => G.map.waves + (G.hard ? campaign.hard().extraWaves : 0);
+const totalWaves = () => (G.mode === 'endless' ? Infinity : mapWaves());
+const isBossWave = (n) => (G.rules.bossEvery && n % G.rules.bossEvery === 0)
+  || (G.mode === 'endless' ? n % 5 === 0 || G.map.bosses.includes(n) : G.map.bosses.includes(n) || (G.hard && n === mapWaves()));
 const GAPS = { scout: 0.55, mini: 0.4, heavy: 1.3, drone: 0.5, shield: 1.4, cloak: 0.9, splitter: 1.2, boss: 3, runner: 0.35, medic: 1.2, burrower: 1.0, juggernaut: 2.2, bomber: 1.6 };
 
 function seeded(seed) {
@@ -455,7 +465,7 @@ function seeded(seed) {
 
 function buildWave(n) {
   const d = G.map.intro;
-  const rand = seeded(n * 7919 + d * 131 + (G.mode === 'endless' ? 99 : 0));
+  const rand = seeded(n * 7919 + d * 131 + (G.mode === 'endless' ? 99 : 0) + (G.daily ? daily.today().seed % 100003 : 0));
   const unlockAt = { heavy: 2, drone: Math.max(2, 4 - d), splitter: Math.max(3, 5 - d), shield: Math.max(4, 6 - d), cloak: Math.max(6, 8 - d), runner: 4, medic: 6, burrower: 5, juggernaut: 8, bomber: 7 };
   const weights = { scout: 5, heavy: n < 5 ? 1 : 2, drone: 2, splitter: 1.5, shield: 1.2, cloak: 1.2, runner: 1.6, medic: 0.6, burrower: 0.8, juggernaut: 0.5, bomber: 0.8 };
   // later maps introduce new enemy species (ENEMIES[t].minMap)
@@ -489,6 +499,18 @@ function buildWave(n) {
     q.push({ type: 'boss', gap: 3 });
     if (n >= 15) q.push({ type: 'boss', gap: 3 });
   }
+  // Daily "Swarm" and Hard mode bring more enemies: repeat entries evenly.
+  const more = G.rules.count - 1;
+  if (more > 0) {
+    const out = [];
+    let acc = 0;
+    for (const e of q) {
+      out.push(e);
+      acc += more;
+      while (acc >= 1 && e.type !== 'boss') { out.push({ ...e, gap: e.gap * 0.6 }); acc -= 1; }
+    }
+    return out;
+  }
   return q;
 }
 
@@ -518,15 +540,19 @@ function startWave() {
   prepareNextWave();
   banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? '⚠ BOSS INCOMING ⚠' : `${G.queue.length} hostiles`);
   sfx('wave');
+  if (early) skill.waveEnd();
+  skill.waveStart(G.wave);
+  music.mode('wave');
+  if (isBossWave(G.wave) && G.launchMode === 'campaign') campaign.talk(G.map.id, 'boss');
   updateHud(true);
   coachEvent('wave');
 }
 
 function spawnEnemy(type, from) {
-  const hpMult = (1 + (G.map.hpScale - 1) * Math.min(1, G.wave / 6)) * (1 + (G.wave - 1) * 0.12) * (G.mode === 'endless' && G.wave > 20 ? 1 + (G.wave - 20) * 0.06 : 1);
+  const hpMult = G.rules.hp * (1 + (G.map.hpScale - 1) * Math.min(1, G.wave / 6)) * (1 + (G.wave - 1) * 0.12) * (G.mode === 'endless' && G.wave > 20 ? 1 + (G.wave - 20) * 0.06 : 1);
   const e = createEnemy(type, from ? from.hpMult : hpMult);
   e.hpMult = from ? from.hpMult : hpMult;
-  e.speedMult = 1 + Math.min(G.wave - 1, 14) * 0.02;
+  e.speedMult = (1 + Math.min(G.wave - 1, 14) * 0.02) * G.rules.speed;
   if (from) {
     e.path = from.path;
     e.s = Math.max(0, from.s - Math.random() * 1.2);
@@ -738,6 +764,17 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   if (!e.alive || e.buried) return;
   let dmg = base;
   let crit = false;
+  e.lastZone = zone;
+  const rm = run.active ? run.mods : null;
+  if (zone === 'head' && G.rules.head !== 1) dmg *= G.rules.head / HEADSHOT_MULT;
+  else if (manual && zone !== 'head') dmg *= G.rules.body;
+  if (manual) dmg *= G.rules.manual * (rm ? rm.manual : 1);
+  if (rm) {
+    dmg *= rm.dmg;
+    if (zone === 'head' && rm.head) dmg *= 1 + rm.head / HEADSHOT_MULT;
+    if (rm.crit && Math.random() < rm.crit) { dmg *= 2; crit = true; }
+    if (manual && zone === 'head' && rm.ammoOnHead) G.heat = Math.max(0, G.heat - 12);
+  }
   if (weak) dmg *= st.weakMul;
   if (zone === 'head') dmg *= HEADSHOT_MULT + 0.15 * perk('headhunter') + (st.headBonus || 0);
   if (st.crushing && ((e.def.armor || 0) > 0 || e.type === 'boss')) dmg *= 1 + st.crushing;
@@ -836,6 +873,9 @@ function killEnemy(e, point, st, manual) {
   let reward = Math.round(e.def.reward * (1 + 0.1 * perk('bounty'))) + (st?.bounty || 0);
   if (manual && G.combo >= 10) reward = Math.round(reward * 1.2);
   if (G.goldRushT > 0) reward *= 2;
+  reward = Math.round(reward * G.rules.gold * G.rules.killGold * (run.active ? run.mods.gold : 1));
+  skill.kill({ type: st?.owner?.type, manual, zone: e.lastZone });
+  world.disturb?.(c, 8 * big);
   // hypercharge fills from kills (manual kills count double)
   const owner = st?.owner;
   if (owner && owner.powers?.hyper && owner.hyperT <= 0) {
@@ -866,6 +906,7 @@ function damageBase(amount, e) {
     return;
   }
   G.baseHp = Math.max(0, G.baseHp - amount);
+  if (e) skill.leak();
   const bp = world.base.position.clone().setY(3);
   sparks.emit(bp, '#5fd8ff', 30, 7, 0.7, 8, 0.4);
   smoke.emit(bp, '#552222', 8, 2, 1, -1, 0.5, 2);
@@ -884,9 +925,26 @@ function damageBase(amount, e) {
 function checkWaveEnd() {
   if (G.state !== STATE.WAVE || G.queue.length || G.enemies.length) return;
   if (G.wave >= totalWaves()) { endGame(true); return; }
-  const bonus = 25 + Math.min(G.wave, 15) * 10;
+  const bonus = Math.round((25 + Math.min(G.wave, 15) * 10) * G.rules.waveGold);
   G.gold += bonus;
+  if (run.active && run.mods.interest) {
+    const i = Math.floor(G.gold * run.mods.interest);
+    if (i > 0) { G.gold += i; floatyScreen(`WAR BONDS +${i}`); }
+  }
   G.state = STATE.IDLE;
+  skill.waveEnd();
+  music.mode('calm');
+  if (run.offerDue(G.wave)) {
+    G.paused = true;
+    releaseFire();
+    run.offer((card) => {
+      if (card.id === 'glass') { G.maxHp = Math.round(G.maxHp * 0.7); G.baseHp = Math.min(G.baseHp, G.maxHp); }
+      for (const t of G.turrets) t.stats = statsFor(t);
+      G.paused = false;
+      banner(card.name.toUpperCase(), card.text);
+      updateHud(true);
+    });
+  }
   gainXp(15);
   questProgress('waves');
   save();
@@ -904,7 +962,15 @@ function endGame(won) {
   closeSheets();
   const hpFrac = G.baseHp / G.maxHp;
   const wavesDone = won ? G.wave : G.wave - 1;
-  const stars = won ? (hpFrac >= 0.9 ? 3 : hpFrac >= 0.5 ? 2 : 1) : 0;
+  G.skillRes = skill.endMap(won, hpFrac);
+  const stars = won ? G.skillRes.stars : 0;
+  if (won && G.hard) campaign.markHard(G.map.id);
+  if (run.active) G.runPicked = run.picked;
+  run.end();
+  music.sting(won ? 'victory' : 'defeat');
+  music.mode('menu');
+  G.dailyRes = null;
+  if (G.daily) daily.submit(G.skillRes.score, wavesDone).then((r) => { G.dailyRes = r; if ($('result').classList.contains('show')) showResults(won, wavesDone, G.lastRes); });
   if (won) {
     questProgress('wins');
     questProgress('waves');
@@ -917,16 +983,24 @@ function endGame(won) {
     smoke.emit(bp, '#222', 60, 5, 2.5, -1, 0.8, 1.5);
     sfx('over');
   }
-  const res = recordResult(G.map.id, G.mode, { won, wave: wavesDone, hpFrac });
+  const res = G.daily
+    ? { stars: 0, newStars: 0, tpStars: 0, unlockedMap: null, endlessBest: false }
+    : recordResult(G.map.id, G.mode, { won, wave: wavesDone, hpFrac, stars });
   res.meta = matchRewards({ won, stars, waves: wavesDone, mapIndex: MAPS.indexOf(G.map), kills: G.kills, mode: G.mode });
   setCoach(null);
   save();
-  setTimeout(() => showResults(won, wavesDone, res), won ? 1400 : 1100);
+  G.lastRes = res;
+  setTimeout(() => {
+    showResults(won, wavesDone, res);
+    if (won && G.launchMode === 'campaign' && !G.hard) campaign.talk(G.map.id, 'after');
+  }, won ? 1400 : 1100);
 }
 
 /* ------------------------------------------------------------ Combo / skill */
 const comboMult = () => 1 + Math.min(G.combo, 20) * 0.025;
 function comboHit(weak) {
+  skill.shot(G.active?.type, true);
+  skill.hit({ manual: true, weak });
   G.combo++;
   G.stats.hits++;
   if (weak) { G.stats.weak++; questProgress('weak'); }
@@ -935,8 +1009,10 @@ function comboHit(weak) {
   renderCombo();
 }
 function comboMiss() {
-  if (G.combo >= 3) floatyScreen('COMBO LOST', 'miss');
-  G.combo = 0;
+  skill.shot(G.active?.type, true);
+  const keep = run.active && run.mods.comboKeep;
+  if (G.combo >= 3) floatyScreen(keep ? 'COMBO HALVED' : 'COMBO LOST', 'miss');
+  G.combo = keep ? Math.floor(G.combo / 2) : 0;
   renderCombo();
 }
 function renderCombo() {
@@ -1017,6 +1093,22 @@ function statsFor(t) {
     splash: (m.splash || 0) + g('splash'),
     chain: (m.chain || 0) + g('chain'),
   };
+  st.interval /= G.rules.autoRate;
+  st.manual.heat *= G.rules.heat;
+  const rm = run.active ? run.mods : null;
+  if (rm) {
+    st.range *= rm.range;
+    st.interval /= rm.rate;
+    st.manual.interval /= rm.rate;
+    st.manual.heat *= rm.heat;
+    st.chain += rm.chain;
+    st.manual.chain += rm.chain;
+    st.pierce += rm.pierce;
+    st.splash += rm.splash;
+    st.manual.splash += rm.splash;
+    st.slow = Math.min(0.8, st.slow + rm.slow);
+    st.burn += rm.burn;
+  }
   return st;
 }
 
@@ -1029,8 +1121,9 @@ const sellValue = (t) => Math.round(t.invested * SELL_RATE);
 function buildTurret(plot, type = 'cannon') {
   const d = TURRETS[type];
   const cost = buildCost(type);
-  if (!d || !plot || plot.turret || G.gold < cost || !P.unlocked[type]) { sfx('deny'); return false; }
+  if (!d || !plot || plot.turret || G.gold < cost || !P.unlocked[type] || !allowedType(type)) { sfx('deny'); return false; }
   G.gold -= cost;
+  skill.built(type);
   const t = createTurret(type, d.color, skinOf(type));
   t.plot = plot;
   t.invested = cost;
@@ -1096,6 +1189,7 @@ function sellTurret(t) {
   t.plot.group.remove(t.root);
   t.plot.turret = null;
   G.turrets.splice(G.turrets.indexOf(t), 1);
+  skill.sold();
   smoke.emit(t.plot.pos.clone().setY(0.8), '#8a8a8a', 20, 3, 1, -0.5, 0.4, 2);
   floaty(t.plot.pos.clone().setY(2), `+${v}`, '');
   sfx('clear');
@@ -1721,7 +1815,7 @@ function projectileTick(p, dt) {
 
 /* --------------------------------------------------------------- Abilities */
 // Abilities are collectible charges (P.abilities); you bring 4 of the 10 into a match (P.loadout).
-const abilityCd = (id) => ABILITIES[id].cooldown * (1 - 0.15 * perk('support'));
+const abilityCd = (id) => ABILITIES[id].cooldown * (1 - 0.15 * perk('support')) * G.rules.cd * (run.active ? run.mods.cd : 1);
 const charges = (id) => P.abilities[id] || 0;
 
 function renderAbilities() {
@@ -1955,7 +2049,7 @@ function updateHud(force) {
     hud.hpFill.style.width = `${f * 100}%`;
     hud.hpFill.style.backgroundPosition = `${f * 100}% 0`;
   }
-  setText('wave', hud.wave, G.mode === 'endless' ? `${G.wave}/∞` : `${G.wave}/${G.map.waves}`);
+  setText('wave', hud.wave, G.mode === 'endless' ? `${G.wave}/∞` : `${G.wave}/${mapWaves()}`);
   setText('enemies', hud.enemies, String(G.enemies.length));
   const sw = $('start-wave');
   const early = canCallEarly();
@@ -2164,7 +2258,7 @@ function renderBuildOptions() {
   box.innerHTML = '';
   for (const id of TURRET_ORDER) {
     const d = TURRETS[id];
-    const locked = !P.unlocked[id];
+    const locked = !P.unlocked[id] || !allowedType(id);
     const b = document.createElement('button');
     b.className = `opt${G.buildType === id ? ' sel' : ''}${locked ? ' locked' : ''}`;
     b.dataset.type = id;
@@ -2177,8 +2271,10 @@ function renderBuildOptions() {
 }
 function refreshBuildCard() {
   const d = TURRETS[G.buildType];
-  const locked = !P.unlocked[G.buildType];
-  setText('bdesc', $('build-desc'), locked
+  const locked = !P.unlocked[G.buildType] || !allowedType(G.buildType);
+  setText('bdesc', $('build-desc'), !allowedType(G.buildType)
+    ? `${d.name}: not allowed in today's challenge.`
+    : locked
     ? `${d.name}: ${d.desc} Unlock it in the Armory for ${d.unlockTP} Tech points.`
     : `${d.name}: ${d.desc} Range ${d.range} m.`);
   const btn = $('build-confirm');
@@ -2499,11 +2595,11 @@ on('btn-speed', () => {
 });
 on('btn-pause', () => pauseGame(true));
 on('p-resume', () => pauseGame(false));
-on('p-restart', () => startMap(G.map.id, G.mode));
+on('p-restart', () => startMap(G.map.id, G.launchMode, G.hard));
 on('p-quit', () => showMenu());
 on('r-menu', () => showMenu());
 on('r-chest', (ev) => { const b = ev.currentTarget; openChest(b.dataset.kind); b.style.display = 'none'; });
-on('r-retry', () => startMap(G.map.id, G.mode));
+on('r-retry', () => startMap(G.map.id, G.launchMode, G.hard));
 on('r-next', () => {
   const idx = MAPS.findIndex((m) => m.id === G.map.id);
   const next = MAPS[idx + 1];
@@ -2567,13 +2663,34 @@ function showMenu() {
   selectMenuMap(G.map.id);
   renderMenu();
   $('menu').classList.add('show');
+  music.play('menu');
+  music.mode('menu');
 }
-function startMap(id, mode) {
+/** Match rules: daily mutators and Hard mode (1 / empty = unchanged). */
+const NO_RULES = { speed: 1, hp: 1, gold: 1, baseHp: 1, count: 1, killGold: 1, waveGold: 1, bossEvery: 0, only: null, head: 1, body: 1, heat: 1, manual: 1, cd: 1, autoRate: 1 };
+G.rules = { ...NO_RULES };
+const allowedType = (type) => !G.rules.only || G.rules.only.includes(type);
+function startMap(id, mode, hard = false) {
+  G.launchMode = mode;
+  G.daily = mode === 'daily';
+  G.hard = !!hard && mode === 'campaign';
+  G.rules = { ...NO_RULES, ...(G.daily ? daily.rules() : {}) };
+  if (G.hard) { const h = campaign.hard(); Object.assign(G.rules, { hp: h.hp, speed: h.speed, count: h.count, gold: h.gold }); }
+  if (G.daily) id = daily.today().mapId;
+  mode = G.daily ? 'endless' : mode;
   hideScreens();
   loadMap(id);
   P.lastMap = id;
   save();
   resetGame(mode);
+  if (G.rules.baseHp !== 1) { G.maxHp = Math.round(G.maxHp * G.rules.baseHp); G.baseHp = G.maxHp; }
+  if (G.rules.only && !allowedType(G.buildType)) G.buildType = G.rules.only[0];
+  skill.startMap(id, G.daily ? 'daily' : mode);
+  if (mode === 'endless' && !G.daily) run.start(); else run.end();
+  G.runPicked = null;
+  music.play(G.map.theme);
+  music.mode('calm');
+  if (G.launchMode === 'campaign') setTimeout(() => campaign.talk(id, 'before'), 900);
   document.body.classList.add('ingame');
   G.view = 'TOP';
   applyTopPose();
@@ -2581,7 +2698,9 @@ function startMap(id, mode) {
   renderAbilities();
   G.tut = !P.tutorialDone && G.map.id === 'valley' && mode === 'campaign' ? 0 : -1;
   setTimeout(() => coachStep(), 1500);
-  banner(G.map.name.toUpperCase(), mode === 'endless' ? 'Endless — how long can you hold?' : `Build turrets, then start wave 1 · ${G.map.waves} waves`);
+  banner(G.map.name.toUpperCase(), G.daily ? `Daily challenge · ${daily.today().mutator.name}`
+    : mode === 'endless' ? 'Endless — pick an upgrade card every 5 waves'
+    : `${G.hard ? 'HARD · ' : ''}Build turrets, then start wave 1 · ${mapWaves()} waves`);
 }
 function pauseGame(p) {
   if (G.view === 'MENU' || G.state === STATE.GAME_OVER || G.state === STATE.VICTORY) return;
@@ -2596,13 +2715,13 @@ function pauseGame(p) {
   }
 }
 function showResults(won, wavesDone, res) {
-  $('r-kicker').textContent = `${G.map.name.toUpperCase()} · ${G.mode === 'endless' ? 'ENDLESS' : 'CAMPAIGN'}`;
+  $('r-kicker').textContent = `${G.map.name.toUpperCase()} · ${G.daily ? 'DAILY CHALLENGE' : G.mode === 'endless' ? 'ENDLESS' : G.hard ? 'CAMPAIGN · HARD' : 'CAMPAIGN'}`;
   $('r-title').textContent = G.mode === 'endless' ? `WAVE ${wavesDone}` : won ? 'VICTORY' : 'BASE DESTROYED';
   $('r-stars').innerHTML = won && G.mode !== 'endless' ? starsHtml(res.stars) : '';
   const s = G.stats;
   const acc = s.shots ? `${Math.round((s.hits / s.shots) * 100)}% (${s.hits}/${s.shots})` : '—';
   const lines = [
-    ['Waves survived', G.mode === 'endless' ? wavesDone : `${wavesDone} / ${G.map.waves}`],
+    ['Waves survived', G.mode === 'endless' ? wavesDone : `${wavesDone} / ${mapWaves()}`],
     ['Hostiles destroyed', G.kills],
     ['Base HP left', `${G.baseHp} / ${G.maxHp}`],
     ['Manual accuracy', acc],
@@ -2610,8 +2729,13 @@ function showResults(won, wavesDone, res) {
     ['XP earned', `+${Math.round(G.xpEarned)}`],
     ['Commander level', P.level > G.levelStart ? `${G.levelStart} → ${P.level}` : `${P.level} (${P.xp}/${xpForLevel(P.level)} XP)`],
   ];
+  const sk = G.skillRes;
+  if (sk?.avgGrade) lines.splice(1, 0, ['Average wave grade', sk.avgGrade]);
+  if (G.runPicked?.length) lines.push(['Run upgrades', G.runPicked.map((id) => run.cardName(id)).join(', ')]);
   const tpGain = (P.level - G.levelStart) + res.tpStars;
   const hl = [];
+  if (sk && G.launchMode === 'campaign' && won) hl.push([sk.done ? '3rd star challenge ✓' : '3rd star challenge', sk.challenge]);
+  if (G.daily) hl.push(['Daily score', G.dailyRes ? `${sk.score}${G.dailyRes.official ? ' · official' : ' · practice'}${G.dailyRes.rank ? ` · rank #${G.dailyRes.rank}` : ''}` : `${sk.score} · sending…`]);
   const m = res.meta;
   hl.push(['Trophies', `${m.trophies >= 0 ? '+' : ''}${m.trophies} ${trophyIcon()}`]);
   hl.push(['Coins', `+${m.coins} ${coinIcon()}`]);
@@ -2635,10 +2759,15 @@ function showResults(won, wavesDone, res) {
 }
 
 initMenu({
-  play: (id, mode) => startMap(id, mode),
+  play: (id, mode, hard) => startMap(id, mode, hard),
   preview: (id) => loadMap(id),
   click: () => unlockAudio(),
-  settings: () => { setVolume(P.settings.volume); },
+  settings: () => {
+    setVolume(P.settings.volume);
+    setMusicLevel(P.settings.music ?? 0.55);
+    if (perf.quality !== (P.settings.quality || 'auto')) perf.setQuality(P.settings.quality || 'auto');
+    if (perf.meterOn !== !!P.settings.fps) perf.showMeter(!!P.settings.fps);
+  },
   layoutPreview: () => { renderAbilities(); $('fpv-name').textContent = 'LAYOUT PREVIEW'; },
 });
 
@@ -2647,6 +2776,12 @@ function update(dt) {
   G.time += dt;
   world.update(dt, G.time);
   if (weather) weather.update(dt, G.time);
+  if (!music.playing && audioGraph()) music.play(G.view === 'MENU' ? 'menu' : G.map.theme);
+  G.musicT = (G.musicT || 0) + dt;
+  if (G.musicT > 0.5) {
+    G.musicT = 0;
+    music.update({ enemies: G.enemies.length, boss: G.enemies.some((e) => e.type === 'boss'), baseHp: G.baseHp / (G.maxHp || 1) });
+  }
 
   if (G.view !== 'MENU') {
     if (G.state === STATE.WAVE && G.queue.length) {
@@ -2679,6 +2814,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const raw = Math.min(0.05, (now - last) / 1000);
   last = now;
+  perf.frame(now);
   if (!G.paused) {
     const steps = Math.max(1, Math.round(G.timeScale * (G.view === 'MENU' ? 1 : G.speed)));
     for (let i = 0; i < steps; i++) update(raw);
@@ -2714,7 +2850,7 @@ requestAnimationFrame(() => requestAnimationFrame(() => {
 
 // Debug / automated-test handle
 window.__game = {
-  G, P, STATE, camera, startWave, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
+  G, P, STATE, camera, startWave, endGame, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
   useAbility, callStrike, castAt, openTurretCard, statsFor, renderAbilities, useGadget, activateHyper, spawnEnemy,
   get plots() { return world.plots; },
   get world() { return world; },

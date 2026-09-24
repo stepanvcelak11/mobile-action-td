@@ -88,3 +88,15 @@ Crawler (fast), Tank (armored −30%), Drone (flies; the Mortar can't hit it), G
 | `src/audio.js` | Synthesized WebAudio sound effects (no asset files) |
 
 Run it locally with any static server, e.g. `python -m http.server 3000`, then open http://localhost:3000.
+
+## Skill, modes and feel (v6)
+- **Wave grades** S/A/B/C after every wave (accuracy, headshots, leaks). The **3rd star** of a map needs its challenge (shown under the map), e.g. "40% headshots" or "no leaks".
+- **Turret mastery**: manual kills and headshots level up each turret type (Recruit → Legend).
+- **Endless is a roguelite run**: every 5 waves pick 1 of 3 upgrade cards (18 cards, Common/Rare/Epic).
+- **Daily challenge**: the same map, mutator and enemies for everyone each day, plus a weekly mutator. The first run counts for the online leaderboard (`worker/`, Cloudflare Worker + D1, https://serpentline-api.ar-geodet.workers.dev).
+- **World map** with 3 chapters, radio talk between HQ and the enemy commander Viper, and **Hard** mode for maps with 3 stars (tougher, more enemies, 2 extra waves).
+- **Adaptive music** (layers follow the fight, own key and tempo per map) and layered weapon sounds.
+- **Living maps**: wind in trees, ripples on ponds, birds that scatter at explosions.
+- **Graphics setting** Auto/Low/Mid/High (auto lowers resolution when the phone struggles) and an FPS meter.
+- **Install to home screen / offline** (manifest + service worker, Three.js served locally from `vendor/`).
+- **Tests**: `python tests/smoke.py --dir .` plays the first wave in landscape and portrait; GitHub Actions runs it on every push.

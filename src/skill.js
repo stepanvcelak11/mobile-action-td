@@ -5,7 +5,8 @@
 //   skill.startMap(mapId, mode);             // new match
 //   skill.waveStart(n);                     // START WAVE
 //   skill.shot(turretType, manual);          // every manual shot (auto shots optional)
-//   skill.hit({ type, manual, zone, weak, kill, crit });
+//   skill.hit({ manual, zone, weak });      // a manual shot that connected
+//   skill.kill({ type, manual, zone });      // an enemy destroyed (mastery)
 //   skill.leak();                           // an enemy reached the base
 //   skill.built(turretType);                 // turret built (for "max N turrets" challenges)
 //   const g = skill.waveEnd();              // → { grade, score, acc, heads, leaks, secs } and shows the badge
@@ -130,14 +131,16 @@ export const skill = {
     wave.shots++;
     map.manualShots++;
   },
-  hit({ type = '', manual = false, zone = null, weak = false, kill = false } = {}) {
-    if (!map) return;
-    if (manual && wave) {
-      wave.hits++;
-      map.manualHits++;
-      if (zone === 'head' || weak) { wave.heads++; map.heads++; }
-    }
-    if (!kill || !type) return;
+  /** A manual shot that connected (accuracy and headshot share). */
+  hit({ manual = true, zone = null, weak = false } = {}) {
+    if (!map || !manual || !wave) return;
+    wave.hits++;
+    map.manualHits++;
+    if (zone === 'head' || weak) { wave.heads++; map.heads++; }
+  },
+  /** An enemy destroyed by a turret of this type (mastery). */
+  kill({ type = '', manual = false, zone = null } = {}) {
+    if (!map || !type) return;
     const m = S.mastery[type] || (S.mastery[type] = { pts: 0, kills: 0, heads: 0 });
     const before = masteryOf(type).level;
     m.kills++;
@@ -153,8 +156,8 @@ export const skill = {
       el.className = 'sk-mast';
       el.textContent = `${type.toUpperCase()} MASTERY ${after.level} · ${after.title.toUpperCase()}`;
       show(el);
-      save();
     }
+    if (m.kills % 10 === 0 || after.level > before) save();
   },
   leak() { if (wave) wave.leaks++; if (map) map.leaks++; },
   waveEnd() {
