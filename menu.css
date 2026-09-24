@@ -305,3 +305,77 @@ body.sandbox #menu .pname::after { content: " · TEST MODE"; color: #ff9a3a; }
 @media (orientation: portrait) {
   .mod-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ==================================================================== Brawl-style bright look
+   Vivid blue panels, chunky outlined buttons (yellow primary), playful display font, white text
+   with a dark outline. Overrides the dark theme tokens; the light theme keeps its own look. */
+body[data-theme="dark"] {
+  --panel: rgba(28, 86, 196, 0.88);
+  --panel-solid: #2160c8;
+  --panel-2: rgba(255, 255, 255, 0.12);
+  --panel-border: #0d2a66;
+  --text: #ffffff;
+  --muted: #cfe0ff;
+  --accent: #ffc233;
+  --accent-2: #ffe066;
+  --shadow: 0 6px 0 rgba(8, 24, 64, 0.55), 0 12px 24px rgba(0, 0, 0, 0.35);
+}
+body[data-theme="dark"] {
+  font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+.btn, .pname, h1, h2, h3, .hero-title, .kicker, .bs-name h2, .pw-name, .abc-name, .tc-name, .bottomnav button, .pill b, #r-title, .chest-hint, .ch-card b {
+  font-family: 'Lilita One', 'Nunito', system-ui, sans-serif; font-weight: 400; letter-spacing: 0.03em;
+}
+body[data-theme="dark"] h1, body[data-theme="dark"] h2, body[data-theme="dark"] .hero-title, body[data-theme="dark"] .bs-name h2 {
+  color: #fff; text-shadow: 0 3px 0 #0b2a66, 0 0 1px #0b2a66; -webkit-text-stroke: 1px #0b2a66; paint-order: stroke fill;
+}
+/* menu backdrop: sky gradient over the 3D map */
+body[data-theme="dark"] #menu { background: linear-gradient(180deg, rgba(64, 150, 255, 0.55), rgba(40, 110, 230, 0.12) 30%, rgba(20, 70, 180, 0.5)); }
+/* buttons: chunky with a dark outline and a bottom lip */
+body[data-theme="dark"] .btn {
+  border: 3px solid #0b2a66; border-radius: 14px; background: linear-gradient(180deg, #5aa2ff, #2a6ae0); color: #fff;
+  box-shadow: 0 4px 0 #0b2a66, inset 0 2px 0 rgba(255, 255, 255, 0.35); text-shadow: 0 2px 0 rgba(11, 42, 102, 0.8);
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+body[data-theme="dark"] .btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #0b2a66, inset 0 2px 0 rgba(255, 255, 255, 0.35); }
+body[data-theme="dark"] .btn.primary {
+  background: linear-gradient(180deg, #ffe45c, #ffb21a); color: #3a2200; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 0 #0b2a66, inset 0 2px 0 rgba(255, 255, 255, 0.6);
+}
+body[data-theme="dark"] .btn.ghost { background: linear-gradient(180deg, #7aa8e8, #4a78c8); }
+body[data-theme="dark"] .btn:disabled { background: linear-gradient(180deg, #8a9ab8, #6a7a98); color: #e8eef8; opacity: 0.85; }
+/* panels and cards */
+body[data-theme="dark"] .card-panel, body[data-theme="dark"] .quest, body[data-theme="dark"] .loadout, body[data-theme="dark"] .dly,
+body[data-theme="dark"] #overlay-body:not(.bs-host), body[data-theme="dark"] .map-chip, body[data-theme="dark"] .cslot {
+  background: linear-gradient(180deg, #3a7ee8, #2256c0) !important; border: 3px solid #0b2a66 !important; border-radius: 18px;
+  box-shadow: 0 5px 0 rgba(8, 24, 64, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.25) !important; color: #fff;
+}
+body[data-theme="dark"] .tcard { background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 45%, #3a7ee8), #2256c0) !important; border-width: 3px !important; border-radius: 18px;
+  box-shadow: 0 5px 0 rgba(8, 24, 64, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.25); }
+body[data-theme="dark"] .abcard { background: linear-gradient(180deg, color-mix(in srgb, var(--ac) 40%, #3a7ee8), #2256c0); border: 3px solid #0b2a66; box-shadow: 0 5px 0 rgba(8, 24, 64, 0.6); }
+body[data-theme="dark"] .bar, body[data-theme="dark"] .xpbar { background: rgba(8, 24, 64, 0.55); border: 2px solid #0b2a66; }
+/* top bar pills */
+body[data-theme="dark"] .cur-pill, body[data-theme="dark"] .pill { background: linear-gradient(180deg, #2a5ab8, #163e8c); border: 2px solid #0b2a66; box-shadow: 0 3px 0 rgba(8, 24, 64, 0.6); color: #fff; }
+body[data-theme="dark"] .icon-btn { background: linear-gradient(180deg, #4a8ef0, #2a62cc); border: 3px solid #0b2a66; box-shadow: 0 3px 0 #0b2a66; }
+/* bottom navigation */
+body[data-theme="dark"] .bottomnav { background: linear-gradient(180deg, #1c4fb0, #123a88); border-top: 3px solid #0b2a66; }
+body[data-theme="dark"] .bottomnav button { color: #cfe0ff; }
+body[data-theme="dark"] .bottomnav button.active, body[data-theme="dark"] .bottomnav button.center {
+  background: linear-gradient(180deg, #ffe45c, #ffb21a); color: #3a2200; border: 3px solid #0b2a66; box-shadow: 0 3px 0 #0b2a66;
+}
+body[data-theme="dark"] .subtabs button { background: linear-gradient(180deg, #4a8ef0, #2a62cc); border: 3px solid #0b2a66; color: #fff; box-shadow: 0 3px 0 #0b2a66; }
+body[data-theme="dark"] .subtabs button.active { background: linear-gradient(180deg, #ffe45c, #ffb21a); color: #3a2200; }
+/* turret showcase: bright blue studio instead of dark */
+.ov.full #overlay-body { background: radial-gradient(120% 90% at 25% 35%, color-mix(in srgb, var(--tc, #4a8ef0) 35%, #4f9aff), #1f5cc6 70%) !important; }
+.bs-sheet { background: linear-gradient(180deg, #2f72e0, #1d52b8) !important; border-color: #0b2a66 !important; }
+.bs-tile { border-width: 3px; box-shadow: 0 4px 0 rgba(8, 24, 64, 0.55); }
+.bs-sbar { background: rgba(8, 24, 64, 0.5); }
+.bs-stat span, .bs-h, .bs-tile small { color: #dce8ff; }
+.pw, .mod, .mod-slot, .ovl, .ht-step, .ht-vs { box-shadow: 0 4px 0 rgba(8, 24, 64, 0.5); }
+.mod-slot, .ht-step, .ht-vs { background: #1d4aa6; }
+.ov.full #overlay-body { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+body[data-theme="dark"] .bs-tile { background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 45%, #4a8ef0), #2256c0); border-color: #0b2a66; }
+body[data-theme="dark"] .bs-tile.locked { background: linear-gradient(180deg, #6a86b8, #4a6698); filter: none; opacity: 0.9; }
+body[data-theme="dark"] .pw { background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 45%, #4a8ef0), #2256c0 80%); border-color: #0b2a66; }
+body[data-theme="dark"] .mod { background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 40%, #4a8ef0), #2256c0); border-color: #0b2a66; }
+body[data-theme="dark"] .bs-chips span { background: rgba(8, 24, 64, 0.35); }
