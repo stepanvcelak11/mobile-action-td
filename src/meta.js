@@ -6,6 +6,7 @@ import { TURRET_POWERS, POWER_UNLOCK, POWER_PRICE, GEARS } from './powers.js';
 /* ----------------------------------------------------------------- defaults */
 export const DEFAULT_SETTINGS = {
   theme: 'dark', uiScale: 1, sens: 1.3, volume: 0.8, leftHanded: false, layout: {}, cockpit: true,
+  gyro: false, gyroSens: 1, aimAssist: true,
 };
 
 export function ensureMeta() {

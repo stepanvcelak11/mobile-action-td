@@ -610,7 +610,12 @@ function prepareNextWave() {
   renderWavePreview();
 }
 
-const earlyBonus = () => 10 + G.wave * 3;
+/** Calling the next wave early pays for the distance the living enemies still have to walk. */
+const earlyBonus = () => {
+  let road = 0;
+  for (const e of G.enemies) if (e.alive) road += (1 - e.s / e.path.length) * e.def.reward * 0.35;
+  return Math.round(10 + G.wave * 3 + road);
+};
 function canCallEarly() {
   return G.state === STATE.WAVE && !G.queue.length && G.wave < totalWaves();
 }
@@ -626,6 +631,7 @@ function startWave() {
   }
   G.wave++;
   G.state = STATE.WAVE;
+  for (const t of G.turrets) t.prepInvest = 0;
   G.queue = G.nextQueue || buildWave(G.wave);
   G.spawnTimer = 0.4;
   prepareNextWave();
@@ -860,7 +866,7 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   const rm = run.active ? run.mods : null;
   if (zone === 'head' && G.rules.head !== 1) dmg *= G.rules.head / HEADSHOT_MULT;
   else if (manual && zone !== 'head') dmg *= G.rules.body;
-  if (manual) dmg *= G.rules.manual * (rm ? rm.manual : 1);
+  if (manual) dmg *= G.rules.manual * (rm ? rm.manual : 1) * (G.ventBuff > 0 ? 1.25 : 1);
   if (rm) {
     dmg *= rm.dmg;
     if (zone === 'head' && rm.head) dmg *= 1 + rm.head / HEADSHOT_MULT;
@@ -1240,7 +1246,8 @@ const upgradesOf = (t) => t.picks[0] + t.picks[1] + t.picks[2];
 function hudTickTurretCard() { if (G.sheet?.turret) renderTreeSheet(); }
 const buildCost = (type) => Math.round(TURRETS[type].cost * (1 - 0.05 * perk('logistics')));
 const nodeCost = (t, branch) => Math.round(TURRETS[t.type].cost * TIER_COST[t.picks[branch]]);
-const sellValue = (t) => Math.round(t.invested * SELL_RATE);
+// anything bought during the build phase (before the next wave starts) sells back in full
+const sellValue = (t) => Math.round((t.invested - (t.prepInvest || 0)) * SELL_RATE + (t.prepInvest || 0));
 
 function buildTurret(plot, type = 'cannon') {
   const d = TURRETS[type];
@@ -1251,6 +1258,7 @@ function buildTurret(plot, type = 'cannon') {
   const t = createTurret(type, d.color, skinOf(type));
   t.plot = plot;
   t.invested = cost;
+  t.prepInvest = G.state === STATE.IDLE ? cost : 0;
   t.powers = equippedPowers(type);
   t.gadgetUses = t.powers.gadget ? GADGET_USES : 0;
   t.gadgetCd = 0;
@@ -1293,6 +1301,7 @@ function buyUpgrade(t, branch) {
   const node = TREES[t.type][branch].nodes[t.picks[branch]];
   G.gold -= cost;
   t.invested += cost;
+  if (G.state === STATE.IDLE) t.prepInvest = (t.prepInvest || 0) + cost;
   t.picks[branch]++;
   setTurretRank(t, upgradesOf(t));
   t.stats = statsFor(t);
@@ -1844,7 +1853,7 @@ function manualShot() {
     G.shake = Math.max(G.shake, d.kind === 'bullet' ? 0.05 : 0.12);
   }
   if (G.coolantT <= 0) G.heat += ms.heat;
-  if (G.heat >= 100) { G.heat = 100; G.overheated = true; }
+  if (G.heat >= 100) { G.heat = 100; if (!G.overheated) startVent(); G.overheated = true; }
 }
 
 function updateManual(dt) {
@@ -1856,7 +1865,8 @@ function updateManual(dt) {
     G.fireCd = G.active.stats.manual.interval / rateBoost(G.active);
   }
   if (!firing && G.active?.type === 'laser') G.laser.target = null;
-  const cool = firing ? CFG.heatCool * 0.25 : CFG.heatCool * (G.overheated ? 1.1 : 1.4);
+  const cool = firing ? CFG.heatCool * 0.25 : CFG.heatCool * (G.overheated ? (G.vent?.jam ? 0.55 : 1.1) : 1.4);
+  updateVent(dt);
   G.heat = Math.max(0, G.heat - cool * dt);
   if (G.overheated && G.heat <= CFG.heatRecover) G.overheated = false;
   const precise = G.active?.type === 'rail' || G.active?.type === 'sniper';
@@ -2406,7 +2416,7 @@ function renderTreeSheet(force) {
   if (st.burn) chips.push(`BURN ${st.burn}`);
   if (st.detect) chips.push('DETECT');
   $('tc-stats').innerHTML = chips.map((c) => `<span>${c}</span>`).join('');
-  $('tc-sell').textContent = `SELL +${sellValue(t)}`;
+  $('tc-sell').textContent = t.prepInvest && sellValue(t) >= t.invested ? `REFUND +${sellValue(t)}` : `SELL +${sellValue(t)}`;
   $('tc-sell').style.display = inFpv ? 'none' : '';
   $('tc-control').style.display = inFpv ? 'none' : '';
   $('tc-target').textContent = `TARGET: ${t.targetMode.toUpperCase()}`;
@@ -2610,7 +2620,7 @@ canvas.addEventListener('wheel', (ev) => {
 function aimBy(dx, dy, sens) {
   const t = G.active;
   if (!t || (G.view !== 'FPV' && G.view !== 'TO_FPV')) return;
-  const zoom = (camera.fov / 75) * (P.settings.sens || 1);
+  const zoom = (camera.fov / 75) * (P.settings.sens || 1) * aimFriction();
   t.yaw = shortAngle(t.yaw - dx * sens * zoom);
   t.pitch = THREE.MathUtils.clamp(t.pitch - dy * sens * zoom, CFG.pitchMin, CFG.pitchMax);
   if (Math.abs(dx) + Math.abs(dy) > 0.5) G.lastAim = G.time;
@@ -2656,6 +2666,7 @@ fireBtn.addEventListener('pointerdown', (ev) => {
   ev.preventDefault();
   unlockAudio();
   if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+  if (G.overheated && tryVent()) return;
   firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   fireBtn.setPointerCapture(ev.pointerId);
   refreshFire();
@@ -2681,11 +2692,12 @@ canvas.addEventListener('pointerdown', (ev) => {
       } catch { /* pointer lock unsupported */ }
       return;
     }
-    if (ev.button === 0) { firePointers.set('mouse', {}); refreshFire(); }
+    if (ev.button === 0) { if (G.overheated && tryVent()) return; firePointers.set('mouse', {}); refreshFire(); }
     return;
   }
   const fireSide = P.settings.leftHanded ? ev.clientX < window.innerWidth / 2 : ev.clientX > window.innerWidth / 2;
   if (fireSide) {
+    if (G.overheated && tryVent()) return;
     firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() });
     canvas.setPointerCapture(ev.pointerId);
     refreshFire();
@@ -2942,6 +2954,7 @@ function showResults(won, wavesDone, res) {
 }
 
 initMenu({
+  gyro: () => requestGyro(),
   play: (id, mode, hard) => startMap(id, mode, hard),
   preview: (id) => loadMap(id),
   click: () => unlockAudio(),
@@ -3423,4 +3436,121 @@ function updateThreats() {
     el.lastChild.textContent = t.e.type === 'boss' ? 'BOSS' : `${Math.round((1 - t.prog) * t.e.path.length)} m`;
     el.classList.toggle('boss', t.e.type === 'boss');
   }
+}
+
+
+/* ================================================================ Aim: assist + tilt (G1) */
+// Aim assist = friction only: over a head the crosshair moves ~45 % slower, it never pulls on its own.
+const _af = new V3(), _ah = new THREE.Sphere();
+function aimFriction() {
+  if (P.settings.aimAssist === false || G.view !== 'FPV') return 1;
+  camera.getWorldDirection(_af);
+  let best = 1;
+  for (const e of G.enemies) {
+    if (!e.alive || e.buried) continue;
+    const hz = HITZONES[e.type]?.head;
+    if (!hz) continue;
+    zoneWorld(e, hz, _ah);
+    const to = _ah.center.clone().sub(camera.position);
+    const dist = to.length();
+    if (dist > 120) continue;
+    const ang = to.normalize().angleTo(_af);
+    const r = Math.atan((_ah.radius * 2.4) / dist);
+    if (ang < r) best = Math.min(best, 0.55 + 0.45 * (ang / r));
+  }
+  return best;
+}
+
+// Tilt: gyroscope rotation rate adds fine aim on top of dragging.
+let gyroOn = false;
+function screenAngle() {
+  const a = screen.orientation?.angle ?? window.orientation ?? 0;
+  return ((a % 360) + 360) % 360;
+}
+function onMotion(ev) {
+  const r = ev.rotationRate;
+  if (!r || !P.settings.gyro || G.view !== 'FPV' || G.paused) return;
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - (onMotion.last || now)) / 1000);
+  onMotion.last = now;
+  const a = screenAngle();
+  const alpha = r.beta || 0, gamma = r.gamma || 0;       // deg/s around the device x / y axes
+  let yawRate, pitchRate;
+  if (a === 90) { yawRate = alpha; pitchRate = -gamma; }
+  else if (a === 270) { yawRate = -alpha; pitchRate = gamma; }
+  else { yawRate = gamma; pitchRate = alpha; }
+  const dead = (v) => (Math.abs(v) < 0.6 ? 0 : v);
+  const k = THREE.MathUtils.degToRad(1) * dt * (P.settings.gyroSens || 1) * (camera.fov / 75) * aimFriction();
+  const t = G.active;
+  if (!t) return;
+  t.yaw = shortAngle(t.yaw + dead(yawRate) * k);
+  t.pitch = THREE.MathUtils.clamp(t.pitch + dead(pitchRate) * k, CFG.pitchMin, CFG.pitchMax);
+  if (Math.abs(yawRate) + Math.abs(pitchRate) > 3) G.lastAim = G.time;
+}
+function startGyro() {
+  if (gyroOn) return;
+  gyroOn = true;
+  window.addEventListener('devicemotion', onMotion);
+}
+/** Called from the settings tap: iPhone needs the permission request inside that gesture. */
+function requestGyro() {
+  const DM = window.DeviceMotionEvent;
+  if (DM && typeof DM.requestPermission === 'function') {
+    DM.requestPermission().then((r) => {
+      if (r === 'granted') startGyro();
+      else { P.settings.gyro = false; save(); toastMsg('Motion access was declined — tilt aiming stays off'); }
+    }).catch(() => { P.settings.gyro = false; save(); });
+  } else if (DM) startGyro();
+  else { P.settings.gyro = false; save(); toastMsg('This device has no motion sensor'); }
+}
+function toastMsg(text) { floatyScreen(text, 'miss'); }
+if (P.settings.gyro && !(window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function')) startGyro();
+
+/* ================================================================ Active cooldown (B1) */
+// When the barrel overheats a needle sweeps a bar; FIRE inside the bright window vents instantly
+// and gives +25 % damage for 5 s, a miss jams the vent (slower cooldown).
+G.vent = null;
+G.ventBuff = 0;
+function startVent() {
+  const w0 = 0.5 + Math.random() * 0.25;
+  G.vent = { t: 0, dur: 1.5, w0, w1: w0 + 0.13, tried: false, jam: false };
+  const el = $('vent');
+  el.querySelector('.vw').style.left = `${w0 * 100}%`;
+  el.querySelector('.vw').style.width = `${13}%`;
+  el.classList.remove('ok', 'bad');
+  el.classList.add('show');
+}
+function updateVent(dt) {
+  if (G.ventBuff > 0) G.ventBuff -= dt;
+  const el = $('vent');
+  if (!G.vent) { if (el.classList.contains('show') && !el.classList.contains('ok') && !el.classList.contains('bad')) el.classList.remove('show'); return; }
+  const v = G.vent;
+  v.t += dt;
+  const k = Math.min(1, v.t / v.dur);
+  el.querySelector('.vn').style.left = `${k * 100}%`;
+  if (!G.overheated || v.t > v.dur + 0.4) { G.vent = null; setTimeout(() => el.classList.remove('show', 'ok', 'bad'), 350); }
+}
+function tryVent() {
+  const v = G.vent;
+  if (!v || v.tried) return false;
+  v.tried = true;
+  const k = Math.min(1, v.t / v.dur);
+  const el = $('vent');
+  if (k >= v.w0 && k <= v.w1) {
+    G.heat = 0;
+    G.overheated = false;
+    G.ventBuff = 5;
+    G.vent = null;
+    el.classList.add('ok');
+    setTimeout(() => el.classList.remove('show', 'ok'), 450);
+    banner('PERFECT VENT', '+25% damage for 5 s');
+    sfx('reloadOk');
+    emit('vent', { perfect: true });
+  } else {
+    v.jam = true;
+    el.classList.add('bad');
+    sfx('reloadFail');
+    emit('vent', { perfect: false });
+  }
+  return true;
 }

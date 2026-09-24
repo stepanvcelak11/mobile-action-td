@@ -1014,3 +1014,15 @@ body.fpv #btn-zoom { display: none; }
 .threat b { position: relative; font-size: 10px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px #000; background: rgba(120, 0, 20, 0.75); border-radius: 6px; padding: 1px 4px; white-space: nowrap; }
 .threat.boss i { background: #ff00aa; }
 @keyframes threatpulse { 50% { opacity: 0.45; } }
+
+/* ------------------------------------------------------ B1 active vent */
+#vent { position: absolute; left: 50%; top: calc(50% + 56px); transform: translateX(-50%); width: min(260px, 60vw); text-align: center; opacity: 0; pointer-events: none; transition: opacity 0.15s ease; }
+#vent.show { opacity: 1; }
+#vent .vl { display: block; font-size: 10px; font-weight: 900; letter-spacing: 0.14em; color: #ffb4a0; text-shadow: 0 1px 3px #000; margin-bottom: 4px; }
+#vent .vt { position: relative; height: 12px; border-radius: 99px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.35); overflow: hidden; }
+#vent .vw { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, #7affc0, #3ee07a); box-shadow: 0 0 10px #3ee07a; }
+#vent .vn { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1.5px; background: #fff; box-shadow: 0 0 6px #fff; }
+#vent.ok .vt { border-color: #3ee07a; box-shadow: 0 0 14px #3ee07a; }
+#vent.ok .vl::after { content: " — PERFECT!"; color: #7affc0; }
+#vent.bad .vt { border-color: #ff3b3b; }
+#vent.bad .vl::after { content: " — JAMMED"; color: #ff6b6b; }

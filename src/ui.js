@@ -727,6 +727,8 @@ function openSettings() {
         <div class="size-preview" aria-hidden="true"><span class="icon-btn">${uiIcon('map')}</span><span class="icon-btn up">${uiIcon('upgrade')}</span><span class="ability ready" style="--ac:#ff5a3a">${abilityIcon('strike')}</span><span class="fire-prev">FIRE</span></div>
         <small>Scales every in-game button: FIRE, abilities, tactics, the corner buttons and the menu.</small></div>
       <div class="set-row"><span>Aim sensitivity</span><input type="range" min="0.3" max="3" step="0.05" value="${s.sens}" data-range="sens"><b id="v-sens">${s.sens.toFixed(2)}×</b></div>
+      <div class="set-row"><span>Tilt to aim</span>${seg('gyro', [[false, 'OFF'], [true, 'ON']])}<input type="range" min="0.3" max="2.5" step="0.05" value="${s.gyroSens ?? 1}" data-range="gyroSens"><b id="v-gyroSens">${(s.gyroSens ?? 1).toFixed(2)}×</b><small>Drag for big moves, tilt the phone to fine-tune. iPhone asks once for motion access.</small></div>
+      <div class="set-row"><span>Aim assist</span>${seg('aimAssist', [[true, 'ON'], [false, 'OFF']])}<small>The crosshair slows down a little over an enemy's head</small></div>
       <div class="set-row"><span>Cockpit view</span>${seg('cockpit', [[true, 'ON'], [false, 'OFF']])}<small>Sit inside the turret with its frame and dashboard around you</small></div>
       <div class="set-row"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-range="volume"><b id="v-volume">${Math.round(s.volume * 100)}%</b></div>
       <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
@@ -741,6 +743,7 @@ function openSettings() {
     let v = b.dataset.v;
     v = v === 'true' ? true : v === 'false' ? false : isNaN(+v) ? v : +v;
     P.settings[key] = v;
+    if (key === 'gyro' && v) handlers.gyro?.();      // must run inside the tap (iPhone permission)
     save();
     applySettings();
     handlers.settings?.();
@@ -749,7 +752,7 @@ function openSettings() {
   document.querySelectorAll('#overlay-body [data-range]').forEach((r) => r.addEventListener('input', () => {
     const k = r.dataset.range;
     P.settings[k] = +r.value;
-    $(`v-${k}`).textContent = k === 'sens' ? `${(+r.value).toFixed(2)}×` : `${Math.round(r.value * 100)}%`;
+    $(`v-${k}`).textContent = k === 'sens' || k === 'gyroSens' ? `${(+r.value).toFixed(2)}×` : `${Math.round(r.value * 100)}%`;
     save();
     handlers.settings?.();
   }));
