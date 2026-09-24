@@ -44,6 +44,7 @@
       <button id="btn-pause" class="icon-btn sm" aria-label="Pause"></button>
       <button id="btn-speed" class="icon-btn sm" aria-label="Game speed"></button>
       <button id="btn-zoom" class="icon-btn sm" aria-label="Zoom the map"></button>
+      <button id="btn-bunker" class="icon-btn sm" aria-label="Back to the bunker"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 26L24 12l18 14v14H6z" fill="#8a9098" stroke="#10151c" stroke-width="2.5"/><rect x="10" y="27" width="28" height="4" fill="#10151c"/><rect x="20" y="33" width="8" height="7" fill="#ffcf5a"/></svg><small>BUNKER</small></button>
     </div>
     <div id="hud-pills">
       <div class="pill" id="hud-gold"><span class="ico gold"></span><b id="gold">150</b></div>
@@ -146,6 +147,15 @@
   </div>
 
   <div id="threats" aria-hidden="true"></div>
+  <div id="bunker-ui">
+    <div id="bk-move"></div>
+    <div id="bk-look"></div>
+    <div id="bk-knob"><i></i></div>
+    <div id="bk-cross"></div>
+    <div id="bk-label">Walk to a station</div>
+    <button id="bk-use" style="display:none">USE</button>
+    <div id="bk-help">Left: walk · Right: look · Map table, VR seats, wave console, terminal, periscope</div>
+  </div>
   <div id="bossbar" aria-live="polite"><div class="bb-top"><b>BOSS</b><small>PHASE 1</small></div><div class="bb-track"><div class="bb-fill"></div><i class="bb-mark"></i></div></div>
   <div id="floaties"></div>
   <div id="banner"></div>

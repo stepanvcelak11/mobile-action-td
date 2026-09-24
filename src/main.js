@@ -7,6 +7,7 @@ import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph } from './audio.
 import { music } from './music.js';
 import { createPerf } from './perf.js';
 import { createPost } from './post.js';
+import { buildBunker } from './bunker.js';
 import { skill } from './skill.js';
 import { run } from './roguelite.js';
 import { daily } from './daily.js';
@@ -301,6 +302,8 @@ const UP = new V3(0, 1, 0);
 // Tactical camera: the map is fitted to the screen (HUD margins included), then the player can
 // pinch / wheel to zoom, drag to pan, double-tap to jump in, and an idle zoomed camera follows the fight.
 const CAM = { zoom: 1, pan: new V3(), fit: null, lastInput: -1e9 };
+// command bunker state (see the Command bunker section at the end)
+const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, near: null, tableT: 0 };
 const CAM_MAX_ZOOM = 3;
 const _fitCam = new THREE.PerspectiveCamera();
 const _fitV = new V3();
@@ -444,6 +447,7 @@ function updateCamera(dt) {
     camera.lookAt(0, 0, 0);
     return;
   }
+  if (G.view === 'BUNKER') { bunkerCamera(dt); return; }
   if (G.view === 'TOP') {
     followFight(dt);
     if (CAM.shot && (CAM.shot.t -= dt) <= 0) CAM.shot = null;
@@ -452,13 +456,16 @@ function updateCamera(dt) {
     return;
   }
   const tr = G.trans;
-  if (G.view === 'TO_FPV' || G.view === 'TO_TOP') {
+  if (G.view === 'TO_FPV' || G.view === 'TO_TOP' || G.view === 'TO_BUNKER') {
     tr.t += dt;
     const k = ease(Math.min(1, tr.t / CFG.transition));
     let toPos, toQuat, toFov;
     if (G.view === 'TO_FPV') {
       anchorPose(G.active);
       toPos = _anchorPos; toQuat = _anchorQuat; toFov = fpvFov(G.active);
+    } else if (G.view === 'TO_BUNKER') {
+      const p = bunkerPose();
+      toPos = p.pos; toQuat = p.quat; toFov = p.fov;
     } else {
       const p = topPose();
       toPos = p.pos; toQuat = p.quat; toFov = p.fov;
@@ -473,6 +480,11 @@ function updateCamera(dt) {
         const scoped = !!TURRETS[G.active.type].scope;
         document.body.classList.toggle('scope', scoped);
         G.active.pitchG.visible = !scoped;
+      } else if (G.view === 'TO_BUNKER') {
+        G.view = 'BUNKER';
+        document.body.classList.add('bunker');
+        if (G.active) G.active.manual = false;
+        G.active = null;
       } else {
         G.view = 'TOP';
         if (G.active) G.active.manual = false;
@@ -544,7 +556,7 @@ function exitFPV() {
   landRing.visible = false;
   closeSheets();
   gunLight.intensity = 0;
-  G.view = 'TO_TOP';
+  G.view = BK.b ? 'TO_BUNKER' : 'TO_TOP';
   G.trans = snapshotTrans();
   sfx('whoosh');
   coachEvent('exit');
@@ -2934,6 +2946,7 @@ function hideScreens() {
   for (const id of ['menu', 'result', 'pause']) $(id).classList.remove('show');
 }
 function showMenu() {
+  teardownBunker();
   hideScreens();
   setCoach(null);
   $('tip').classList.remove('show');
@@ -2983,6 +2996,12 @@ function startMap(id, mode, hard = false) {
   renderAbilities();
   G.tut = !P.tutorialDone && G.map.id === 'valley' && mode === 'campaign' ? 0 : -1;
   setTimeout(() => coachStep(), 1500);
+  setupBunker();
+  if (BK.b) {
+    G.view = 'BUNKER';
+    document.body.classList.add('bunker');
+    G.rules.speed *= 0.78;          // commanding from the bunker takes time: a slower battle
+  }
   banner(G.map.name.toUpperCase(), G.daily ? `Daily challenge · ${daily.today().mutator.name}`
     : mode === 'endless' ? 'Endless — pick an upgrade card every 5 waves'
     : `${G.hard ? 'HARD · ' : ''}Build turrets, then start wave 1 · ${mapWaves()} waves`, { big: true });
@@ -3537,7 +3556,7 @@ const threatEls = [];
 function updateThreats() {
   const layer = $('threats');
   if (!layer) return;
-  const active = G.view === 'TOP' || G.view === 'FPV';
+  const active = G.view === 'TOP' || G.view === 'FPV' || G.view === 'BUNKER';
   const W = viewW(), H = viewH();
   const list = [];
   if (active && inGame()) {
@@ -3932,3 +3951,196 @@ function uniqueAct(t, act, pos, st, base, color, inRange) {
     default:
   }
 }
+
+
+/* ================================================================ Command bunker */
+// In bunker mode the player commands from an elevated concrete post behind the base: walk
+// around (left half = move, right half = look), USE stations — the map table opens the tactical
+// view, VR seats take over a turret, the wave console starts the next wave, the terminal upgrades,
+// the periscope zooms on the battlefield. Leaving a turret or the map returns to the bunker.
+const bunkerMode = () => P.settings.bunker !== false && G.tut < 0;
+function setupBunker() {
+  teardownBunker();
+  if (!bunkerMode()) return;
+  if (!CAM.fit) computeFit();
+  BK.b = buildBunker(world, G.map, CAM.fit.target);
+  scene.add(BK.b.group);
+  BK.pos.copy(BK.b.toWorld(BK.b.start));
+  BK.yaw = BK.b.yaw0;
+  BK.pitch = -0.12;
+  BK.scope = false;
+  BK.b.drawTable(G);
+  $('btn-bunker').style.display = '';
+}
+function teardownBunker() {
+  document.body.classList.remove('bunker', 'bk-scope');
+  if (!BK.b) return;
+  scene.remove(BK.b.group);
+  BK.b.dispose();
+  BK.b = null;
+  $('btn-bunker').style.display = 'none';
+  $('bk-picker')?.remove();
+}
+const _bkq = new THREE.Quaternion(), _be = new THREE.Euler(0, 0, 0, 'YXZ');
+function bunkerPose() {
+  _be.set(BK.pitch, BK.yaw + Math.PI, 0, 'YXZ');
+  // keep ~90° horizontally on tall portrait screens
+  const aspect = viewW() / viewH();
+  const wide = aspect < 1 ? Math.min(112, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(45)) / aspect))) : 78;
+  return { pos: BK.pos.clone(), quat: _bkq.clone().setFromEuler(_be), fov: BK.scope ? 18 : wide };
+}
+function bunkerCamera(dt) {
+  // walk
+  if (BK.jx || BK.jy) {
+    const sp = 2.8 * dt;
+    const f = new V3(Math.sin(BK.yaw), 0, Math.cos(BK.yaw)), r = new V3(-Math.cos(BK.yaw), 0, Math.sin(BK.yaw));
+    const next = BK.pos.clone().addScaledVector(f, BK.jy * sp).addScaledVector(r, BK.jx * sp);
+    const local = BK.b.group.worldToLocal(next.clone());
+    const bd = BK.b.bounds;
+    local.x = THREE.MathUtils.clamp(local.x, bd.minX, bd.maxX);
+    local.z = THREE.MathUtils.clamp(local.z, bd.minZ, bd.maxZ);
+    for (const [cx, cz, hw, hd] of BK.b.blocks) {
+      const ex = hw + 0.3, ez = hd + 0.3;
+      const dx = local.x - cx, dz = local.z - cz;
+      if (Math.abs(dx) < ex && Math.abs(dz) < ez) {
+        if (ex - Math.abs(dx) < ez - Math.abs(dz)) local.x = cx + Math.sign(dx || 1) * ex;
+        else local.z = cz + Math.sign(dz || 1) * ez;
+      }
+    }
+    BK.pos.copy(BK.b.group.localToWorld(local));
+  }
+  const p = bunkerPose();
+  camera.position.copy(p.pos);
+  camera.quaternion.copy(p.quat);
+  // head bob while walking
+  if (BK.jx || BK.jy) camera.position.y += Math.sin(G.time * 9) * 0.03;
+  if (Math.abs(camera.fov - p.fov) > 0.1) { camera.fov += (p.fov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
+  // what am I looking at?
+  const fwd = camera.getWorldDirection(new V3());
+  let best = null, bestA = 0.65;
+  for (const s of BK.b.stations) {
+    const to = s.pos.clone().sub(camera.position);
+    const flat = Math.hypot(to.x, to.z);
+    if (flat > 2.6) continue;
+    const a = to.normalize().angleTo(fwd);
+    if (a < bestA) { bestA = a; best = s; }
+  }
+  if (BK.scope) best = BK.b.stations.find((s) => s.id === 'scope');
+  if (best !== BK.near) {
+    BK.near = best;
+    const use = $('bk-use');
+    use.style.display = best ? '' : 'none';
+    $('bk-label').textContent = best ? (BK.scope ? 'LEAVE PERISCOPE' : best.label) : 'Walk to a station';
+  }
+  BK.tableT -= dt;
+  if (BK.tableT <= 0) { BK.tableT = 0.3; BK.b.drawTable(G); }
+}
+function goBunker() {
+  if (!BK.b || !inGame()) return;
+  closeSheets();
+  document.body.classList.remove('fpv', 'scope');
+  G.view = 'TO_BUNKER';
+  G.trans = snapshotTrans();
+  sfx('whoosh');
+}
+function bunkerUse() {
+  const s = BK.near;
+  if (!s || !inGame()) return;
+  unlockAudio();
+  if (s.id === 'scope') {
+    BK.scope = !BK.scope;
+    document.body.classList.toggle('bk-scope', BK.scope);
+    BK.near = null;
+    return;
+  }
+  if (s.id === 'wave') {
+    if (G.state === STATE.IDLE || canCallEarly()) startWave();
+    else notify('WAVE IN PROGRESS', 'Clear it first', 1600);
+    return;
+  }
+  if (s.id === 'map') {
+    document.body.classList.remove('bunker');
+    G.view = 'TO_TOP';
+    G.trans = snapshotTrans();
+    sfx('whoosh');
+    return;
+  }
+  if (s.id === 'vr' || s.id === 'upgrade') openBunkerPicker(s.id);
+}
+/** Turret list for the VR seats (take control) and the terminal (upgrade card). */
+function openBunkerPicker(kind) {
+  $('bk-picker')?.remove();
+  if (!G.turrets.length) { notify('NO TURRETS YET', 'Build some at the map table', 2200); return; }
+  const el = document.createElement('div');
+  el.id = 'bk-picker';
+  el.innerHTML = `<div class="bkp-head"><b>${kind === 'vr' ? 'VR SEAT — choose a turret' : 'TERMINAL — choose a turret'}</b><button class="x-btn" aria-label="Close">✕</button></div>
+    <div class="bkp-list">${G.turrets.map((t, i) => {
+      const pic = turretPortrait(t.type, skinOf(t.type));
+      return `<button class="bkp-t" data-i="${i}"><span class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(t.type)}</span><b>${TURRETS[t.type].name}</b><small>T${upgradesOf(t)}</small></button>`;
+    }).join('')}</div>`;
+  document.body.append(el);
+  el.querySelector('.x-btn').addEventListener('click', () => el.remove());
+  el.querySelectorAll('.bkp-t').forEach((b) => b.addEventListener('click', () => {
+    const t = G.turrets[+b.dataset.i];
+    el.remove();
+    if (!t) return;
+    if (kind === 'vr') { document.body.classList.remove('bunker'); enterFPV(t); }
+    else openTurretCard(t);
+  }));
+}
+
+// input: left half = joystick, right half = look, USE button, WASD + mouse drag on desktop
+{
+  const ui = $('bunker-ui');
+  const knob = $('bk-knob');
+  let move = null, look = null;
+  $('bk-move').addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    move = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+    $('bk-move').setPointerCapture(ev.pointerId);
+    knob.style.display = 'block';
+    knob.style.left = `${ev.clientX}px`; knob.style.top = `${ev.clientY}px`;
+  });
+  $('bk-move').addEventListener('pointermove', (ev) => {
+    if (!move || ev.pointerId !== move.id) return;
+    const dx = ev.clientX - move.x, dy = ev.clientY - move.y;
+    const len = Math.hypot(dx, dy), max = 55;
+    const k = Math.min(1, len / max) / (len || 1);
+    BK.jx = dx * k; BK.jy = -dy * k;
+    knob.firstElementChild.style.transform = `translate(${dx * Math.min(1, max / (len || 1))}px, ${dy * Math.min(1, max / (len || 1))}px)`;
+  });
+  const endMove = (ev) => { if (move && ev.pointerId === move.id) { move = null; BK.jx = BK.jy = 0; knob.style.display = 'none'; } };
+  $('bk-move').addEventListener('pointerup', endMove);
+  $('bk-move').addEventListener('pointercancel', endMove);
+  $('bk-look').addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    look = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+    $('bk-look').setPointerCapture(ev.pointerId);
+  });
+  $('bk-look').addEventListener('pointermove', (ev) => {
+    if (!look || ev.pointerId !== look.id) return;
+    const k = 0.0048 * (P.settings.sens || 1) * (BK.scope ? 0.25 : 1);
+    BK.yaw -= (ev.clientX - look.x) * k;
+    BK.pitch = THREE.MathUtils.clamp(BK.pitch - (ev.clientY - look.y) * k, -1.2, 1.1);
+    look.x = ev.clientX; look.y = ev.clientY;
+  });
+  const endLook = (ev) => { if (look && ev.pointerId === look.id) look = null; };
+  $('bk-look').addEventListener('pointerup', endLook);
+  $('bk-look').addEventListener('pointercancel', endLook);
+  $('bk-use').addEventListener('click', (ev) => { ev.stopPropagation(); bunkerUse(); });
+  const keys = new Set();
+  const syncKeys = () => {
+    if (G.view !== 'BUNKER') return;
+    BK.jy = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
+    BK.jx = (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0);
+  };
+  window.addEventListener('keydown', (ev) => {
+    if (G.view !== 'BUNKER') return;
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(ev.code)) { keys.add(ev.code); syncKeys(); }
+    if (ev.code === 'KeyE' || ev.code === 'Space') { ev.preventDefault(); bunkerUse(); }
+  });
+  window.addEventListener('keyup', (ev) => { keys.delete(ev.code); syncKeys(); });
+  ui.addEventListener('contextmenu', (ev) => ev.preventDefault());
+}
+on('btn-bunker', () => goBunker());
+$('btn-bunker').style.display = 'none';
