@@ -1,6 +1,7 @@
 // Procedural low-poly assets: twin-cannon turret and the three enemy archetypes.
 import * as THREE from 'three';
 import { ENEMIES, SKINS } from './config.js';
+import { MODEL_BUILDERS } from './models.js';
 
 const matCache = new Map();
 function mat(color, opts = {}) {
@@ -745,10 +746,13 @@ function buildBomber() {
   return { g, body, legs, wp, gait: 'flyspin' };
 }
 
+// Detailed models live in models.js (D2); the simple builders above stay as a fallback.
 const BUILDERS = {
+
   runner: buildRunner, medic: buildMedic, burrower: buildBurrower, juggernaut: buildJuggernaut, bomber: buildBomber,
   scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
   shield: buildShield, cloak: buildCloak, splitter: buildSplitter, boss: buildBoss,
+  ...MODEL_BUILDERS,
 };
 
 const iceM = new THREE.MeshBasicMaterial({ color: '#bff0ff', transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false });
@@ -767,6 +771,11 @@ function barMesh(w, h, color, z, order) {
 export function createEnemy(type, hpMult = 1) {
   const def = ENEMIES[type];
   const parts = BUILDERS[type]();
+  // Chunks for death effects, tagged by role: body / leg / turret.
+  const chunks = parts.parts || [parts.body];
+  for (const c of chunks) c.userData.part ||= 'body';
+  for (const l of parts.legs || []) l.pivot.userData.part = 'leg';
+  if (parts.tur) parts.tur.userData.part = 'turret';
   const maxHp = Math.round(def.hp * hpMult);
   if (def.scale) parts.g.scale.setScalar(def.scale);
 
@@ -795,7 +804,7 @@ export function createEnemy(type, hpMult = 1) {
 
   const shield = def.shield ? Math.round(def.shield * hpMult) : 0;
   return {
-    type, def, group: parts.g, body: parts.body, legs: parts.legs, wp: parts.wp, tur: parts.tur, gait: parts.gait,
+    type, def, group: parts.g, body: parts.body, parts: chunks, legs: parts.legs, wp: parts.wp, tur: parts.tur, gait: parts.gait,
     bubble: parts.bubble || null, cloth: parts.cloth || null, ice, aura: parts.aura || null, drill: parts.drill || null,
     cripple: 0, burrowT: 2 + Math.random() * 2, buried: false, healT: 1.5, markT: 0,
     bar, fill, fillM: fill.material, shieldFill, hp: maxHp, maxHp, shield, maxShield: shield, shieldIdle: 0,
