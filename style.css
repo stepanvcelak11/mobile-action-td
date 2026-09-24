@@ -999,3 +999,18 @@ body.coach-on #tip { top: calc(58px + var(--coach-h, 56px) + 8px + var(--sat)); 
 body.fpv #btn-zoom { display: none; }
 #game { touch-action: none; }
 @media (orientation: portrait) { #hud-pills { margin-left: calc(138px * var(--ui)); } }
+
+/* ---------------------------------------------------- A1 / F2 feedback */
+#hitmark.head { width: 46px; height: 46px; margin: -23px 0 0 -23px; background: linear-gradient(45deg, transparent 43%, #ffd23c 43%, #ffd23c 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, #ffd23c 43%, #ffd23c 57%, transparent 57%); filter: drop-shadow(0 0 6px #ffb020); }
+#hitmark.kill { width: 40px; height: 40px; margin: -20px 0 0 -20px; background: linear-gradient(45deg, transparent 42%, #ff3b3b 42%, #ff3b3b 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, #ff3b3b 42%, #ff3b3b 58%, transparent 58%); filter: drop-shadow(0 0 5px #ff3b3b); }
+#hitmark.show.kill { animation: hitkill 0.28s ease-out; }
+@keyframes hitkill { from { opacity: 1; transform: scale(1.5) rotate(10deg); } to { opacity: 0; transform: scale(1); } }
+#muzzleflash { position: absolute; left: 50%; bottom: 0; width: 70vmin; height: 45vmin; transform: translateX(-50%); pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 100%, rgba(255, 200, 120, 0.55), rgba(255, 120, 40, 0.18) 40%, transparent 70%); mix-blend-mode: screen; }
+#muzzleflash.go { animation: mflash 0.12s ease-out; }
+@keyframes mflash { from { opacity: 1; } to { opacity: 0; } }
+#threats { position: fixed; inset: 0; pointer-events: none; z-index: 9; }
+.threat { position: absolute; left: 0; top: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; }
+.threat i { position: absolute; inset: 0; background: radial-gradient(circle at 70% 50%, rgba(255, 59, 79, 0.95) 0 30%, transparent 31%); clip-path: polygon(100% 50%, 45% 10%, 55% 50%, 45% 90%); background: #ff3b4f; filter: drop-shadow(0 0 6px rgba(255, 59, 79, 0.9)); animation: threatpulse 0.8s ease-in-out infinite; }
+.threat b { position: relative; font-size: 10px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px #000; background: rgba(120, 0, 20, 0.75); border-radius: 6px; padding: 1px 4px; white-space: nowrap; }
+.threat.boss i { background: #ff00aa; }
+@keyframes threatpulse { 50% { opacity: 0.45; } }

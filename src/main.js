@@ -245,7 +245,6 @@ function loadMap(id) {
   scene.add(world.root);
   resetCam();
   pickables = world.plots.map((p) => p.group);
-  buildMarkers();
 }
 
 function clearField() {
@@ -258,6 +257,8 @@ function clearField() {
   for (const z of G.zones) scene.remove(z.mesh);
   G.zones = [];
   G.goldRushT = G.overclockT = G.shieldT = G.coolantT = 0;
+  // (runs once during boot too, before the game-feel section at the end of this file exists)
+  if (G.fx) { clearDebris(); G.fx.stop = G.fx.slow = 0; CAM.shot = null; }
   baseShield.visible = false;
   projectiles.clear();
   beams.clear();
@@ -340,7 +341,13 @@ function topPose() {
   if (!CAM.fit) computeFit();
   const f = CAM.fit;
   const target = f.target.clone().add(CAM.pan);
-  const pos = target.clone().addScaledVector(f.dir, f.dist / CAM.zoom);
+  let zoom = CAM.zoom;
+  if (CAM.shot) {
+    const w = Math.sin(Math.PI * (1 - CAM.shot.t / CAM.shot.T));    // 0 → 1 → 0
+    target.lerp(CAM.shot.focus, 0.6 * w);
+    zoom *= 1 + 0.9 * w;
+  }
+  const pos = target.clone().addScaledVector(f.dir, f.dist / zoom);
   const quat = new THREE.Quaternion().setFromRotationMatrix(_m4.lookAt(pos, target, UP));
   return { pos, quat, fov: CFG.topFov };
 }
@@ -418,6 +425,7 @@ function updateCamera(dt) {
   }
   if (G.view === 'TOP') {
     followFight(dt);
+    if (CAM.shot && (CAM.shot.t -= dt) <= 0) CAM.shot = null;
     applyTopPose();
     if (G.shake > 0) camera.position.add(new V3((Math.random() - 0.5) * G.shake, 0, (Math.random() - 0.5) * G.shake));
     return;
@@ -468,6 +476,9 @@ function updateCamera(dt) {
     camera.position.x += (Math.random() - 0.5) * G.shake * 0.25;
     camera.position.y += (Math.random() - 0.5) * G.shake * 0.25;
   }
+  if (G.kick.p > 0.0005) camera.rotateX(G.kick.p);
+  const fov = fpvFov(G.active) + G.kick.f;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
 function snapshotTrans() {
@@ -903,8 +914,9 @@ function hitEnemy(e, base, { st = NO_STATS, manual = false, weak = false, zone =
   const special = weak || zone === 'head';
   if (!quiet) sparks.emit(point, special ? '#ffe14a' : crit ? '#ff5aff' : spark, special ? 16 : 6, special ? 9 : 6, 0.35, 12, 0.3);
   if (manual && !quiet) {
-    sfx(special ? 'weak' : 'hit');
-    hitMarker(special);
+    sfx(zone === 'head' ? 'headshot' : crit ? 'crit' : special ? 'weak' : 'hit');
+    hitMarker(special, zone === 'head' ? 'head' : '');
+    if (zone === 'head' || crit) hitStop(0.045);
     const label = zone === 'head' ? 'HEADSHOT ' : weak ? 'WEAK ' : crit ? 'CRIT ' : '';
     if (zone !== 'limb') floaty(point, `${label}${Math.round(dmg)}`, special || crit ? 'weak' : 'dmg');
   }
@@ -984,6 +996,16 @@ function killEnemy(e, point, st, manual) {
   G.shake = Math.max(G.shake, 0.12 * big);
   sfx(e.type === 'boss' ? 'boom' : 'explode', 0.06);
   if (e.type === 'boss') banner('BOSS DESTROYED', `+${reward} gold`);
+  const push = manual && G.view === 'FPV' ? camera.getWorldDirection(new V3()).setY(0.2).normalize() : null;
+  spawnDebris(e, push);
+  sfx('debris', 0.08);
+  if (manual) { sfx('kill', 0.05); hitMarker(true, 'kill'); hitStop(e.type === 'boss' ? 0.12 : 0.06); }
+  const lastOfWave = G.state === STATE.WAVE && !G.queue.length && G.enemies.filter((o) => o.alive).length === 1;
+  if (e.type === 'boss' || lastOfWave) {
+    slowMo(e.type === 'boss' ? 1.4 : 0.9);
+    if (G.view === 'TOP' || G.view === 'TO_TOP') CAM.shot = { focus: c.clone().setY(0), t: e.type === 'boss' ? 1.4 : 0.9, T: e.type === 'boss' ? 1.4 : 0.9 };
+    else G.kick.f = -9;
+  }
   removeEnemy(idx);
   if (e.def.split) {
     for (let k = 0; k < e.def.split; k++) spawnEnemy('mini', e);
@@ -1813,6 +1835,7 @@ function manualShot() {
     }
   }
   if (t.spinner) t.spin = 40;
+  if (!continuous) recoilKick(d.kind);
   if (!continuous) {
     sparks.emit(_muzzle, d.kind === 'zap' ? '#c68bff' : '#ffb050', d.kind === 'bullet' ? 4 : 10, 4, 0.15, 0, 0.1);
     muzzleLight.position.copy(_muzzle);
@@ -2288,61 +2311,13 @@ function spawnFloaty(x, y, text, cls) {
   setTimeout(() => el.remove(), 900);
 }
 
-function hitMarker(weak) {
+function hitMarker(weak, kind = '') {
   const h = $('hitmark');
-  h.classList.remove('show');
+  h.classList.remove('show', 'head', 'kill');
   h.classList.toggle('weak', weak);
+  if (kind) h.classList.add(kind);
   void h.offsetWidth;
   h.classList.add('show');
-}
-
-/* --------------------------------------------- FPV markers above turrets/pads */
-let markers = [];
-function buildMarkers() {
-  const layer = $('markers');
-  layer.innerHTML = '';
-  markers = world.plots.map((plot) => {
-    const el = document.createElement('button');
-    el.className = 'marker';
-    el.addEventListener('pointerdown', (ev) => ev.stopPropagation());
-    el.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      unlockAudio();
-      if (plot.turret) enterFPV(plot.turret);
-      else openBuild(plot);
-    });
-    layer.append(el);
-    return { el, plot, kind: null };
-  });
-}
-const _mp = new V3();
-function updateMarkers() {
-  const show = G.view === 'FPV' && !G.paused;
-  document.body.classList.toggle('markers-on', show);
-  if (!show) return;
-  const cheapest = Math.min(...TURRET_ORDER.filter((k) => P.unlocked[k]).map((k) => buildCost(k)));
-  for (const m of markers) {
-    const { plot, el } = m;
-    if (plot === G.active?.plot) { el.style.display = 'none'; continue; }
-    _mp.copy(plot.pos).setY(plot.turret ? 3.4 : 1.2).project(camera);
-    const x = ((_mp.x + 1) / 2) * window.innerWidth, y = ((1 - _mp.y) / 2) * window.innerHeight;
-    const dist = camera.position.distanceTo(plot.pos);
-    if (_mp.z > 1 || x < 24 || x > window.innerWidth - 24 || y < 70 || y > window.innerHeight - 30 || dist < 3) { el.style.display = 'none'; continue; }
-    el.style.display = '';
-    el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${THREE.MathUtils.clamp(14 / dist, 0.7, 1.15)})`;
-    const kind = plot.turret ? `t:${plot.turret.type}:${upgradesOf(plot.turret)}` : `p:${G.gold >= cheapest}`;
-    if (m.kind !== kind) {
-      m.kind = kind;
-      if (plot.turret) {
-        el.className = 'marker turret';
-        const n = upgradesOf(plot.turret);
-        el.innerHTML = `${turretIcon(plot.turret.type)}${n ? `<i>${n}</i>` : ''}`;
-      } else {
-        el.className = `marker pad${G.gold >= cheapest ? '' : ' poor'}`;
-        el.innerHTML = uiIcon('plus');
-      }
-    }
-  }
 }
 
 /* ------------------------------------------------------------------ Sheets */
@@ -2511,14 +2486,51 @@ function onTopTap(x, y) {
   else openBuild(plot);
 }
 
-/** Tap while in FPV (left half): another turret -> jump into it; empty pad -> build card. */
+/**
+ * FPV picking: the turret whose model is under the finger. A direct ray hit wins; otherwise the
+ * turret whose on-screen body is closest relative to its on-screen size (so a far, small turret
+ * needs a closer tap than a near, big one). Never falls back to "nearest pad on the ground".
+ */
+const _pv = new V3();
+function pickTurretFpv(x, y) {
+  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(_ndc, camera);
+  const others = G.turrets.filter((t) => t !== G.active);
+  const hit = raycaster.intersectObjects(others.map((t) => t.root), true)[0];
+  if (hit) {
+    let o = hit.object;
+    while (o && !others.some((t) => t.root === o)) o = o.parent;
+    const t = others.find((q) => q.root === o);
+    if (t) return t;
+  }
+  const H = window.innerHeight;
+  const k = H / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  let best = null, bestScore = 1.25;
+  for (const t of others) {
+    _pv.copy(t.plot.pos).setY(1.4);
+    const dist = _pv.distanceTo(camera.position);
+    if (dist > 90) continue;
+    _pv.project(camera);
+    if (_pv.z > 1) continue;
+    const sx = ((_pv.x + 1) / 2) * window.innerWidth, sy = ((1 - _pv.y) / 2) * H;
+    const r = Math.max(22, (1.6 / dist) * k);             // on-screen radius of a turret, at least a fingertip
+    const score = Math.hypot(sx - x, sy - y) / r;
+    if (score < bestScore) { bestScore = score; best = t; }
+  }
+  return best;
+}
+/** Tap while in FPV: another turret -> jump into it; an empty pad hit directly -> build card. */
 function onFpvTap(x, y) {
   if (!inGame()) return false;
-  const plot = pickPlot(x, y);
-  if (!plot) return false;
-  if (plot.turret) enterFPV(plot.turret);
-  else openBuild(plot);
-  return true;
+  const t = pickTurretFpv(x, y);
+  if (t) { enterFPV(t); return true; }
+  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(_ndc, camera);
+  const own = G.active?.plot.group;
+  const pads = raycaster.intersectObjects(pickables.filter((g) => g !== own), true);
+  const plot = pads[0]?.object.userData.plot;
+  if (plot && !plot.turret && pads[0].distance < 60) { openBuild(plot); return true; }
+  return false;
 }
 
 let tapStart = null;
@@ -2674,7 +2686,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   }
   const fireSide = P.settings.leftHanded ? ev.clientX < window.innerWidth / 2 : ev.clientX > window.innerWidth / 2;
   if (fireSide) {
-    firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() });
     canvas.setPointerCapture(ev.pointerId);
     refreshFire();
   }
@@ -2686,8 +2698,14 @@ canvas.addEventListener('pointermove', (ev) => {
   p.x = ev.clientX; p.y = ev.clientY;
 });
 const canvasFireEnd = (ev) => {
+  const p = firePointers.get(ev.pointerId);
   firePointers.delete(ev.pointerType === 'mouse' ? 'mouse' : ev.pointerId);
   refreshFire();
+  // a quick, still tap on the fire side that lands on a turret jumps into it
+  if (p && p.t && ev.type === 'pointerup' && performance.now() - p.t < 250 && Math.hypot(ev.clientX - p.sx, ev.clientY - p.sy) < 12) {
+    const t = pickTurretFpv(ev.clientX, ev.clientY);
+    if (t) enterFPV(t);
+  }
 };
 canvas.addEventListener('pointerup', canvasFireEnd);
 canvas.addEventListener('pointercancel', canvasFireEnd);
@@ -2939,6 +2957,7 @@ initMenu({
 /* --------------------------------------------------------------- Main loop */
 function update(dt) {
   G.time += dt;
+  updateDebris(dt);
   world.update(dt, G.time);
   if (weather) weather.update(dt, G.time);
   if (!music.playing && audioGraph()) music.play(G.view === 'MENU' ? 'menu' : G.map.theme);
@@ -2982,14 +3001,16 @@ function frame(now) {
   perf.frame(now);
   if (!G.paused) {
     const steps = Math.max(1, Math.round(G.timeScale * (G.view === 'MENU' ? 1 : G.speed)));
-    for (let i = 0; i < steps; i++) update(raw);
+    const sim = fxDt(raw);
+    if (sim > 0) for (let i = 0; i < steps; i++) update(sim);
+    updateKick(raw);
+    updateReadability(raw);
   }
   updateCamera(raw);
   const extra = Math.max(0, camera.position.length() - 50);
   scene.fog.near = fogBase[0] + extra;
   scene.fog.far = fogBase[1] + extra;
   updateFpvHud();
-  updateMarkers();
   hudTick += raw;
   if (hudTick > 0.1 && G.view !== 'MENU') { hudTick = 0; updateHud(); }
   renderer.render(scene, camera);
@@ -3211,4 +3232,195 @@ function skyStrike(t, target, st, manual, spot, dmgOverride) {
   sfx('zap', 0.08);
   G.shake = Math.max(G.shake, 0.2);
   return n;
+}
+
+
+/* ================================================================ Game feel (A1 A2 G2) */
+// Time effects: hit-stop freezes the simulation for a few frames, slow-mo eases the last kill of a wave.
+G.fx = { stop: 0, slow: 0, slowT: 1 };
+G.kick = { p: 0, f: 0 };
+function hitStop(sec) {
+  if (G.view !== 'FPV') return;
+  G.fx.stop = Math.max(G.fx.stop, sec);
+}
+function slowMo(sec) {
+  G.fx.slow = sec;
+  G.fx.slowT = sec;
+}
+/** Simulation dt for this frame after hit-stop / slow-mo. */
+function fxDt(raw) {
+  if (G.fx.stop > 0) { G.fx.stop -= raw; return 0; }
+  if (G.fx.slow > 0) {
+    G.fx.slow -= raw;
+    const k = 1 - Math.max(0, G.fx.slow) / G.fx.slowT;       // 0 → 1 over the effect
+    return raw * (0.2 + 0.8 * k * k);
+  }
+  return raw;
+}
+const RECOIL = { bullet: [0.0035, 0], shell: [0.022, 1.2], shard: [0.01, 0], sniper: [0.045, 3], rail: [0.05, 3.5], rocket: [0.03, 2], mortar: [0.035, 2], venom: [0.012, 0.5], harpoon: [0.03, 1.5], orb: [0.025, 2], zap: [0.01, 0.4], pulse: [0.02, 2.5] };
+function recoilKick(kind) {
+  const r = RECOIL[kind] || [0.015, 0.6];
+  G.kick.p = Math.min(0.12, G.kick.p + r[0]);
+  G.kick.f = Math.min(6, G.kick.f + r[1]);
+  if (r[1] >= 1.2) {
+    const f = $('muzzleflash');
+    f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  }
+}
+function updateKick(dt) {
+  G.kick.p *= Math.exp(-dt * 12);
+  G.kick.f *= Math.exp(-dt * (G.kick.f < 0 ? 3 : 10));
+}
+
+// Debris: an enemy's parts fly apart when it dies.
+const debris = [];
+const DEBRIS_MAX = 80;
+const _dq = new THREE.Quaternion();
+function spawnDebris(e, push) {
+  const list = [...(e.parts || []), ...(e.legs || []).map((l) => l.pivot), ...(e.tur ? [e.tur] : [])].filter(Boolean);
+  if (!list.length) return;
+  const big = e.type === 'boss' ? 2.2 : e.def.radius;
+  e.group.updateMatrixWorld(true);
+  const c = e.center;
+  for (const part of list.slice(0, 10)) {
+    if (!part.parent) continue;
+    scene.attach(part);                         // keeps its world transform
+    const out = part.getWorldPosition(new V3()).sub(c).setY(0);
+    if (out.lengthSq() < 0.01) out.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    out.normalize();
+    const v = out.multiplyScalar(2 + Math.random() * 3 * big).setY(3 + Math.random() * 4 * Math.min(1.5, big));
+    if (push) v.addScaledVector(push, 4);
+    debris.push({ o: part, v, w: new V3((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12), t: 0, life: 1.8 + Math.random() * 0.8, s0: part.scale.clone() });
+  }
+  while (debris.length > DEBRIS_MAX) scene.remove(debris.shift().o);
+}
+function updateDebris(dt) {
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i];
+    d.t += dt;
+    d.v.y -= 18 * dt;
+    d.o.position.addScaledVector(d.v, dt);
+    if (d.o.position.y < 0.12) {
+      d.o.position.y = 0.12;
+      if (d.v.y < 0) d.v.y *= -0.3;
+      d.v.x *= 0.6; d.v.z *= 0.6; d.w.multiplyScalar(0.6);
+    }
+    _dq.setFromEuler(new THREE.Euler(d.w.x * dt, d.w.y * dt, d.w.z * dt));
+    d.o.quaternion.multiply(_dq);
+    const fade = d.t > d.life - 0.5 ? Math.max(0.001, (d.life - d.t) / 0.5) : 1;
+    d.o.scale.copy(d.s0).multiplyScalar(fade);
+    if (d.t >= d.life) { scene.remove(d.o); debris.splice(i, 1); }
+  }
+}
+function clearDebris() { for (const d of debris) scene.remove(d.o); debris.length = 0; }
+
+/* ================================================================ Readable battlefield (F2) */
+// Ground rings coloured by enemy class, drawn in one instanced call; enemies read ~30 % bigger from above.
+const RING_MAX = 160;
+const ringMesh = new THREE.InstancedMesh(
+  new THREE.RingGeometry(0.78, 1, 28).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false }),
+  RING_MAX,
+);
+ringMesh.frustumCulled = false;
+ringMesh.renderOrder = 2;
+scene.add(ringMesh);
+const _rm = new THREE.Matrix4();
+const _rc = new THREE.Color();
+function enemyClassColor(e) {
+  if (e.elite) return e.elite.color;
+  if (e.type === 'boss') return '#ff3355';
+  if (e.def.heal) return '#3ee07a';
+  if (e.def.cloak) return '#c48bff';
+  if (e.def.air) return '#4fc3ff';
+  if (e.def.armor || e.def.shield) return '#ffcf5a';
+  return '#eef2f6';
+}
+G.enemyScale = 1;
+function updateReadability(dt) {
+  const top = G.view === 'TOP' || G.view === 'TO_TOP';
+  G.enemyScale += ((top ? 1.3 : 1) - G.enemyScale) * Math.min(1, dt * 6);
+  let n = 0;
+  for (const e of G.enemies) {
+    if (!e.alive) continue;
+    e.group.scale.setScalar((e.def.scale || 1) * G.enemyScale);
+    if (!top || n >= RING_MAX || e.buried) continue;
+    const r = e.def.radius * 1.25 * G.enemyScale * (e.def.scale || 1);
+    _rm.makeScale(r, 1, r).setPosition(e.group.position.x, 0.07, e.group.position.z);
+    ringMesh.setMatrixAt(n, _rm);
+    ringMesh.setColorAt(n, _rc.set(enemyClassColor(e)));
+    n++;
+  }
+  ringMesh.count = n;
+  ringMesh.instanceMatrix.needsUpdate = true;
+  if (ringMesh.instanceColor) ringMesh.instanceColor.needsUpdate = true;
+  updateWaveArrows(dt, top);
+  updateThreats();
+}
+
+// Chevrons flowing from each spawn along the road while the next wave waits.
+const ARROWS_PER_PATH = 7;
+const arrowGeo = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.9, -0.5), new THREE.Vector2(0, 0.6), new THREE.Vector2(0.9, -0.5), new THREE.Vector2(0, -0.1)])).rotateX(-Math.PI / 2);
+const arrowMesh = new THREE.InstancedMesh(arrowGeo, new THREE.MeshBasicMaterial({ color: '#ff3b4f', transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }), ARROWS_PER_PATH * 6);
+arrowMesh.frustumCulled = false;
+arrowMesh.renderOrder = 2;
+scene.add(arrowMesh);
+const _ap = new V3(), _at = new V3(), _aq = new THREE.Quaternion(), _as = new V3(1, 1, 1);
+function updateWaveArrows(dt, top) {
+  const show = top && world && G.state === STATE.IDLE && G.view !== 'MENU' && G.wave < totalWaves();
+  if (!show) { arrowMesh.count = 0; return; }
+  let n = 0;
+  const flow = (G.time * 5) % 3;
+  for (const path of world.paths.slice(0, 6)) {
+    for (let k = 0; k < ARROWS_PER_PATH; k++) {
+      const d = 2 + k * 3 + flow;
+      path.sample(d, _ap, _at);
+      _aq.setFromUnitVectors(new V3(0, 0, -1), _at.clone().setY(0).normalize());
+      const fade = 1 - k / ARROWS_PER_PATH;
+      _as.setScalar(1.3 + 0.5 * fade);
+      _rm.compose(_ap.clone().setY(0.1), _aq, _as);
+      arrowMesh.setMatrixAt(n++, _rm);
+    }
+  }
+  arrowMesh.count = n;
+  arrowMesh.instanceMatrix.needsUpdate = true;
+  arrowMesh.material.opacity = 0.55 + 0.3 * Math.sin(G.time * 4);
+}
+
+// Edge-of-screen warnings for enemies near the base that you cannot see.
+const threatEls = [];
+function updateThreats() {
+  const layer = $('threats');
+  if (!layer) return;
+  const active = G.view === 'TOP' || G.view === 'FPV';
+  const W = window.innerWidth, H = window.innerHeight;
+  const list = [];
+  if (active && inGame()) {
+    for (const e of G.enemies) {
+      if (!e.alive || e.buried) continue;
+      const prog = e.s / e.path.length;
+      if (prog < 0.55) continue;
+      _proj.copy(e.center).project(camera);
+      const behind = _proj.z > 1;
+      if (!behind && Math.abs(_proj.x) < 0.95 && Math.abs(_proj.y) < 0.95) continue;
+      list.push({ e, prog, x: behind ? -_proj.x : _proj.x, y: behind ? -_proj.y : _proj.y });
+    }
+    list.sort((a, b) => b.prog - a.prog);
+  }
+  for (let i = 0; i < 4; i++) {
+    let el = threatEls[i];
+    if (!el) { el = document.createElement('div'); el.className = 'threat'; el.innerHTML = '<i></i><b></b>'; layer.append(el); threatEls[i] = el; }
+    const t = list[i];
+    if (!t) { el.style.display = 'none'; continue; }
+    const ang = Math.atan2(-t.y, t.x);
+    const m = Math.max(Math.abs(t.x), Math.abs(t.y)) || 1;
+    const nx = t.x / m, ny = t.y / m;
+    const x = THREE.MathUtils.clamp((nx + 1) / 2 * W, 34, W - 34);
+    const y = THREE.MathUtils.clamp((1 - ny) / 2 * H, 64, H - 70);
+    el.style.display = '';
+    el.style.transform = `translate(${x - 22}px, ${y - 22}px)`;
+    el.firstChild.style.transform = `rotate(${ang}rad)`;
+    el.lastChild.textContent = t.e.type === 'boss' ? 'BOSS' : `${Math.round((1 - t.prog) * t.e.path.length)} m`;
+    el.classList.toggle('boss', t.e.type === 'boss');
+  }
 }
