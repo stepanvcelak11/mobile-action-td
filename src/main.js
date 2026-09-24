@@ -47,9 +47,12 @@ if (!isCoarse) document.body.classList.add('mouse');
 
 /* --------------------------------------------------------------- Renderer */
 const canvas = $('game');
+// Screen size comes from the canvas: on iPhone home-screen apps viewport.js can make it larger than the window.
+const viewW = () => canvas.clientWidth || window.innerWidth;
+const viewH = () => canvas.clientHeight || window.innerHeight;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCoarse ? 1.75 : 2));
-renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.setSize(viewW(), viewH(), false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -61,7 +64,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.background = new THREE.Color('#a9cfe8');
 scene.fog = new THREE.Fog('#a9cfe8', 70, 150);
 
-const camera = new THREE.PerspectiveCamera(CFG.topFov, window.innerWidth / window.innerHeight, 0.05, 700);
+const camera = new THREE.PerspectiveCamera(CFG.topFov, viewW() / viewH(), 0.05, 700);
 // a soft lamp riding with the camera so the barrels you look down are not pitch black in FPV
 const gunLight = new THREE.PointLight('#fff1dd', 0, 7, 1.6);
 gunLight.position.set(0, 0.6, 0.4);
@@ -295,7 +298,7 @@ const CAM_MAX_ZOOM = 3;
 const _fitCam = new THREE.PerspectiveCamera();
 const _fitV = new V3();
 function computeFit() {
-  const aspect = window.innerWidth / window.innerHeight;
+  const aspect = viewW() / viewH();
   const portrait = aspect < 0.9;
   const pts = [];
   for (const path of world.paths) for (let i = 0; i < path.pts.length; i += 8) pts.push(path.pts[i]);
@@ -408,7 +411,7 @@ function fpvFov(t) {
   if (d.scope) return d.fov;
   // wider view from inside the cockpit; in portrait keep at least ~95° horizontally
   let v = d.fov + 8;
-  const aspect = window.innerWidth / window.innerHeight;
+  const aspect = viewW() / viewH();
   if (aspect < 1) v = Math.max(v, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(47.5)) / aspect)));
   return Math.min(v, 108);
 }
@@ -2257,7 +2260,7 @@ function updateFpvButtons() {
 
 function updateFpvHud() {
   if (G.view !== 'FPV' && G.view !== 'TO_FPV') return;
-  const px = (window.innerHeight / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const px = (viewH() / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const gap = 5 + G.spread * px;
   const ch = $('crosshair');
   ch.style.setProperty('--gap', `${gap.toFixed(1)}px`);
@@ -2315,10 +2318,10 @@ function floaty(worldPos, text, cls) {
   if (G.view === 'MENU') return;
   _proj.copy(worldPos).project(camera);
   if (_proj.z > 1) return;
-  spawnFloaty(((_proj.x + 1) / 2) * window.innerWidth, ((1 - _proj.y) / 2) * window.innerHeight, text, cls);
+  spawnFloaty(((_proj.x + 1) / 2) * viewW(), ((1 - _proj.y) / 2) * viewH(), text, cls);
 }
 function floatyScreen(text, cls = 'center') {
-  spawnFloaty(window.innerWidth / 2, window.innerHeight * 0.38, text, `${cls} big`);
+  spawnFloaty(viewW() / 2, viewH() * 0.38, text, `${cls} big`);
 }
 function spawnFloaty(x, y, text, cls) {
   const el = document.createElement('div');
@@ -2463,7 +2466,7 @@ const raycaster = new THREE.Raycaster();
 const _ndc = new THREE.Vector2();
 
 function pickPlot(clientX, clientY) {
-  _ndc.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+  _ndc.set((clientX / viewW()) * 2 - 1, -(clientY / viewH()) * 2 + 1);
   raycaster.setFromCamera(_ndc, camera);
   const own = G.active?.plot.group;
   const list = own ? pickables.filter((g) => g !== own) : pickables;
@@ -2483,7 +2486,7 @@ function pickPlot(clientX, clientY) {
   return null;
 }
 function groundAtScreen(x, y) {
-  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ndc.set((x / viewW()) * 2 - 1, -(y / viewH()) * 2 + 1);
   raycaster.setFromCamera(_ndc, camera);
   const g = new V3();
   return raycaster.ray.intersectPlane(new THREE.Plane(UP, 0), g) ? g : null;
@@ -2514,7 +2517,7 @@ function onTopTap(x, y) {
  */
 const _pv = new V3();
 function pickTurretFpv(x, y) {
-  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ndc.set((x / viewW()) * 2 - 1, -(y / viewH()) * 2 + 1);
   raycaster.setFromCamera(_ndc, camera);
   const others = G.turrets.filter((t) => t !== G.active);
   const hit = raycaster.intersectObjects(others.map((t) => t.root), true)[0];
@@ -2524,7 +2527,7 @@ function pickTurretFpv(x, y) {
     const t = others.find((q) => q.root === o);
     if (t) return t;
   }
-  const H = window.innerHeight;
+  const H = viewH();
   const k = H / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   let best = null, bestScore = 1.25;
   for (const t of others) {
@@ -2533,7 +2536,7 @@ function pickTurretFpv(x, y) {
     if (dist > 90) continue;
     _pv.project(camera);
     if (_pv.z > 1) continue;
-    const sx = ((_pv.x + 1) / 2) * window.innerWidth, sy = ((1 - _pv.y) / 2) * H;
+    const sx = ((_pv.x + 1) / 2) * viewW(), sy = ((1 - _pv.y) / 2) * H;
     const r = Math.max(22, (1.6 / dist) * k);             // on-screen radius of a turret, at least a fingertip
     const score = Math.hypot(sx - x, sy - y) / r;
     if (score < bestScore) { bestScore = score; best = t; }
@@ -2545,7 +2548,7 @@ function onFpvTap(x, y) {
   if (!inGame()) return false;
   const t = pickTurretFpv(x, y);
   if (t) { enterFPV(t); return true; }
-  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _ndc.set((x / viewW()) * 2 - 1, -(y / viewH()) * 2 + 1);
   raycaster.setFromCamera(_ndc, camera);
   const own = G.active?.plot.group;
   const pads = raycaster.intersectObjects(pickables.filter((g) => g !== own), true);
@@ -2706,7 +2709,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     if (ev.button === 0) { if (G.overheated && tryVent()) return; firePointers.set('mouse', {}); refreshFire(); }
     return;
   }
-  const fireSide = P.settings.leftHanded ? ev.clientX < window.innerWidth / 2 : ev.clientX > window.innerWidth / 2;
+  const fireSide = P.settings.leftHanded ? ev.clientX < viewW() / 2 : ev.clientX > viewW() / 2;
   if (fireSide) {
     if (G.overheated && tryVent()) return;
     firePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() });
@@ -2791,7 +2794,7 @@ on('btn-zoom', () => {
   if (G.view !== 'TOP') return;
   const steps = [1, 1.8, 2.6];
   const next = steps.find((z) => z > CAM.zoom + 0.05) || 1;
-  zoomAt(next, window.innerWidth / 2, window.innerHeight / 2);
+  zoomAt(next, viewW() / 2, viewH() / 2);
 });
 on('btn-speed', () => {
   G.speed = G.speed === 1 ? 2 : 1;
@@ -2841,7 +2844,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function onResize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = viewW(), h = viewH();
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
@@ -3066,7 +3069,7 @@ window.__game = {
   get world() { return world; },
   plotScreen(i) {
     const v = world.plots[i].pos.clone().setY(0.3).project(camera);
-    return { x: ((v.x + 1) / 2) * window.innerWidth, y: ((1 - v.y) / 2) * window.innerHeight };
+    return { x: ((v.x + 1) / 2) * viewW(), y: ((1 - v.y) / 2) * viewH() };
   },
   info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, plots: world.plots.length, paths: world.paths.map((p) => Math.round(p.length)) }),
 };
@@ -3418,7 +3421,7 @@ function updateThreats() {
   const layer = $('threats');
   if (!layer) return;
   const active = G.view === 'TOP' || G.view === 'FPV';
-  const W = window.innerWidth, H = window.innerHeight;
+  const W = viewW(), H = viewH();
   const list = [];
   if (active && inGame()) {
     for (const e of G.enemies) {

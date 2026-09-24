@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ENEMIES, SKINS } from './config.js';
 import { MODEL_BUILDERS } from './models.js';
+import { mergeStatic, referenced } from './merge.js';
 
 const matCache = new Map();
 function mat(color, opts = {}) {
@@ -407,6 +408,9 @@ export function createTurret(type, color, skinId = 'factory') {
   antenna.rotation.x = -0.2;
   part(yaw, new THREE.SphereGeometry(0.07, 6, 4), glow('#ff3b3b'), 0.6, 2.05, -0.72, false);
   part(yaw, new THREE.BoxGeometry(0.34, 0.18, 0.08), glow(color), -0.55, 0.85, 0.58, false);
+  // fewer draw calls: the static base and torso pieces become one mesh per material
+  mergeStatic(root);
+  mergeStatic(yaw);
 
   // Level pips on the back of the torso
   const pips = [];
@@ -421,6 +425,12 @@ export function createTurret(type, color, skinId = 'factory') {
   pitch.position.set(0, 1.12, 0.1);
   yaw.add(pitch);
   const head = HEADS[type](pitch, M);
+  {
+    const keep = referenced(head);
+    mergeStatic(pitch, keep);
+    for (const b of head.barrels || []) if (b.group && b.group !== pitch) mergeStatic(b.group, keep);
+    if (head.spinner) mergeStatic(head.spinner, keep);
+  }
 
   // FPV camera anchor (rotated so the camera's -Z looks down the barrels)
   const camAnchor = new THREE.Object3D();
@@ -429,6 +439,13 @@ export function createTurret(type, color, skinId = 'factory') {
   pitch.add(camAnchor);
 
   const accAnim = addAccessory(root, yaw, sk.acc, sk);
+  // small parts don't need to cast shadows (each caster is one more draw call in the shadow pass)
+  root.traverse((o) => {
+    if (!o.isMesh || !o.castShadow) return;
+    if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+    const sc = o.scale.x;
+    if (o.geometry.boundingSphere.radius * sc < 0.55) o.castShadow = false;
+  });
   return {
     type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor, accAnim, skinFx: sk.fx,
     spinner: head.spinner, orb: head.orb, coils: head.coils, lens: head.lens, spin: 0, pips,

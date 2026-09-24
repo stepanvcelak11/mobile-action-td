@@ -1,5 +1,6 @@
 // World: themed ground, waypoint roads (one or more), build plots, spawn portals, base, decor.
 import * as THREE from 'three';
+import { mergeStatic, referenced } from './merge.js';
 
 export const ROAD_WIDTH = 3.2;
 const SAMPLES = 400;
@@ -357,6 +358,7 @@ function buildBase(path) {
 }
 
 export function buildWorld(map, theme) {
+  stdCache = new Map();
   const root = new THREE.Group();
   const paths = map.roads.map((nodes) => new RoadPath(nodes));
   const roadDist = (x, z) => {
@@ -394,30 +396,35 @@ export function buildWorld(map, theme) {
   const innerM = new THREE.MeshBasicMaterial({ color: '#6c7278' });
   const ringGeo = new THREE.RingGeometry(1.85, 2.08, 40);
   ringGeo.rotateX(-Math.PI / 2);
+  // All pads, inner rings and glow rings are drawn as three instanced meshes (3 draw calls for
+  // every pad on the map). Each plot keeps an invisible pad mesh only so taps can raycast it.
+  const nP = plotPositions.length;
+  const padInst = new THREE.InstancedMesh(padGeo, padM, nP);
+  padInst.receiveShadow = true;
+  const innerInst = new THREE.InstancedMesh(innerGeo, innerM, nP);
+  const ringInst = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), nP);
+  for (const im of [padInst, innerInst, ringInst]) { im.frustumCulled = false; root.add(im); }
+  const _pm = new THREE.Matrix4();
   const plots = plotPositions.map((pos, i) => {
     const group = new THREE.Group();
     group.position.copy(pos);
     const pad = new THREE.Mesh(padGeo, padM);
-    pad.receiveShadow = true;
+    pad.visible = false;                       // picking proxy (raycasts ignore visibility)
     group.add(pad);
-    const inner = new THREE.Mesh(innerGeo, innerM);
-    inner.position.y = 0.26;
-    group.add(inner);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: '#39d5ff', transparent: true, opacity: 0.8, toneMapped: false,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.position.y = 0.06;
-    group.add(ring);
-    const plot = { index: i, pos, group, pad, ring, ringMat, turret: null, selected: false };
+    padInst.setMatrixAt(i, _pm.makeTranslation(pos.x, pos.y, pos.z));
+    innerInst.setMatrixAt(i, _pm.makeTranslation(pos.x, pos.y + 0.26, pos.z));
+    ringInst.setMatrixAt(i, _pm.makeTranslation(pos.x, pos.y + 0.06, pos.z));
+    ringInst.setColorAt(i, new THREE.Color('#39d5ff'));
+    const plot = { index: i, pos, group, pad, ringColor: new THREE.Color('#39d5ff'), turret: null, selected: false };
     group.traverse((o) => { o.userData.plot = plot; });
     root.add(group);
     return plot;
   });
 
   buildDecor(root, roadDist, plotPositions, base.position, theme, rand, paths);
+  const beforePools = new Set(root.children);
   const poolAnim = theme.pools ? buildPools(root, roadDist, plotPositions, base.position, rand, theme.pools) : null;
+  const poolMeshes = root.children.filter((c) => !beforePools.has(c));
   // Own RNG so the birds don't shift the seeded layout of landmarks and flowers.
   const birds = BIRDS[theme.decor] ? buildBirds(root, mulberry(4242 + map.id.length * 7), BIRDS[theme.decor]) : null;
   const landmarkAnim = theme.landmark ? buildLandmark(root, theme.landmark, rand, theme) : [];
@@ -429,18 +436,27 @@ export function buildWorld(map, theme) {
     return portal;
   });
 
+  // fewer draw calls: static pieces that share a material become one mesh
+  mergeStatic(base, referenced(base.userData));
+  mergeStatic(root, new Set(poolMeshes));
+
+  const _rcol = new THREE.Color();
   const cBuilt = new THREE.Color('#3ee07a');
   const cFree = new THREE.Color('#39d5ff');
   const cSel = new THREE.Color('#ffcf5a');
   function update(dt, t) {
     plots.forEach((p, i) => {
       const target = p.selected ? cSel : p.turret ? cBuilt : cFree;
-      p.ringMat.color.lerp(target, Math.min(1, dt * 10));
-      const pulse = p.turret ? 0.35 : 0.55 + 0.4 * Math.sin(t * 3 + i * 0.7);
-      p.ringMat.opacity = p.selected ? 1 : pulse;
+      p.ringColor.lerp(target, Math.min(1, dt * 10));
+      // additive blending: brightness stands in for opacity
+      const pulse = p.selected ? 1 : p.turret ? 0.35 : 0.55 + 0.4 * Math.sin(t * 3 + i * 0.7);
+      ringInst.setColorAt(i, _rcol.copy(p.ringColor).multiplyScalar(pulse));
       const s = p.selected ? 1.06 + 0.04 * Math.sin(t * 10) : 1;
-      p.ring.scale.set(s, 1, s);
+      _pm.makeScale(s, 1, s).setPosition(p.pos.x, p.pos.y + 0.06, p.pos.z);
+      ringInst.setMatrixAt(i, _pm);
     });
+    ringInst.instanceColor.needsUpdate = true;
+    ringInst.instanceMatrix.needsUpdate = true;
     for (const portal of portals) {
       portal.userData.ring.rotation.z += dt * 1.5;
       portal.userData.disc.material.opacity = 0.4 + 0.2 * Math.sin(t * 4);
@@ -562,7 +578,12 @@ function buildPools(root, roadDist, plotPositions, basePos, rand, spec) {
   };
 }
 
-const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.8, ...o });
+let stdCache = new Map();
+const std = (color, o = {}) => {
+  const k = color + JSON.stringify(o);
+  if (!stdCache.has(k)) stdCache.set(k, new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.8, ...o }));
+  return stdCache.get(k);
+};
 function mesh(parent, geo, mat, x, y, z, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
@@ -661,17 +682,19 @@ function buildLandmark(root, kind, rand, theme) {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
     const neon = ['#ff3d9f', '#3aa0ff', '#ffd24a', '#7affc0'];
+    const cityM = new THREE.MeshStandardMaterial({ color: '#2a2c3a', emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.9, roughness: 0.7, flatShading: true });
+    const signM = neon.map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }));
     for (let i = 0; i < 34; i++) {
       const [x, z] = onEdge(rand, 34);
       const w = 4 + rand() * 6, d = 4 + rand() * 6, h = 8 + rand() * 26;
-      const t2 = tex.clone();
-      t2.repeat.set(Math.max(1, Math.round(w / 3)), Math.max(1, Math.round(h / 6)));
-      t2.needsUpdate = true;
-      const m = new THREE.MeshStandardMaterial({ color: '#2a2c3a', emissive: '#ffffff', emissiveMap: t2, emissiveIntensity: 0.9, roughness: 0.7, flatShading: true });
-      const b = mesh(root, new THREE.BoxGeometry(w, h, d), m, x, h / 2 + hillish(x, z) - 0.5, z);
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const uv = geo.attributes.uv;
+      const rx = Math.max(1, Math.round(w / 3)), ry = Math.max(1, Math.round(h / 6));
+      for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * rx, uv.getY(k) * ry);
+      const b = mesh(root, geo, cityM, x, h / 2 + hillish(x, z) - 0.5, z);
       b.rotation.y = Math.round(rand() * 4) * (Math.PI / 2) + (rand() - 0.5) * 0.2;
       if (rand() < 0.5) {
-        const sign = mesh(root, new THREE.BoxGeometry(w * 0.6, 0.8, 0.2), new THREE.MeshBasicMaterial({ color: neon[i % neon.length], toneMapped: false }), x, h * (0.5 + rand() * 0.4), z, false);
+        const sign = mesh(root, new THREE.BoxGeometry(w * 0.6, 0.8, 0.2), signM[i % neon.length], x, h * (0.5 + rand() * 0.4), z, false);
         sign.rotation.y = b.rotation.y;
         sign.translateZ(d / 2 + 0.15);
       }
