@@ -469,6 +469,76 @@ export const TREES = {
   ],
 };
 
+TREES.barracks = [
+  B('Firepower', '#ff9a3a', [
+    ['Better Rifles', '+25% unit damage', { dmg: 0.25 }],
+    ['Drill Sergeant', '+20% unit fire rate', { rate: 0.2 }],
+    ['Marksmen', '+35% unit damage', { dmg: 0.35 }],
+    ['Armor Piercing', 'Shots shred armor', { shred: 1 }],
+    ['Elite Guard', '+80% unit damage', { dmg: 0.8 }],
+  ]),
+  B('Numbers', '#5fd8ff', [
+    ['Recruitment', '+20% faster squads', { rate: 0.2 }],
+    ['Bigger Squads', '+1 soldier per squad', { shots: 1 }],
+    ['Conscription', '+25% faster squads', { rate: 0.25 }],
+    ['Platoon', '+1 soldier per squad', { shots: 1 }],
+    ['Company', '+2 soldiers per squad', { shots: 2 }],
+  ]),
+  B('Recon', '#b46bff', [
+    ['Binoculars', '+15% unit range', { range: 0.15 }],
+    ['Thermal Sights', 'Units see cloaked Phantoms', { detect: 1 }],
+    ['Field Radio', '+20% unit range', { range: 0.2 }],
+    ['Flares', '10% stun chance', { stun: 0.1 }],
+    ['Spec Ops', '+20% crit chance', { crit: 0.2 }],
+  ]),
+];
+TREES.factory = [
+  B('Main Gun', '#ff9a3a', [
+    ['HEAT Rounds', '+25% shell damage', { dmg: 0.25 }],
+    ['Bigger Charge', '+1 m splash', { splash: 1 }],
+    ['Sabot', '+35% shell damage', { dmg: 0.35 }],
+    ['Autoloader', '+30% fire rate', { rate: 0.3 }],
+    ['Siege Gun', '+100% damage, +2 m splash', { dmg: 1.0, splash: 2 }],
+  ]),
+  B('Assembly Line', '#5fd8ff', [
+    ['Night Shift', '+20% faster tanks', { rate: 0.2 }],
+    ['Second Line', '+1 tank per batch', { shots: 1 }],
+    ['Robotics', '+25% faster tanks', { rate: 0.25 }],
+    ['Reinforced Hulls', 'Shots shred armor', { shred: 1 }],
+    ['Armored Column', '+2 tanks per batch', { shots: 2 }],
+  ]),
+  B('Optics', '#b46bff', [
+    ['Rangefinder', '+15% range', { range: 0.15 }],
+    ['Thermals', 'Tanks see cloaked Phantoms', { detect: 1 }],
+    ['Stabilizer', '+20% range', { range: 0.2 }],
+    ['Concussion', '15% stun chance', { stun: 0.15 }],
+    ['Hunter Killer', '+25% crit chance', { crit: 0.25 }],
+  ]),
+];
+TREES.helipad = [
+  B('Rockets', '#ff9a3a', [
+    ['Hydra Pods', '+25% rocket damage', { dmg: 0.25 }],
+    ['Wider Warheads', '+1 m splash', { splash: 1 }],
+    ['Hellfire', '+35% rocket damage', { dmg: 0.35 }],
+    ['Rapid Pods', '+30% fire rate', { rate: 0.3 }],
+    ['Thunderbird', '+100% damage', { dmg: 1.0 }],
+  ]),
+  B('Flight Deck', '#5fd8ff', [
+    ['Ground Crew', '+20% faster launches', { rate: 0.2 }],
+    ['Wingman', '+1 gunship per launch', { shots: 1 }],
+    ['Hot Refuel', '+25% faster launches', { rate: 0.25 }],
+    ['Armored Cockpit', 'Rockets shred armor', { shred: 1 }],
+    ['Air Wing', '+2 gunships per launch', { shots: 2 }],
+  ]),
+  B('Avionics', '#b46bff', [
+    ['Radar', '+15% range', { range: 0.15 }],
+    ['FLIR', 'Gunships see cloaked Phantoms', { detect: 1 }],
+    ['Datalink', '+20% range', { range: 0.2 }],
+    ['Chaff', '15% stun chance', { stun: 0.15 }],
+    ['Top Gun', '+25% crit chance', { crit: 0.25 }],
+  ]),
+];
+
 /** Can this branch buy its next tier? Returns a reason string when not. */
 export function canBuy(picks, branch) {
   const total = picks.reduce((a, b) => a + b, 0);

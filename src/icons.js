@@ -113,6 +113,9 @@ export function turretIcon(type) {
     prism: `<rect x="16" y="22" width="16" height="8" rx="2" fill="#9aa6b2"/><path d="M24 2l8 10-8 10-8-10z" fill="${c}"/><path d="M24 2v20M16 12h16" stroke="#fff" stroke-width="1" opacity="0.7"/>`,
     howitzer: `<rect x="13" y="20" width="22" height="10" rx="2" fill="#9aa6b2"/><rect x="21" y="0" width="6" height="22" rx="1" fill="${steel}"/><rect x="19" y="0" width="10" height="4" fill="${dark}"/><rect x="14" y="17" width="20" height="3" fill="${c}"/>`,
     rail: `<rect x="17" y="21" width="14" height="9" rx="2" fill="#9aa6b2"/><rect x="20" y="1" width="2.4" height="22" fill="${steel}"/><rect x="25.6" y="1" width="2.4" height="22" fill="${steel}"/>${[5, 10, 15].map((y) => `<rect x="18" y="${y}" width="12" height="2.4" rx="1.2" fill="${c}"/>`).join('')}`,
+    barracks: `<path d="M8 30L24 8l16 22z" fill="#6a7a4a" stroke="${dark}" stroke-width="2"/><rect x="20" y="20" width="8" height="10" fill="${dark}"/><rect x="30" y="0" width="2" height="14" fill="${steel}"/><path d="M32 1h9l-3 3 3 3h-9z" fill="${c}"/>`,
+    factory: `<rect x="8" y="12" width="32" height="18" rx="2" fill="#9aa6b2"/>${[12, 20, 28].map((x) => `<rect x="${x}" y="16" width="6" height="14" fill="${dark}"/>`).join('')}<rect x="34" y="2" width="4" height="12" fill="${steel}"/><rect x="10" y="8" width="22" height="5" fill="${c}"/>`,
+    helipad: `<ellipse cx="24" cy="24" rx="17" ry="7" fill="#9aa6b2"/><path d="M18 19v10M30 19v10M18 24h12" stroke="${c}" stroke-width="3"/><path d="M6 6h36" stroke="${steel}" stroke-width="2.5"/><rect x="22" y="6" width="4" height="8" fill="${dark}"/>`,
   };
   return svg(heads[type] + base, g.def);
 }

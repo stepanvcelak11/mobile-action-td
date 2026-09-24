@@ -58,6 +58,9 @@ export const TURRET_POWERS = {
   silo: P(['barrage', 'snipe'], ['explosive', 'crushing'], 'Armageddon', { shots: 3, splash: 1 }),
   prism: P(['coolant', 'overdrive'], ['venomrounds', 'longshot'], 'Spectrum', { beams: 3 }),
   howitzer: P(['barrage', 'slowfield'], ['crushing', 'longshot'], 'Bombardment', { shots: 2, splash: 2 }),
+  barracks: P(['reveal', 'slowfield'], ['bounty', 'headhunter'], 'Rally Cry', { rate: 0.8, dmg: 0.4 }),
+  factory: P(['barrage', 'reveal'], ['crushing', 'explosive'], 'Blitzkrieg', { rate: 0.8, splash: 2 }),
+  helipad: P(['barrage', 'reveal'], ['longshot', 'bounty'], 'Air Superiority', { rate: 0.8, dmg: 0.4 }),
 };
 
 // unlock levels and coin prices

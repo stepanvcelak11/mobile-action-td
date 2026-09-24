@@ -11,6 +11,7 @@ import { skill } from './skill.js';
 import { run } from './roguelite.js';
 import { daily } from './daily.js';
 import { campaign } from './campaign.js';
+import { army } from './army.js';
 import { TURRETS, TURRET_ORDER, WEAK_MULT, MAX_UPGRADES, TIER_COST, SELL_RATE, ENEMIES, ENEMY_TIPS, ABILITIES, ABILITY_ORDER, TARGETED_ABILITIES, HITZONES, HEADSHOT_MULT, MAPS, THEMES } from './config.js';
 import { GADGETS, STAR_POWERS, GEARS, HYPER_KILLS, HYPER_TIME, GADGET_USES, GADGET_CD } from './powers.js';
 import { TREES, canBuy } from './trees.js';
@@ -252,6 +253,7 @@ function loadMap(id) {
 }
 
 function clearField() {
+  army.clear();
   for (const e of G.enemies) { scene.remove(e.group); scene.remove(e.bar); }
   G.enemies = [];
   for (const t of G.turrets) { t.plot.group.remove(t.root); t.plot.turret = null; }
@@ -475,6 +477,7 @@ function updateCamera(dt) {
     }
     return;
   }
+  if (army.cameraPose(camera)) return;
   // FPV: glue the camera to the turret's anchor (+ scope sway for snipers)
   anchorPose(G.active);
   camera.position.copy(_anchorPos);
@@ -501,6 +504,7 @@ function snapshotTrans() {
 }
 
 function enterFPV(turret) {
+  army.release();
   if (G.view === 'MENU' || G.state === STATE.GAME_OVER || G.state === STATE.VICTORY) return;
   if (G.active === turret && (G.view === 'FPV' || G.view === 'TO_FPV')) return;
   closeSheets();
@@ -527,6 +531,7 @@ function enterFPV(turret) {
   emit('fpv', { type: turret.type });
 }
 function exitFPV() {
+  army.release();
   if (G.view !== 'FPV' && G.view !== 'TO_FPV') return;
   releaseFire();
   if (document.pointerLockElement) document.exitPointerLock();
@@ -767,7 +772,7 @@ function updateEnemies(dt) {
 
     updateElite(e, dt);
     updateBoss(e, dt);
-    const sp = e.def.speed * e.speedMult * slow * (e.elite?.id === 'swift' ? 1.45 : 1);
+    const sp = army.blocks(e) ? 0 : e.def.speed * e.speedMult * slow * (e.elite?.id === 'swift' ? 1.45 : 1);
     e.s += sp * dt;
     e.anim += dt * Math.max(sp, 0.2) * 2.2;
     if (e.s >= e.path.length) {
@@ -1337,6 +1342,7 @@ function buyUpgrade(t, branch) {
 
 function sellTurret(t) {
   if (!t || t === G.active) return;
+  army.clear(t);
   const v = sellValue(t);
   G.gold += v;
   t.plot.group.remove(t.root);
@@ -1393,6 +1399,7 @@ function updateTurrets(dt) {
     if (t.coils) t.coils.forEach((c, i) => c.scale.setScalar(1 + 0.1 * Math.sin(G.time * 6 - i)));
     for (const a of t.accAnim) a(G.time);
     tickPowers(t, dt);
+    if (army.isDeploy(t.type)) { if (!t.manual) army.tick(t, dt); applyTurretPose(t); continue; }
     if (t.manual) { applyTurretPose(t); continue; }
     t.cooldown -= dt * rateBoost(t);
     t.pitchG.getWorldPosition(_pivot);
@@ -1784,6 +1791,7 @@ function manualShot() {
   const b = t.barrels[Math.min(i, t.barrels.length - 1)];
   if (!continuous) G.stats.shots++;
   switch (d.kind) {
+    case 'deploy': army.deployAt(t, groundAim(new V3(), 3, st.range * 2.2)); break;
     case 'pulse': {
       camera.getWorldDirection(_fwd);
       const hits = sonicPulse(t, st.range * 1.3, ms.damage, st, true, _fwd.clone());
@@ -2971,6 +2979,19 @@ function showResults(won, wavesDone, res) {
   $('result').classList.add('show');
 }
 
+army.init({
+  scene, camera, beams, banner,
+  world: () => world, enemies: () => G.enemies, active: () => G.active,
+  waveActive: () => G.state === STATE.WAVE, turretDef: (type) => TURRETS[type],
+  hitEnemy: (e, dmg, o) => hitEnemy(e, dmg, o), explode: (...a) => explode(...a),
+  spark: (p, c, n) => sparks.emit(p, c, n, 6, 0.5, 6, 0.3),
+  smoke: (p, n) => smoke.emit(p, '#555555', n, 2, 1, -1, 0.5, 2),
+  shake: (k) => { G.shake = Math.max(G.shake, k); },
+  sens: () => P.settings.sens,
+  toast: (msg) => floatyScreen(msg),
+  onControl: () => releaseFire(),
+});
+
 initMenu({
   gyro: () => requestGyro(),
   play: (id, mode, hard) => startMap(id, mode, hard),
@@ -2990,6 +3011,7 @@ function update(dt) {
   G.time += dt;
   updateDebris(dt);
   world.update(dt, G.time);
+  if (G.view !== 'MENU') army.update(dt, G.time);
   if (weather) weather.update(dt, G.time);
   if (!music.playing && audioGraph()) music.play(G.view === 'MENU' ? 'menu' : G.map.theme);
   G.musicT = (G.musicT || 0) + dt;

@@ -282,6 +282,37 @@ function headHowitzer(pitch, M) {
 }
 
 
+/* Army towers: no gun; the head is a small building with a flag / hangar / pad. */
+function headBarracks(pitch, M) {
+  const tent = new THREE.ConeGeometry(1.0, 1.1, 4);
+  tent.rotateY(Math.PI / 4);
+  part(pitch, tent, mat('#6a7a4a', { roughness: 0.9 }), 0, 0.4, -0.1);
+  part(pitch, new THREE.BoxGeometry(0.5, 0.55, 0.1), M.steelDark, 0, 0.12, 0.58);
+  part(pitch, new THREE.CylinderGeometry(0.03, 0.03, 1.4, 4), M.steelLight, 0.7, 0.7, -0.5);
+  const flag = part(pitch, new THREE.BoxGeometry(0.02, 0.28, 0.45), M.band, 0.7, 1.25, -0.28);
+  return { barrels: [{ group: flag, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.6, 1.0)], cam: [0, 1.9, -0.4] };
+}
+function headFactory(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.6, 0.8, 1.3), M.steel, 0, 0.3, -0.1);
+  part(pitch, new THREE.BoxGeometry(0.9, 0.6, 0.06), M.steelDark, 0, 0.22, 0.56);
+  for (let i = 0; i < 3; i++) part(pitch, new THREE.BoxGeometry(0.86, 0.04, 0.07), M.band, 0, 0.02 + i * 0.18, 0.58);
+  part(pitch, new THREE.CylinderGeometry(0.12, 0.14, 0.9, 8), M.steelDark, 0.55, 0.9, -0.4);
+  const door = new THREE.Group();
+  pitch.add(door);
+  return { barrels: [{ group: door, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.4, 1.0)], cam: [0, 1.6, -0.3] };
+}
+function headHelipad(pitch, M) {
+  part(pitch, new THREE.CylinderGeometry(1.25, 1.25, 0.12, 20), M.steelDark, 0, 0.05, 0);
+  part(pitch, new THREE.BoxGeometry(0.12, 0.02, 0.8), M.band, -0.28, 0.12, 0);
+  part(pitch, new THREE.BoxGeometry(0.12, 0.02, 0.8), M.band, 0.28, 0.12, 0);
+  part(pitch, new THREE.BoxGeometry(0.56, 0.02, 0.12), M.band, 0, 0.12, 0);
+  const radar = new THREE.Group();
+  radar.position.set(0.9, 0.3, -0.7);
+  pitch.add(radar);
+  part(radar, new THREE.BoxGeometry(0.5, 0.25, 0.05), M.steelLight, 0, 0.15, 0);
+  return { barrels: [{ group: radar, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.4, 1.0)], cam: [0, 2.4, -0.6] };
+}
+
 /* ------------------------------------------------------ Skin accessories */
 // Each skin adds its own props on top of the recoloured turret; returns per-frame animators.
 function addAccessory(root, yaw, acc, sk) {
@@ -372,7 +403,7 @@ function addAccessory(root, yaw, acc, sk) {
   return anim;
 }
 
-const HEADS = { scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
+const HEADS = { barracks: headBarracks, factory: headFactory, helipad: headHelipad, scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
 export function createTurret(type, color, skinId = 'factory') {
   const root = new THREE.Group();

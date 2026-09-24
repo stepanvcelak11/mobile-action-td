@@ -128,8 +128,28 @@ export const TURRETS = {
     range: 32, minRange: 8, interval: 4.2, damage: 120, shots: 1, kind: 'mortar', splash: 4.6, groundOnly: true, lob: 1.4,
     manual: { interval: 2.2, damage: 170, heat: 30, splash: 5 }, fov: 65,
   },
+  // Army towers (src/army.js): they deploy units instead of shooting. interval = seconds between
+  // squads, damage/range scale the units, shots = squad size bonus from upgrades.
+  barracks: {
+    name: 'Barracks', cost: 150, unlockTP: 6, color: '#5a8ad8',
+    desc: 'Sends riflemen down the road. They block enemies and fight. Fire to drop a squad where you aim, or take control of a soldier.',
+    range: 12, interval: 9, damage: 10, shots: 1, kind: 'deploy', unit: 'soldier',
+    manual: { interval: 0.6, damage: 10, heat: 12 }, fov: 80,
+  },
+  factory: {
+    name: 'Tank Factory', cost: 260, unlockTP: 10, color: '#4a7ab8',
+    desc: 'Builds light tanks that hold the road and shell groups. Fire to drop a tank, or drive one yourself.',
+    range: 14, interval: 18, damage: 50, shots: 1, kind: 'deploy', unit: 'tank',
+    manual: { interval: 0.6, damage: 50, heat: 12 }, fov: 80,
+  },
+  helipad: {
+    name: 'Helipad', cost: 240, unlockTP: 9, color: '#6ab0e8',
+    desc: 'Launches gunships that circle the fight and fire rockets — they hit flyers too. Fire to send them where you aim, or fly one.',
+    range: 15, interval: 16, damage: 24, shots: 1, kind: 'deploy', unit: 'heli',
+    manual: { interval: 0.6, damage: 24, heat: 12 }, fov: 80,
+  },
 };
-export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer'];
+export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer', 'barracks', 'helipad', 'factory'];
 
 // How to play each turret yourself (shown in the Armory).
 export const TURRET_TIPS = {
@@ -153,6 +173,9 @@ export const TURRET_TIPS = {
   silo: 'Your missiles launch straight at the crosshair and explode on impact.',
   prism: 'Hold the beam; two refracted beams hit nearby enemies automatically.',
   howitzer: 'Shells take a long time to land — aim well ahead of the group.',
+  barracks: 'FIRE drops a squad where you aim and moves the rally point. TAKE CONTROL to fight as a rifleman: left thumb moves, drag right to aim.',
+  factory: 'Park tanks in chokepoints — they block up to five enemies. TAKE CONTROL to drive one and fire its cannon.',
+  helipad: 'Gunships shoot flyers. TAKE CONTROL to fly one: left thumb flies, drag right to aim the rockets.',
 };
 
 export const WEAK_MULT = 1.75;
