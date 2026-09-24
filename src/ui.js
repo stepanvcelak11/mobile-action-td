@@ -11,6 +11,7 @@ import {
   buySkin, selectSkin, skinOf, refreshDaily, DEFAULT_SETTINGS,
   powerState, buyGadget, buyStar, selectPower, buyGear, buyHyper, setLoadout, slotInfo, startUnlock, skipCost, takeSlot,
 } from './meta.js';
+import { sfx } from './audio.js';
 import { daily } from './daily.js';
 import { campaign } from './campaign.js';
 import { skill } from './skill.js';
@@ -652,38 +653,153 @@ export function showBriefing(id, mode) {
 }
 
 /* ------------------------------------------------------------------ chests */
+/* ------------------------------------------------------------ chest opening
+   1 drop-in with rotating rays · 2 tap to crack (3 taps or auto) · 3 burst (flash, sparks, coins)
+   4 rewards fly out one by one as flipping cards with count-up · 5 summary + COLLECT */
+function chestSparks(canvas, color, n = 90) {
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = (canvas.width = canvas.clientWidth * dpr), H = (canvas.height = canvas.clientHeight * dpr);
+  const cx = W / 2, cy = H * 0.42;
+  const cols = [color, '#ffe28a', '#ffffff', '#ffb04a'];
+  const ps = Array.from({ length: n }, (_, i) => {
+    const a = Math.random() * Math.PI * 2, v = (4 + Math.random() * 11) * dpr;
+    const coin = i % 5 === 0;
+    return { x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 6 * dpr, r: (coin ? 5 : 2 + Math.random() * 3) * dpr, c: coin ? '#ffc62e' : cols[i % cols.length], coin, life: 1, spin: Math.random() * 6 };
+  });
+  let raf = 0;
+  const step = () => {
+    ctx.clearRect(0, 0, W, H);
+    let alive = 0;
+    for (const p of ps) {
+      if (p.life <= 0) continue;
+      alive++;
+      p.x += p.vx; p.y += p.vy; p.vy += 0.45 * dpr; p.vx *= 0.985; p.life -= 0.013; p.spin += 0.3;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.c;
+      ctx.beginPath();
+      if (p.coin) ctx.ellipse(p.x, p.y, p.r * Math.abs(Math.cos(p.spin)) + 0.5, p.r, 0, 0, 7);
+      else ctx.arc(p.x, p.y, p.r, 0, 7);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (alive) raf = requestAnimationFrame(step);
+  };
+  step();
+  return () => cancelAnimationFrame(raf);
+}
+function countUp(el, to, ms = 600) {
+  const t0 = performance.now();
+  const tick = (now) => {
+    const k = Math.min(1, (now - t0) / ms);
+    el.textContent = el.dataset.prefix + Math.round(to * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 export function openChest(kind) {
   const c = CHESTS[kind];
   const ov = $('chest-ov');
-  ov.innerHTML = `<div class="chest-stage"><div class="kicker">${c.name.toUpperCase()}</div>
-    <div class="chest-big" id="chest-big">${chestIcon(kind, c.color)}</div><div class="chest-hint">TAP TO OPEN</div>
-    <div class="chest-items" id="chest-items"></div><button class="btn primary big" id="chest-ok" style="display:none">COLLECT</button></div>`;
+  ov.style.setProperty('--cc', c.color);
+  ov.innerHTML = `<canvas class="ch-fx"></canvas><div class="ch-flash"></div>
+    <div class="chest-stage">
+      <div class="kicker">${c.name.toUpperCase()}</div>
+      <div class="ch-stage">
+        <div class="ch-rays"></div>
+        <div class="chest-big drop" id="chest-big">${chestIcon(kind, c.color)}<div class="ch-crack"></div></div>
+        <div class="ch-shadow"></div>
+      </div>
+      <div class="chest-hint">TAP TO OPEN</div>
+      <div class="ch-reveal" id="ch-reveal"></div>
+      <div class="ch-left" id="ch-left"></div>
+      <div class="chest-items" id="chest-items"></div>
+      <button class="btn primary big" id="chest-ok" style="display:none">COLLECT</button>
+    </div>`;
   ov.classList.add('show');
+  sfx('whoosh');
+  setTimeout(() => sfx('build'), 380);
+  let taps = 0;
   let opened = false;
+  let rewards = [];
+  let idx = -1;
+  let stopFx = null;
+  const big = $('chest-big');
+
+  const build = () => {
+    const rw = grant(rollChest(kind));
+    const list = [{ tier: 1, color: '#ffc62e', art: coinIcon(), n: rw.coins, prefix: '+', label: 'Coins' }];
+    if (rw.gems) list.push({ tier: 2, color: '#5ad8ff', art: gemIcon(), n: rw.gems, prefix: '+', label: 'Gems' });
+    for (const [a, n] of Object.entries(rw.abilities)) list.push({ tier: 1, color: ABILITIES[a].color, art: abilityIcon(a), n, prefix: '×', label: ABILITIES[a].name });
+    for (const [t, n] of Object.entries(rw.cards)) {
+      const isNew = rw.unlocked.includes(t);
+      list.push({ tier: isNew ? 3 : 2, color: TURRETS[t].color, art: pic(turretPortrait(t, skinOf(t))) || turretIcon(t), n, prefix: '×', label: isNew ? `NEW TURRET · ${TURRETS[t].name}` : `${TURRETS[t].name} cards`, isNew });
+    }
+    if (rw.skin) list.push({ tier: 3, color: RARITY_COLORS[SKINS[rw.skin].rarity], art: pic(turretPortrait('cannon', rw.skin)), n: 1, prefix: '', label: `${SKINS[rw.skin].rarity.toUpperCase()} SKIN · ${SKINS[rw.skin].name}`, skin: true });
+    // Save the best for last.
+    return list.sort((a, b) => a.tier - b.tier);
+  };
+
+  const summary = () => {
+    $('ch-reveal').innerHTML = '';
+    $('ch-left').textContent = '';
+    $('chest-items').innerHTML = rewards.map((r, i) => `<div class="citem t${r.tier}${r.isNew ? ' new' : ''}${r.skin ? ' skin' : ''}" style="--rc:${r.color};animation-delay:${i * 60}ms">${r.art}<b>${r.skin ? 'SKIN' : r.prefix + r.n}</b><small>${r.label}</small></div>`).join('');
+    ov.querySelector('.ch-stage').classList.add('small');
+    $('chest-ok').style.display = '';
+    sfx('reward');
+  };
+
+  const next = () => {
+    idx++;
+    if (idx >= rewards.length) { summary(); return; }
+    const r = rewards[idx];
+    const el = $('ch-reveal');
+    el.innerHTML = `<div class="ch-card t${r.tier}" style="--rc:${r.color}"><div class="ch-card-in"><div class="ch-art">${r.art}</div>
+      <b class="ch-n" data-prefix="${r.prefix}">${r.skin ? 'SKIN' : r.prefix + '0'}</b><small>${r.label}</small></div></div>`;
+    const left = rewards.length - idx - 1;
+    $('ch-left').textContent = left ? `${left} more · tap` : 'tap';
+    if (!r.skin) countUp(el.querySelector('.ch-n'), r.n);
+    sfx(r.tier >= 3 ? 'levelup' : r.tier === 2 ? 'reward' : 'tap');
+    if (r.tier >= 3) {
+      const fl = ov.querySelector('.ch-flash');
+      fl.classList.remove('go');
+      void fl.offsetWidth;
+      fl.classList.add('go');
+      stopFx?.();
+      stopFx = chestSparks(ov.querySelector('.ch-fx'), r.color, 70);
+    }
+  };
+
   const open = () => {
     if (opened) return;
     opened = true;
-    const rw = grant(rollChest(kind));
-    ov.querySelector('.chest-big').classList.add('open');
+    rewards = build();
+    big.classList.remove('crack1', 'crack2', 'drop');
+    big.classList.add('open');
     ov.querySelector('.chest-hint').style.display = 'none';
-    const items = [];
-    items.push(`<div class="citem">${coinIcon()}<b>${rw.coins}</b><small>coins</small></div>`);
-    if (rw.gems) items.push(`<div class="citem">${gemIcon()}<b>${rw.gems}</b><small>gems</small></div>`);
-    for (const [t, n] of Object.entries(rw.cards)) {
-      const isNew = rw.unlocked.includes(t);
-      items.push(`<div class="citem card${isNew ? ' new' : ''}" style="--tc:${TURRETS[t].color}">${pic(turretPortrait(t, skinOf(t)))}<b>×${n}</b><small>${isNew ? 'NEW TURRET!' : TURRETS[t].name}</small></div>`);
-    }
-    for (const [a, n] of Object.entries(rw.abilities)) items.push(`<div class="citem">${abilityIcon(a)}<b>×${n}</b><small>${ABILITIES[a].name}</small></div>`);
-    if (rw.skin) items.push(`<div class="citem skin" style="--rc:${RARITY_COLORS[SKINS[rw.skin].rarity]}">${pic(turretPortrait('cannon', rw.skin))}<b>SKIN</b><small>${SKINS[rw.skin].name}</small></div>`);
-    const box = $('chest-items');
-    items.forEach((h, i) => setTimeout(() => {
-      box.insertAdjacentHTML('beforeend', h);
-      if (i === items.length - 1) $('chest-ok').style.display = '';
-    }, 250 + i * 260));
+    ov.querySelector('.ch-flash').classList.add('go');
+    stopFx = chestSparks(ov.querySelector('.ch-fx'), c.color, 110);
+    sfx('explode');
+    setTimeout(() => sfx('reward'), 120);
+    setTimeout(next, 650);
   };
-  $('chest-big').addEventListener('click', open);
-  setTimeout(open, 1400);
-  $('chest-ok').addEventListener('click', () => { ov.classList.remove('show'); renderMenu(); });
+
+  const tap = (ev) => {
+    ev?.stopPropagation();
+    if (!opened) {
+      taps++;
+      big.classList.remove('crack1', 'crack2', 'drop');
+      void big.offsetWidth;
+      if (taps >= 3) { open(); return; }
+      big.classList.add(taps === 1 ? 'crack1' : 'crack2');
+      sfx('tick');
+      return;
+    }
+    if (idx >= 0 && idx < rewards.length) next();
+  };
+  ov.querySelector('.chest-stage').addEventListener('click', (ev) => { if (!ev.target.closest('#chest-ok')) tap(ev); });
+  setTimeout(() => { if (!opened && taps === 0) open(); }, 2600);
+  $('chest-ok').addEventListener('click', (ev) => { ev.stopPropagation(); stopFx?.(); ov.classList.remove('show'); renderMenu(); });
 }
 
 /* ------------------------------------------------------------ overlay/toast */
