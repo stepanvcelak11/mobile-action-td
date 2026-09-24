@@ -160,7 +160,7 @@ function spawnUnit(t, kind, at, rally) {
   const u = {
     kind, def, owner: t, m, bar, hp: s.hp, maxHp: s.hp, cd: Math.random() * 0.4, alive: true,
     pos: at.clone(), yaw: t.yaw || 0, aimYaw: 0, aimPitch: 0, path: rally.path, s: rally.s, phase: 'rally',
-    anim: Math.random() * 6, drop: kind === 'heli' ? 0 : 1.2, blocking: 0, flash: 0,
+    anim: Math.random() * 6, drop: 1.2, blocking: 0, flash: 0,
   };
   if (kind === 'heli') u.pos.y = def.alt;
   m.g.position.copy(u.pos);
@@ -366,7 +366,9 @@ function driveControlled(u, dt, s) {
     const nx = u.pos.x + (sin * f - cos * r) * sp;
     const nz = u.pos.z + (cos * f + sin * r) * sp;
     // ground units stay on or near the road; flyers stay over the map
-    const onRoad = def.air ? true : H.world().paths.some((p) => p.distanceTo(nx, nz) < 5.5);
+    // ground units stay near the road, but may always move back towards it
+    const roadD = (x, z) => Math.min(...H.world().paths.map((p) => p.distanceTo(x, z)));
+    const onRoad = def.air ? true : roadD(nx, nz) < 5.5 || roadD(nx, nz) < roadD(u.pos.x, u.pos.z);
     if (onRoad && Math.abs(nx) < 70 && Math.abs(nz) < 60) { u.pos.x = nx; u.pos.z = nz; u.moving = true; }
     if (u.kind !== 'tank') u.yaw = lerpAngle(u.yaw, Math.atan2(sin * f - cos * r, cos * f + sin * r), dt * 8);
     else u.yaw = lerpAngle(u.yaw, Math.atan2(sin * f - cos * r, cos * f + sin * r), dt * 2.5);
