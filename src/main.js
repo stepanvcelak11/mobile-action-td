@@ -19,7 +19,7 @@ import { P, save, addXp, perk, recordResult, mapState, xpForLevel, unlockCost } 
 import { initMenu, renderMenu, selectMenuMap, starsHtml, openChest, applySettings } from './ui.js';
 import { uiIcon, turretIcon, enemyIcon, abilityIcon, coinIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, traitIcon, gearIcon } from './icons.js';
 const chestIconHtml = (k) => chestIcon(k, { wood: '#a8743a', iron: '#9aa6b2', gold: '#ffc62e', epic: '#b46bff' }[k]);
-import { ensureMeta, levelBonus, tlevel, skinOf, questProgress, matchRewards, equippedPowers, deckOf } from './meta.js';
+import { ensureMeta, levelBonus, tlevel, skinOf, questProgress, matchRewards, equippedPowers, deckOf, abilityPower, abilityCdMult } from './meta.js';
 import { renderTree } from './treeview.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -1979,7 +1979,10 @@ function projectileTick(p, dt) {
 
 /* --------------------------------------------------------------- Abilities */
 // Abilities are collectible charges (P.abilities); you bring 4 of the 10 into a match (P.loadout).
-const abilityCd = (id) => ABILITIES[id].cooldown * (1 - 0.15 * perk('support')) * G.rules.cd * (run.active ? run.mods.cd : 1);
+const abilityCd = (id) => ABILITIES[id].cooldown * abilityCdMult(id) * (1 - 0.15 * perk('support')) * G.rules.cd * (run.active ? run.mods.cd : 1);
+// ability level (cards in the Armory): power scales effects and durations, radii grow half as fast
+const abPow = (id) => abilityPower(id);
+const abRad = (id) => 1 + (abilityPower(id) - 1) / 2;
 const charges = (id) => P.abilities[id] || 0;
 
 function renderAbilities() {
@@ -2015,7 +2018,7 @@ function useAbility(id) {
   spendAbility(id);
   if (id === 'emp') {
     for (const e of G.enemies) {
-      stunEnemy(e, ABILITIES.emp.stun, false);
+      stunEnemy(e, ABILITIES.emp.stun * abPow('emp'), false);
       if (e.shield > 0) { e.shield = 0; sparks.emit(e.center, '#5fd8ff', 20, 6, 0.5, 4, 0.5); }
       e.revealT = Math.max(e.revealT, 4);
     }
@@ -2024,22 +2027,22 @@ function useAbility(id) {
     banner('EMP', 'Enemies stunned, shields down', { quiet: true });
     sfx('boom');
   } else if (id === 'repair') {
-    G.baseHp = Math.min(G.maxHp, G.baseHp + ABILITIES.repair.heal);
+    G.baseHp = Math.min(G.maxHp, G.baseHp + Math.round(ABILITIES.repair.heal * abPow('repair')));
     sparks.emit(world.base.position.clone().setY(3), '#3ee07a', 60, 6, 1, -2, 0.8);
-    banner('REPAIRED', `+${ABILITIES.repair.heal} base HP`, { quiet: true });
+    banner('REPAIRED', `+${Math.round(ABILITIES.repair.heal * abPow('repair'))} base HP`, { quiet: true });
     sfx('levelup');
     updateHud();
   } else if (id === 'goldrush') {
-    G.goldRushT = 15;
+    G.goldRushT = 15 * abPow('goldrush');
     banner('GOLD RUSH', 'Double gold for 15 s', { quiet: true });
     sfx('clear');
   } else if (id === 'overclock') {
-    G.overclockT = 10;
+    G.overclockT = 10 * abPow('overclock');
     for (const t of G.turrets) sparks.emit(t.plot.pos.clone().setY(2), '#ff7a1a', 20, 5, 0.5, 2, 0.6);
     banner('OVERCLOCK', 'All turrets +50% fire rate', { quiet: true });
     sfx('levelup');
   } else if (id === 'shieldwall') {
-    G.shieldT = 8;
+    G.shieldT = 8 * abPow('shieldwall');
     baseShield.position.copy(world.base.position).setY(2);
     baseShield.visible = true;
     banner('SHIELD WALL', 'The base is invulnerable for 8 s', { quiet: true });
@@ -2078,11 +2081,11 @@ function ringAt(pos, color, startT) {
 }
 
 function freezeAt(pos) {
-  const r = ABILITIES.freeze.radius;
+  const r = ABILITIES.freeze.radius * abRad('freeze');
   for (const e of G.enemies) {
     if (e.center.distanceTo(pos) < r + e.def.radius * 0.5) {
-      stunEnemy(e, 3, true);
-      hitEnemy(e, 25 * (1 + 0.1 * G.wave), { quiet: true });
+      stunEnemy(e, 3 * abPow('freeze'), true);
+      hitEnemy(e, 25 * (1 + 0.1 * G.wave) * abPow('freeze'), { quiet: true });
     }
   }
   ringAt(pos.clone().setY(0.6), '#bff0ff', 0.45);
@@ -2096,7 +2099,7 @@ function orbitalLance(pos) {
   strikeRing.material.color.set('#ff4ad8');
   strikeRing.visible = true;
   sfx('rail');
-  const dmg = ABILITIES.nuke.damage * (1 + 0.1 * G.wave);
+  const dmg = ABILITIES.nuke.damage * (1 + 0.1 * G.wave) * abPow('nuke');
   for (let i = 0; i < 8; i++) G.timers.push({ t: i * 0.25, fn: () => sparks.emit(pos.clone().setY(8 - i), '#ff9aff', 6, 2, 0.4, -6, 0) });
   G.timers.push({ t: 2, fn: () => {
     const top = pos.clone().setY(70);
@@ -2112,18 +2115,18 @@ function orbitalLance(pos) {
 }
 
 function tarPit(pos) {
-  const r = ABILITIES.tarpit.radius;
+  const r = ABILITIES.tarpit.radius * abRad('tarpit');
   const mesh = new THREE.Mesh(zoneGeo, new THREE.MeshStandardMaterial({ color: '#241a10', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.9 }));
   mesh.position.copy(pos).setY(0.06);
   mesh.scale.set(r, 1, r);
   scene.add(mesh);
-  G.zones.push({ pos: pos.clone(), r, t: 8, slow: 0.6, mesh });
+  G.zones.push({ pos: pos.clone(), r, t: 8 * abPow('tarpit'), slow: 0.6, mesh });
   smoke.emit(pos.clone().setY(0.3), '#3a2a1a', 20, 3, 1, -0.5, 0.3, 2);
   sfx('explode');
 }
 
 function blackHole(pos) {
-  const r = ABILITIES.blackhole.radius;
+  const r = ABILITIES.blackhole.radius * abRad('blackhole');
   for (let k = 0; k < 40; k++) {
     const a = Math.random() * Math.PI * 2, d = r * (0.5 + Math.random() * 0.8);
     sparks.emit(pos.clone().add(new V3(Math.cos(a) * d, 0.5 + Math.random() * 2, Math.sin(a) * d)), '#b46bff', 1, 0.5, 0.6, 0, 0);
@@ -2143,7 +2146,7 @@ function callStrike(pos) {
   strikeRing.scale.set(4, 1, 4);
   strikeRing.visible = true;
   sfx('whoosh');
-  const dmg = ABILITIES.strike.damage * (1 + 0.1 * G.wave);
+  const dmg = ABILITIES.strike.damage * (1 + 0.1 * G.wave) * abPow('strike');
   const dirx = Math.random() < 0.5 ? 1 : -1;
   jet.position.set(pos.x - dirx * 60, 14, pos.z);
   jet.rotation.set(0, dirx > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
