@@ -115,6 +115,31 @@ export function equippedPowers(type) {
     hyper: ps.hyper ? tp.hyper : null,
   };
 }
+/* ------------------------------------------------------------ turret deck */
+// You take 6 turrets into a match (all of them while you own fewer than 6).
+export const DECK_SIZE = 6;
+export function deckOf() {
+  const owned = TURRET_ORDER.filter((t) => P.unlocked[t]);
+  const d = (P.deck || []).filter((t, i, a) => P.unlocked[t] && TURRETS[t] && a.indexOf(t) === i).slice(0, DECK_SIZE);
+  for (const t of owned) {
+    if (d.length >= DECK_SIZE) break;
+    if (!d.includes(t)) d.push(t);
+  }
+  return d;
+}
+/** Put turret `id` into deck slot `slot`; if it is already in the deck the two slots swap. */
+export function setDeck(slot, id) {
+  if (!P.unlocked[id]) return false;
+  const d = deckOf();
+  if (slot >= d.length) return false;
+  const cur = d.indexOf(id);
+  if (cur >= 0) d[cur] = d[slot];
+  d[slot] = id;
+  P.deck = d;
+  save();
+  return true;
+}
+
 export function setLoadout(slot, id) {
   if (!ABILITIES[id]) return;
   const cur = P.loadout.indexOf(id);

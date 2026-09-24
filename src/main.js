@@ -19,7 +19,7 @@ import { P, save, addXp, perk, recordResult, mapState, xpForLevel, unlockCost } 
 import { initMenu, renderMenu, selectMenuMap, starsHtml, openChest, applySettings } from './ui.js';
 import { uiIcon, turretIcon, enemyIcon, abilityIcon, coinIcon, trophyIcon, chestIcon, gadgetIcon, hyperIcon, traitIcon, gearIcon } from './icons.js';
 const chestIconHtml = (k) => chestIcon(k, { wood: '#a8743a', iron: '#9aa6b2', gold: '#ffc62e', epic: '#b46bff' }[k]);
-import { ensureMeta, levelBonus, tlevel, skinOf, questProgress, matchRewards, equippedPowers } from './meta.js';
+import { ensureMeta, levelBonus, tlevel, skinOf, questProgress, matchRewards, equippedPowers, deckOf } from './meta.js';
 import { renderTree } from './treeview.js';
 import { turretPortrait, enemyPortrait } from './portraits.js';
 
@@ -285,7 +285,8 @@ function resetGame(mode) {
     seen: new Set(),
   });
   G.baseHp = G.maxHp;
-  if (!P.unlocked[G.buildType]) G.buildType = 'cannon';
+  G.deck = deckOf();
+  if (!G.deck.includes(G.buildType)) G.buildType = G.deck.find((t) => allowedType(t)) || G.deck[0] || 'cannon';
   setSpeedIcon();
   prepareNextWave();
   updateHud(true);
@@ -2372,14 +2373,15 @@ function openBuild(plot) {
 function renderBuildOptions() {
   const box = $('build-options');
   box.innerHTML = '';
-  for (const id of TURRET_ORDER) {
+  box.dataset.n = (G.deck || deckOf()).length;
+  for (const id of G.deck || deckOf()) {
     const d = TURRETS[id];
     const locked = !P.unlocked[id] || !allowedType(id);
     const b = document.createElement('button');
     b.className = `opt${G.buildType === id ? ' sel' : ''}${locked ? ' locked' : ''}`;
     b.dataset.type = id;
     const pic = turretPortrait(id, skinOf(id));
-    b.innerHTML = `<div class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(id)}</div><div class="o-name">${d.name.split(' ').pop()}</div><div class="o-cost">${locked ? uiIcon('lock') : `<span class="ico gold sm"></span>${buildCost(id)}`}</div>`;
+    b.innerHTML = `<div class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(id)}</div><div class="o-name">${d.name}</div><div class="o-cost">${locked ? uiIcon('lock') : `<span class="ico gold sm"></span>${buildCost(id)}`}</div>`;
     b.addEventListener('click', () => { G.buildType = id; renderBuildOptions(); });
     box.append(b);
   }

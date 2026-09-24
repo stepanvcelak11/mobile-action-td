@@ -10,6 +10,7 @@ import {
   questText, claimQuest, questsClaimable, dailyDeals, buyDeal, SHOP_CHESTS, SHOP_COINS, canPay, pay, claimGift,
   buySkin, selectSkin, skinOf, refreshDaily, DEFAULT_SETTINGS,
   powerState, buyGadget, buyStar, selectPower, buyGear, buyHyper, setLoadout, slotInfo, startUnlock, skipCost, takeSlot,
+  deckOf, setDeck, DECK_SIZE,
 } from './meta.js';
 import { sfx } from './audio.js';
 import { daily } from './daily.js';
@@ -170,6 +171,12 @@ function loadoutHtml(id = 'b-loadout') {
     ${P.loadout.map((a) => `<span class="lo-slot" style="--ac:${ABILITIES[a].color}">${abilityIcon(a)}<em>${P.abilities[a] || 0}</em></span>`).join('')}
     <span class="lo-edit">ABILITIES<small>tap to change</small></span></button>`;
 }
+function deckHtml(id = 'b-deck') {
+  const d = deckOf();
+  return `<button class="deck-row" id="${id}" aria-label="Change your turret deck">
+    ${d.map((t) => `<span class="dk-slot" style="--tc:${TURRETS[t].color}">${pic(turretPortrait(t, skinOf(t)))}</span>`).join('')}
+    <span class="lo-edit">DECK ${d.length}/${DECK_SIZE}<small>tap to change</small></span></button>`;
+}
 function slotHtml(i) {
   const info = slotInfo(i);
   if (!info) return `<div class="cslot empty"><div class="cs-art"></div><small>EMPTY SLOT</small><em>win a match</em></div>`;
@@ -197,6 +204,7 @@ function renderBattle(c) {
         </div>
         <div class="hero-extra"><button class="btn" id="b-world">WORLD MAP</button>${ms.stars >= 3 ? `<button class="btn" id="b-hard">HARD${campaign.hardDone(m.id) ? ' ✓' : ''}</button>` : ''}</div>
         <div class="hero-challenge"><small>3rd star</small> ${skill.challenge(m.id).text}${skill.challenge(m.id).done ? ' ✓' : ''}</div>
+        ${deckHtml()}
         ${loadoutHtml()}
         <div class="map-row" id="map-row">
           ${MAPS.map((mm, i) => {
@@ -241,6 +249,7 @@ function renderBattle(c) {
   });
   daily.renderCard($('daily-card'), () => { handlers.click?.(); handlers.play?.(daily.today().mapId, 'daily'); });
   $('b-loadout').addEventListener('click', () => openLoadout());
+  $('b-deck').addEventListener('click', () => openDeck());
   c.querySelectorAll('.map-chip').forEach((b) => b.addEventListener('click', () => {
     if (!mapState(b.dataset.map).unlocked) return;
     selectedMap = b.dataset.map;
@@ -277,6 +286,39 @@ function slotClick(i) {
   $('cf-yes').addEventListener('click', () => { closeOverlay(); const k = takeSlot(i, true); if (k) openChest(k); else toast('Not enough gems'); });
 }
 
+/** Choose the 6 turrets you can build in a match. */
+let dkSlot = 0;
+export function openDeck(back) {
+  const d = deckOf();
+  if (dkSlot >= d.length) dkSlot = 0;
+  const full = d.length >= DECK_SIZE;
+  openOverlay(`
+    <div class="lo-pick deck-pick">
+      <h2>Your deck</h2>
+      <p class="menu-note">${full ? `Only these ${DECK_SIZE} turrets can be built in a match. Tap a slot, then tap a turret to put it there.` : `You own ${d.length} turret${d.length === 1 ? '' : 's'}, so all of them come with you. Once you own more than ${DECK_SIZE}, you pick which ${DECK_SIZE} to bring.`}</p>
+      <div class="dk-slots">${d.map((t, i) => `<button class="dk-big${i === dkSlot && full ? ' sel' : ''}" data-slot="${i}" style="--tc:${TURRETS[t].color}">
+        <small>SLOT ${i + 1}</small>${pic(turretPortrait(t, skinOf(t)))}<b>${TURRETS[t].name}</b><em>${TURRETS[t].cost} gold</em></button>`).join('')}
+        ${Array.from({ length: DECK_SIZE - d.length }, () => '<div class="dk-big empty"><small>EMPTY</small><b>unlock more turrets</b></div>').join('')}</div>
+      <h3>All turrets</h3>
+      <div class="dk-all">${TURRET_ORDER.map((t) => {
+        const owned = !!P.unlocked[t];
+        return `<button class="dk-t${d.includes(t) ? ' in' : ''}${owned ? '' : ' locked'}" data-t="${t}" style="--tc:${TURRETS[t].color}" ${owned ? '' : 'disabled'}>
+          ${pic(turretPortrait(t, skinOf(t)))}<b>${TURRETS[t].name}</b><small>${owned ? (d.includes(t) ? 'IN DECK' : `${TURRETS[t].cost} gold`) : 'LOCKED'}</small></button>`;
+      }).join('')}</div>
+      <div class="brief-actions"><button class="btn primary" id="dk-done">${back ? 'BACK TO BRIEFING' : 'DONE'}</button></div>
+    </div>`, 'wide');
+  document.querySelectorAll('#overlay-body .dk-big[data-slot]').forEach((b) => b.addEventListener('click', () => { dkSlot = +b.dataset.slot; openDeck(back); }));
+  document.querySelectorAll('#overlay-body .dk-t:not(.locked)').forEach((b) => b.addEventListener('click', () => {
+    if (!full) { toast('Everything you own is already in your deck'); return; }
+    setDeck(dkSlot, b.dataset.t);
+    dkSlot = (dkSlot + 1) % DECK_SIZE;
+    handlers.click?.();
+    openDeck(back);
+    renderMenu();
+  }));
+  $('dk-done').addEventListener('click', () => { if (back) back(); else closeOverlay(); });
+}
+
 /** Choose which 4 of the 10 abilities you bring into a match. */
 let loSlot = 0;
 export function openLoadout(back) {
@@ -308,7 +350,7 @@ function renderArmory(c) {
   c.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { armoryTab = b.dataset.sub; renderMenu(); }));
   const body = $('arm-body');
   if (armoryTab === 'turrets') {
-    body.innerHTML = `<div class="tcards">${TURRET_ORDER.map((id) => {
+    body.innerHTML = `${deckHtml('a-deck')}<div class="tcards">${TURRET_ORDER.map((id) => {
       const t = TURRETS[id];
       const owned = !!P.unlocked[id];
       const L = tlevel(id);
@@ -323,6 +365,7 @@ function renderArmory(c) {
       </button>`;
     }).join('')}</div><p class="menu-note">Collect turret cards from chests, then level turrets up with coins: +7% damage and +1.5% range per level. Level ${POWER_UNLOCK.gadget} unlocks Tactics, ${POWER_UNLOCK.star} Traits, ${POWER_UNLOCK.gear1} and ${POWER_UNLOCK.gear2} Mod chips, ${POWER_UNLOCK.hyper} Overload.</p>`;
     body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t); }));
+    $('a-deck').addEventListener('click', () => openDeck());
   } else if (armoryTab === 'abilities') {
     body.innerHTML = `${loadoutHtml('a-loadout')}<div class="grid">${ABILITY_ORDER.map((a) => `<div class="card"><div class="card-row">
       <div class="ab-ico">${abilityIcon(a)}</div><div class="c-main"><div class="c-name">${ABILITIES[a].name} <span class="count">×${P.abilities[a] || 0}</span></div>
@@ -655,6 +698,8 @@ export function showBriefing(id, mode) {
       <div class="chips"><span>${mode === 'endless' ? '∞' : m.waves} waves</span><span>${m.roads.length} road${m.roads.length > 1 ? 's' : ''}</span><span>Bosses on ${m.bosses.join(', ')}</span><span class="stars sm">${starsHtml(ms.stars)}</span></div>
       <h3>Hostiles</h3>
       <div class="brief-enemies">${list.map(({ k, w, fresh }) => `<div class="be${fresh ? ' fresh' : ''}">${fresh ? '<span class="be-new">NEW</span>' : ''}<div class="be-pic">${pic(enemyPortrait(k))}</div><b>${ENEMIES[k].name}</b><small>from wave ${w}</small></div>`).join('')}</div>
+      <h3>Your turrets</h3>
+      ${deckHtml('br-deck')}
       <h3>Your abilities</h3>
       ${loadoutHtml('br-loadout')}
       <h3>Rewards</h3>
@@ -667,6 +712,7 @@ export function showBriefing(id, mode) {
     </div>`, 'wide');
   $('br-back').addEventListener('click', closeOverlay);
   $('br-loadout').addEventListener('click', () => openLoadout(() => showBriefing(id, mode)));
+  $('br-deck').addEventListener('click', () => openDeck(() => showBriefing(id, mode)));
   $('br-go').addEventListener('click', () => { closeOverlay(); handlers.play(id, mode); });
 }
 
