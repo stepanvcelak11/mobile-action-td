@@ -81,13 +81,13 @@ function ensureCss() {
   #cp-map .hard{background:linear-gradient(180deg,#ff6a6a,#b8202a);color:#fff}
   #cp-map .hard[disabled]{opacity:.4;cursor:default}
   #cp-talk{position:fixed;left:50%;top:calc(var(--sat,0px) + 150px);transform:translateX(-50%);z-index:58;width:min(560px,calc(100% - 24px));display:flex;gap:12px;align-items:flex-start;
-    padding:12px 14px;border-radius:16px;background:var(--panel-solid,#12171f);border:1px solid var(--panel-border,#333);box-shadow:var(--shadow);cursor:pointer;animation:cpIn .3s ease-out both}
+    padding:12px 14px;border-radius:16px;background:var(--panel-solid,#12171f);border:1px solid var(--panel-border,#333);box-shadow:var(--shadow);pointer-events:none;animation:cpIn .3s ease-out both}
   #cp-talk .who{flex:none;width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:12px;letter-spacing:.06em}
   #cp-talk .who.HQ{background:linear-gradient(160deg,#4ab0ff,#1f5fa8);color:#fff}
   #cp-talk .who.VIPER{background:linear-gradient(160deg,#ff6a6a,#8a1020);color:#fff}
-  #cp-talk p{margin:2px 0 0;font-size:14px;line-height:1.4;font-weight:600}
+  #cp-talk p{margin:2px 52px 0 0;font-size:14px;line-height:1.4;font-weight:600}
   #cp-talk small{display:block;font-size:11px;color:var(--muted,#9aa);font-weight:800;letter-spacing:.1em}
-  #cp-talk .tap{position:absolute;right:12px;bottom:6px;font-size:10px;color:var(--muted,#9aa);font-weight:700}
+  #cp-talk .tap{position:absolute;right:6px;top:6px;pointer-events:auto;border:0;background:var(--panel-2,#fff1);color:var(--muted,#9aa);font-weight:800;font-size:12px;border-radius:9px;padding:6px 10px;cursor:pointer}
   @media (orientation:landscape){#cp-talk{top:calc(var(--sat,0px) + 70px)}}
   #result.show ~ #cp-talk,#cp-talk.on-result{top:calc(var(--sat,0px) + 12px)}
   @keyframes cpIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}`;
@@ -172,7 +172,7 @@ export const campaign = {
       box.setAttribute('role', 'status');
       const show = () => {
         const [who, text] = lines[i];
-        box.innerHTML = `<div class="who ${who}">${who}</div><div><small>${who === 'HQ' ? 'HEADQUARTERS' : 'ENEMY COMMANDER'}</small><p>${text}</p></div><span class="tap">${i < lines.length - 1 ? 'tap ›' : 'tap ✕'}</span>`;
+        box.innerHTML = `<div class="who ${who}">${who}</div><div><small>${who === 'HQ' ? 'HEADQUARTERS' : 'ENEMY COMMANDER'}</small><p>${text}</p></div><button type="button" class="tap" aria-label="${i < lines.length - 1 ? 'Next' : 'Close'}">${i < lines.length - 1 ? 'NEXT ›' : '✕'}</button>`;
       };
       let timer = 0;
       const next = () => {
@@ -183,7 +183,7 @@ export const campaign = {
         timer = setTimeout(next, 5500);
       };
       box.addEventListener('pointerdown', (e) => e.stopPropagation());
-      box.addEventListener('click', (e) => { e.stopPropagation(); next(); });
+      box.addEventListener('click', (e) => { if (!e.target.closest('.tap')) return; e.stopPropagation(); next(); });
       document.getElementById('cp-talk')?.remove();
       document.body.appendChild(box);
       show();
