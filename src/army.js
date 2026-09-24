@@ -78,7 +78,14 @@ function buildTank() {
   add(tur, new THREE.CylinderGeometry(0.45, 0.55, 0.36, 8), blue, 0, 0, 0);
   add(tur, new THREE.CylinderGeometry(0.08, 0.1, 1.3, 8).rotateX(Math.PI / 2), dark, 0, 0.04, 0.8);
   add(tur, new THREE.SphereGeometry(0.06, 6, 4), glowM('#8fe3ff'), 0.25, 0.2, 0.3, false);
-  return { g, body, tur, legs: [], muzzle: new THREE.Vector3(0, 0.96, 1.5), eye: [0, 1.75, -0.55], camH: 3.0, camBack: 6.0, camSide: 0 };
+  // roof machine gun on a small ring mount, commander hatch
+  add(tur, new THREE.CylinderGeometry(0.2, 0.2, 0.08, 10), dark, -0.2, 0.22, -0.15);
+  add(tur, new THREE.BoxGeometry(0.1, 0.12, 0.34), dark, -0.2, 0.34, 0.02);
+  add(tur, new THREE.CylinderGeometry(0.025, 0.025, 0.5, 6).rotateX(Math.PI / 2), dark, -0.2, 0.36, 0.4);
+  add(tur, new THREE.BoxGeometry(0.16, 0.12, 0.04), light, -0.2, 0.38, 0.14);
+  add(tur, new THREE.CylinderGeometry(0.14, 0.16, 0.06, 10), light, 0.18, 0.21, -0.25);
+  for (const sx of [-0.38, 0.38]) add(body, new THREE.BoxGeometry(0.12, 0.12, 0.4), light, sx, 0.84, -0.7);
+  return { g, body, tur, legs: [], muzzle2: new THREE.Vector3(-0.2, 1.28, 0.6), muzzle: new THREE.Vector3(0, 0.96, 1.5), eye: [0, 1.75, -0.55], camH: 3.0, camBack: 6.0, camSide: 0 };
 }
 function buildHeli() {
   const g = new THREE.Group();
@@ -93,6 +100,10 @@ function buildHeli() {
     add(body, new THREE.BoxGeometry(0.06, 0.06, 1.3), dark, sx, -0.55, 0);
     add(body, new THREE.CylinderGeometry(0.1, 0.1, 0.6, 8).rotateX(Math.PI / 2), dark, sx * 1.1, -0.1, 0.2);
   }
+  // door minigun on the right side
+  add(body, new THREE.BoxGeometry(0.08, 0.5, 0.08), dark, 0.5, -0.2, 0.25);
+  add(body, new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8).rotateX(Math.PI / 2), dark, 0.56, -0.12, 0.55);
+  add(body, new THREE.BoxGeometry(0.12, 0.14, 0.22), mat('#3a3f48'), 0.56, -0.12, 0.2);
   const rotor = new THREE.Group();
   rotor.position.y = 0.62;
   body.add(rotor);
@@ -102,7 +113,7 @@ function buildHeli() {
   tail.position.set(0.1, 0.35, -2.4);
   body.add(tail);
   add(tail, new THREE.BoxGeometry(0.02, 0.8, 0.08), dark, 0, 0, 0, false);
-  return { g, body, rotor, tail, legs: [], muzzle: new THREE.Vector3(0, -0.1, 0.9), eye: [0, 0.15, 0.55], camH: 2.2, camBack: 7.0, camSide: 0 };
+  return { g, body, rotor, tail, legs: [], muzzle2: new THREE.Vector3(0.56, -0.12, 0.85), muzzle: new THREE.Vector3(0, -0.1, 0.9), eye: [0, 0.15, 0.55], camH: 2.2, camBack: 7.0, camSide: 0 };
 }
 function buildJet() {
   const g = new THREE.Group();
@@ -144,8 +155,8 @@ function nearestOnPaths(x, z) {
   }
   return best;
 }
-function statsOf(t) {
-  const def = UNITS[UNIT_OF[t.type]];
+function statsOf(t, kind = UNIT_OF[t.type]) {
+  const def = UNITS[kind];
   const base = H.turretDef(t.type);
   const st = t.stats;
   const dmgK = st.damage / base.damage;
@@ -168,7 +179,7 @@ function statsOf(t) {
 function spawnUnit(t, kind, at, rally) {
   const m = BUILD[kind]();
   const def = UNITS[kind];
-  const s = statsOf(t);
+  const s = statsOf(t, kind);
   const bar = hpBar();
   H.scene.add(m.g);
   H.scene.add(bar.g);
@@ -197,7 +208,7 @@ function removeUnit(u, i = units.indexOf(u)) {
 function deploySquad(t, point, dropped) {
   const kind = UNIT_OF[t.type];
   const s = statsOf(t);
-  const alive = units.filter((u) => u.owner === t).length;
+  const alive = units.filter((u) => u.owner === t && !u.para).length;
   const n = Math.min(s.squad, s.cap - alive);
   if (n <= 0) return 0;
   const rally = t.rally || (t.rally = nearestOnPaths(t.plot.pos.x, t.plot.pos.z));
@@ -222,8 +233,8 @@ function findTarget(u, range) {
   }
   return best;
 }
-function muzzleOf(u, out) {
-  out.copy(u.m.muzzle);
+function muzzleOf(u, out, second = false) {
+  out.copy(second && u.m.muzzle2 ? u.m.muzzle2 : u.m.muzzle);
   if (u.m.tur) out.applyAxisAngle(THREE.Object3D.DEFAULT_UP, u.m.tur.rotation.y);
   out.applyAxisAngle(THREE.Object3D.DEFAULT_UP, u.m.g.rotation.y);
   return out.add(u.m.g.position);
@@ -251,15 +262,21 @@ function shoot(u, targetPoint, enemy, s, manual) {
 
 /* ---------------------------------------------------------------- update */
 function updateUnit(u, dt, time) {
-  const s = statsOf(u.owner);
+  const s = statsOf(u.owner, u.kind);
   const def = u.def;
   u.cd -= dt;
+  u.cd2 = (u.cd2 || 0) - dt;
   u.flash = Math.max(0, u.flash - dt);
   // drop from the sky
   if (u.drop < 1.2 && def.air === false) {
     u.drop += dt;
-    u.pos.y = Math.max(0, 9 * (1 - u.drop / 0.9));
+    u.pos.y = Math.max(0, (u.dropFrom ?? 9) * (1 - u.drop / 0.9));
     if (u.pos.y === 0 && u.drop - dt < 0.9) { H.spark(u.pos, '#c9d6e2', 10); H.smoke(u.pos, 4); }
+  }
+  if (u.vy || u.pos.y > 0.001 && u.kind === 'soldier' && u.drop >= 1.2) {
+    u.vy = (u.vy || 0) - GRAV * dt;
+    u.pos.y += u.vy * dt;
+    if (u.pos.y <= 0) { u.pos.y = 0; u.vy = 0; if (u === controlled) H.shake?.(0.04); }
   }
   if (u === controlled) {
     driveControlled(u, dt, s);
@@ -294,13 +311,28 @@ function updateUnit(u, dt, time) {
       u.cd = s.rate * (0.85 + Math.random() * 0.3);
       shoot(u, target.center.clone(), target, s, false);
     }
+    // soldiers lob a grenade into a group; tanks and gunships use the second gun up close
+    if (target && u.kind === 'soldier' && u.drop >= 0.9) {
+      u.gcd = (u.gcd ?? 3 + Math.random() * 5) - dt;
+      const d = u.pos.distanceTo(target.center);
+      if (u.gcd <= 0 && d > 2.5 && d < 10 && crowd(target.center, 2.6) >= 2) {
+        u.gcd = 9 + Math.random() * 4;
+        lob(u, target.center, s.dmg * 4, false);
+      }
+    }
+    if (target && u.m.muzzle2 && u.cd2 <= 0 && u.pos.distanceTo(target.center) < s.range * 0.75) {
+      u.cd2 = 0.16;
+      secondShot(u, target.center.clone(), target, s, false);
+    }
   }
+  // tanks crush what they drive over
+  if (u.kind === 'tank' && (u.moving || u === controlled && (Math.abs(ctl.jx) + Math.abs(ctl.jy) > 0.1))) crush(u, s, dt);
   // enemies in contact hurt ground units
   if (!def.air) {
     for (const e of H.enemies()) {
       if (!e.alive || e.def.air || e.buried) continue;
       if (Math.hypot(e.group.position.x - u.pos.x, e.group.position.z - u.pos.z) < def.radius + e.def.radius * 0.8) {
-        u.hp -= e.def.damage * 0.9 * dt * (e.type === 'boss' ? 2 : 1);
+        u.hp -= e.def.damage * 0.9 * dt * (e.type === 'boss' ? 2 : 1) * (u.kind === 'soldier' ? STANCE[u.stance || 'stand'].taken : 1) * (u.kind === 'tank' && u.moving ? 0.6 : 1);
         u.flash = 0.1;
       }
     }
@@ -310,6 +342,8 @@ function updateUnit(u, dt, time) {
   g.position.copy(u.pos);
   g.rotation.y = u.yaw;
   if (u.kind === 'soldier') {
+    const want = STANCE[u.stance || 'stand'].eye;
+    u.eyeH = u.eyeH == null ? want : u.eyeH + (want - u.eyeH) * Math.min(1, dt * 10);
     u.anim += dt * (u.moving ? 9 : 0);
     u.m.legs.forEach((l, k) => { l.rotation.x = u.moving ? Math.sin(u.anim + k * Math.PI) * 0.6 : 0; });
   }
@@ -389,6 +423,100 @@ function computeBlocks() {
   }
 }
 
+/* ------------------------------------------------------ extra weapons */
+const GRAV = 18;
+// stance of a controlled soldier: eye height, speed, damage taken from contact, own damage
+const STANCE = {
+  stand: { eye: 1.5, speed: 1, taken: 1, dmg: 1, label: 'STAND' },
+  crouch: { eye: 1.0, speed: 0.6, taken: 0.7, dmg: 1.12, label: 'CROUCH' },
+  prone: { eye: 0.42, speed: 0.32, taken: 0.45, dmg: 1.25, label: 'PRONE' },
+};
+const NEXT_STANCE = { stand: 'crouch', crouch: 'prone', prone: 'stand' };
+const grenades = [];
+let grenadeGeo = null;
+function crowd(p, r) {
+  let n = 0;
+  for (const e of H.enemies()) if (e.alive && !e.def.air && e.center.distanceTo(p) < r) n++;
+  return n;
+}
+/** Throw a grenade: either at a point (AI, ballistic solve) or with a given velocity (player). */
+function lob(u, at, dmg, manual, vel = null) {
+  const from = u.pos.clone().setY(u.pos.y + (u.eyeH || 1.4));
+  if (!vel) {
+    const T = 0.85;
+    vel = new THREE.Vector3((at.x - from.x) / T, (at.y - from.y + 0.5 * GRAV * T * T) / T, (at.z - from.z) / T);
+  }
+  grenadeGeo ||= new THREE.DodecahedronGeometry(0.11, 0);
+  const mesh = new THREE.Mesh(grenadeGeo, mat('#3d5a2e', { roughness: 0.8 }));
+  mesh.position.copy(from);
+  mesh.castShadow = true;
+  H.scene.add(mesh);
+  grenades.push({ mesh, vel, t: 0, bounces: 0, dmg, manual, st: u.owner.stats });
+  sfxAt('whoosh', 0, manual ? 0 : 12, 0.1);
+}
+function updateGrenades(dt) {
+  for (let i = grenades.length - 1; i >= 0; i--) {
+    const g = grenades[i];
+    g.t += dt;
+    g.vel.y -= GRAV * dt;
+    g.mesh.position.addScaledVector(g.vel, dt);
+    g.mesh.rotation.x += dt * 12; g.mesh.rotation.z += dt * 7;
+    if (g.mesh.position.y <= 0.1) {
+      g.mesh.position.y = 0.1;
+      g.vel.multiplyScalar(0.35); g.vel.y = Math.abs(g.vel.y);
+      g.bounces++;
+    }
+    if (g.t > 1.6 || g.bounces >= 2) {
+      const p = g.mesh.position.clone();
+      H.explode(p, 2.8, g.dmg, g.st, g.manual, null, false, true);
+      H.spark(p, '#ffd070', 26);
+      H.smoke(p, 8);
+      H.scene.remove(g.mesh);
+      grenades.splice(i, 1);
+    }
+  }
+}
+/** Machine gun / door minigun: fast, light tracers. Hits flyers too. */
+function secondShot(u, point, enemy, s, manual) {
+  const from = muzzleOf(u, new THREE.Vector3(), true);
+  const jitter = manual ? 0.25 : 0.5;
+  const to = point.clone().add(_v2.set((Math.random() - 0.5) * jitter, (Math.random() - 0.5) * jitter, (Math.random() - 0.5) * jitter));
+  H.beams.line(from, to, u.kind === 'heli' ? '#ffd76a' : '#fff0a0', 0.025, 0.04);
+  if (enemy) H.hitEnemy(enemy, s.dmg * (u.kind === 'heli' ? 0.2 : 0.09) * (manual ? 1.2 : 1), { st: u.owner.stats, manual, point: to, quiet: true });
+  if (Math.random() < 0.35) sfxAt('gatling', 0, manual ? 0 : 14, 0.05);
+}
+/** Driving over enemies hurts them; small ones get flattened fast. */
+function crush(u, s, dt) {
+  for (const e of H.enemies()) {
+    if (!e.alive || e.def.air || e.buried) continue;
+    if (Math.hypot(e.group.position.x - u.pos.x, e.group.position.z - u.pos.z) > u.def.radius + e.def.radius * 0.8) continue;
+    const small = e.def.radius < 0.7;
+    const big = e.type === 'boss' || e.type === 'juggernaut';
+    const dps = (big ? 25 : small ? 160 : 70) * (u === controlled ? 1.4 : 1);
+    H.hitEnemy(e, dps * dt, { st: u.owner.stats, manual: u === controlled, point: e.center, quiet: true });
+    u.crushT = (u.crushT || 0) - dt;
+    if (u.crushT <= 0) {
+      u.crushT = 0.3;
+      H.spark(e.center.clone().setY(0.4), '#c9b08a', 10);
+      if (u === controlled) H.shake?.(0.06);
+    }
+  }
+}
+/** Gunship drops two paratroopers under itself (they fight on the road below). */
+function paradrop(u) {
+  const mine = units.filter((x) => x.para && x.owner === u.owner).length;
+  if (mine >= 4) { H.toast?.('Max 4 paratroopers out'); return false; }
+  const rally = nearestOnPaths(u.pos.x, u.pos.z);
+  for (let i = 0; i < 2; i++) {
+    const at = u.pos.clone().add(_v2.set((i - 0.5) * 1.2, 0, 0));
+    const p = spawnUnit(u.owner, 'soldier', at, rally);
+    p.para = true; p.drop = 0; p.dropFrom = Math.max(1, u.pos.y - 0.8); p.pos.y = p.dropFrom; p.phase = 'rally';
+  }
+  H.spark(u.pos.clone().setY(u.pos.y - 1), '#c9d6e2', 12);
+  sfxAt('build', 0, 0);
+  return true;
+}
+
 /* ------------------------------------------------------- direct control */
 let vmRifle = null;
 function viewModel() {
@@ -407,7 +535,7 @@ function viewModel() {
   return vmRifle;
 }
 
-const ctl = { jx: 0, jy: 0, fire: false, el: null, stick: null };
+const ctl = { jx: 0, jy: 0, fire: false, alt: false, vert: 0, el: null, stick: null };
 function driveControlled(u, dt, s) {
   const def = u.def;
   if (u.kind === 'jet') {
@@ -424,8 +552,10 @@ function driveControlled(u, dt, s) {
   }
   // joystick: up = forward in the aim direction
   const f = u.kind === 'jet' ? 0 : -ctl.jy, r = u.kind === 'jet' ? 0 : ctl.jx;
+  const st = STANCE[u.stance || 'stand'];
   if (Math.abs(f) + Math.abs(r) > 0.05) {
-    const sp = def.speed * (u.kind === 'heli' ? 1.6 : 1.3) * dt;
+    const sprint = u.kind === 'soldier' && (u.stance || 'stand') === 'stand' && Math.hypot(f, r) > 0.92 ? 1.35 : 1;
+    const sp = def.speed * (u.kind === 'heli' ? 1.6 : 1.3) * (u.kind === 'soldier' ? st.speed * sprint : 1) * dt;
     const sin = Math.sin(u.aimYaw), cos = Math.cos(u.aimYaw);
     const nx = u.pos.x + (sin * f - cos * r) * sp;
     const nz = u.pos.z + (cos * f + sin * r) * sp;
@@ -437,32 +567,133 @@ function driveControlled(u, dt, s) {
     if (u.kind !== 'tank') u.yaw = lerpAngle(u.yaw, Math.atan2(sin * f - cos * r, cos * f + sin * r), dt * 8);
     else u.yaw = lerpAngle(u.yaw, Math.atan2(sin * f - cos * r, cos * f + sin * r), dt * 2.5);
   } else if (u.kind === 'soldier') u.yaw = lerpAngle(u.yaw, u.aimYaw, dt * 10);
-  if (def.air) u.pos.y += (def.alt - u.pos.y) * Math.min(1, dt * 2);
+  if (u.kind === 'heli') {
+    // vertical flight: hold ▲ / ▼ — low and close, never a long-range sniper
+    u.alt = THREE.MathUtils.clamp((u.alt ?? def.alt) + ctl.vert * dt * 4.5, 1.6, 14);
+    u.pos.y += (u.alt - u.pos.y) * Math.min(1, dt * 3);
+  } else if (def.air) u.pos.y += (def.alt - u.pos.y) * Math.min(1, dt * 2);
+  if (ctl.alt && u.m.muzzle2 && u.cd2 <= 0) {
+    u.cd2 = u.kind === 'heli' ? 0.07 : 0.09;
+    const hit = aimRay(u, s, 1.7, u.kind === 'heli' ? 1.0 : 1.3);
+    secondShot(u, hit.point, hit.best, s, true);
+    if (hit.best) hitMark();
+    u.kick = 0.4;
+  }
   if (ctl.fire && u.cd <= 0) {
     u.cd = s.rate * (u.kind === 'soldier' ? 0.55 : 0.8);
-    // aim ray from the camera through the crosshair
-    H.camera.getWorldDirection(_v);
-    _ray.set(H.camera.position, _v);
-    let best = null, bt = 90;
-    for (const e of H.enemies()) {
-      if (!e.alive || e.buried || (e.def.air && !def.hitsAir)) continue;
-      const t = _ray.origin.distanceTo(e.center);
-      if (t > bt) continue;
-      _ray.closestPointToPoint(e.center, _v2);
-      if (_v2.distanceTo(e.center) < e.def.radius * 1.1) { best = e; bt = t; }
-    }
-    let point;
-    if (best) point = best.center.clone();
-    else {
-      const d = _v.y < -0.001 ? Math.min(60, -H.camera.position.y / _v.y) : 60;
-      point = H.camera.position.clone().addScaledVector(_v, d);
-      if (point.y < 0.1) point.y = 0.1;
-    }
-    shoot(u, point, best, { ...s, dmg: s.dmg * 1.5 }, true);
+    const { best, point } = aimRay(u, s, 1.1, u.kind === 'heli' ? 1.15 : u.kind === 'soldier' ? 2.2 : 1.8);
+    shoot(u, point, best, { ...s, dmg: s.dmg * 1.5 * (u.kind === 'soldier' ? st.dmg : 1) }, true);
+    if (best) hitMark();
     u.kick = 1;
     H.shake?.(u.kind === 'soldier' ? 0.03 : 0.12);
   }
 }
+
+/** Crosshair ray. Beyond `reach` × unit range nothing is hit and the shot lands short. */
+function aimRay(u, s, fat, reach) {
+  H.camera.getWorldDirection(_v);
+  _ray.set(H.camera.position, _v);
+  const max = Math.min(90, s.range * reach);
+  let best = null, bt = max;
+  for (const e of H.enemies()) {
+    if (!e.alive || e.buried || (e.def.air && !u.def.hitsAir && !(fat > 1.5))) continue;
+    const t = _ray.origin.distanceTo(e.center);
+    if (t > bt) continue;
+    _ray.closestPointToPoint(e.center, _v2);
+    if (_v2.distanceTo(e.center) < e.def.radius * fat) { best = e; bt = t; }
+  }
+  let point;
+  if (best) point = best.center.clone();
+  else {
+    const d = _v.y < -0.001 ? Math.min(max, -H.camera.position.y / _v.y) : max;
+    point = H.camera.position.clone().addScaledVector(_v, d);
+    if (point.y < 0.1) point.y = 0.1;
+  }
+  return { best, point };
+}
+let hitT = 0;
+function hitMark() {
+  const c = ctl.el?.querySelector('.ac-cross');
+  if (!c) return;
+  c.classList.add('hit');
+  clearTimeout(hitT);
+  hitT = setTimeout(() => c.classList.remove('hit'), 130);
+}
+
+/* Action buttons next to FIRE, per unit: tap actions and hold actions. */
+const ACTS = {
+  soldier: [
+    { id: 'jump', label: 'JUMP', key: ' ', tap: (u) => { if (u.pos.y > 0.01 || u.drop < 1.2) return; u.stance = 'stand'; u.vy = 6.5; updStance(u); } },
+    { id: 'stance', label: 'CROUCH', key: 'c', tap: (u) => { u.stance = NEXT_STANCE[u.stance || 'stand']; updStance(u); } },
+    { id: 'nade', label: 'GRENADE', key: 'g', cd: 5, tap: (u, s) => {
+      H.camera.getWorldDirection(_v);
+      lob(u, null, s.dmg * 6, true, _v.clone().multiplyScalar(13).add(_v2.set(0, 4.5, 0)));
+      return true;
+    } },
+  ],
+  tank: [{ id: 'mg', label: 'MG', key: 'q', hold: 'alt' }],
+  heli: [
+    { id: 'up', label: '▲', key: 'r', hold: 'vert', val: 1 },
+    { id: 'down', label: '▼', key: 'f', hold: 'vert', val: -1 },
+    { id: 'gun', label: 'MINIGUN', key: 'q', hold: 'alt' },
+    { id: 'para', label: 'PARA', key: 'g', cd: 14, tap: (u) => paradrop(u) },
+  ],
+  jet: [],
+};
+function updStance(u) {
+  const b = ctl.el?.querySelector('[data-act="stance"] b');
+  if (b) b.textContent = STANCE[NEXT_STANCE[u.stance || 'stand']].label;
+  ctl.el?.setAttribute('data-stance', u.stance || 'stand');
+}
+function renderActs(u) {
+  const box = ctl.el.querySelector('#ac-acts');
+  box.innerHTML = '';
+  ctl.vert = 0; ctl.alt = false;
+  if (!u) return;
+  for (const a of ACTS[u.kind] || []) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ac-act';
+    b.dataset.act = a.id;
+    b.innerHTML = `<b>${a.label}</b>`;
+    if (a.hold) {
+      const on = (e) => { e.stopPropagation(); try { b.setPointerCapture(e.pointerId); } catch {} b.classList.add('on'); ctl[a.hold] = a.val ?? true; };
+      const off = () => { b.classList.remove('on'); ctl[a.hold] = a.hold === 'vert' ? 0 : false; };
+      b.addEventListener('pointerdown', on);
+      b.addEventListener('pointerup', off);
+      b.addEventListener('pointercancel', off);
+    } else b.addEventListener('pointerdown', (e) => { e.stopPropagation(); doAct(a); });
+    box.appendChild(b);
+  }
+  updStance(u);
+}
+function doAct(a) {
+  const u = controlled;
+  if (!u) return;
+  u.acd ||= {};
+  if ((u.acd[a.id] || 0) > 0) return;
+  const ok = a.tap(u, statsOf(u.owner, u.kind));
+  if (ok && a.cd) u.acd[a.id] = a.cd;
+}
+// keyboard (desktop): WASD move, Space jump, C stance, G grenade/para, Q second gun, R/F altitude
+const keys = new Set();
+function onKey(e, down) {
+  if (!controlled) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (down) keys.add(k); else keys.delete(k);
+  if ('wasd'.includes(k) && k.length === 1) {
+    ctl.jx = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
+    ctl.jy = (keys.has('s') ? 1 : 0) - (keys.has('w') ? 1 : 0);
+  }
+  for (const a of ACTS[controlled.kind] || []) {
+    if (a.key !== k) continue;
+    e.preventDefault();
+    if (a.hold) ctl[a.hold] = down ? (a.val ?? true) : (a.hold === 'vert' ? 0 : false);
+    else if (down && !e.repeat) doAct(a);
+  }
+}
+addEventListener('keydown', (e) => onKey(e, true));
+addEventListener('keyup', (e) => onKey(e, false));
 
 function buildOverlay() {
   if (ctl.el) return;
@@ -471,6 +702,7 @@ function buildOverlay() {
   el.innerHTML = `<div class="ac-aim" id="ac-aim"></div>
     <div class="ac-stick" id="ac-stick"><i></i></div>
     <button class="ac-fire" id="ac-fire" type="button">FIRE</button>
+    <div class="ac-acts" id="ac-acts"></div>
     <div class="ac-side"><button class="ac-btn" id="ac-map" type="button" aria-label="Full map"><b>MAP</b></button>
       <button class="ac-btn" id="ac-wave" type="button" aria-label="Start the next wave"><b>WAVE</b></button>
       <button class="ac-btn" id="ac-up" type="button" aria-label="Upgrade the tower"><b>UPGRADE</b></button></div>
@@ -557,6 +789,8 @@ function control(u) {
   document.body.classList.toggle('army-ctl', !!u);
   ctl.jx = ctl.jy = 0;
   ctl.fire = false;
+  keys.clear();
+  renderActs(u);
   if (u) {
     u.aimYaw = u.yaw;
     u.aimPitch = u.kind === 'heli' ? -0.35 : -0.08;
@@ -601,6 +835,15 @@ export const army = {
     if (!H) return;
     computeBlocks();
     shipsFire(dt);
+    updateGrenades(dt);
+    if (controlled?.acd) {
+      for (const [id, v] of Object.entries(controlled.acd)) {
+        const a = (ACTS[controlled.kind] || []).find((x) => x.id === id);
+        controlled.acd[id] = Math.max(0, v - dt);
+        const b = ctl.el?.querySelector(`[data-act="${id}"]`);
+        if (b && a) { b.style.setProperty('--cd', (controlled.acd[id] / a.cd).toFixed(3)); b.classList.toggle('cool', controlled.acd[id] > 0); }
+      }
+    }
     for (let i = units.length - 1; i >= 0; i--) if (units[i].alive) updateUnit(units[i], dt, time);
     const fpv = document.body.classList.contains('fpv') && !controlled;
     const t = H.active();
@@ -622,10 +865,11 @@ export const army = {
     // first person: the camera sits at the unit's eyes (soldier), hatch (tank) or cockpit (gunship)
     const cy = Math.cos(u.aimPitch);
     const dir = _v.set(Math.sin(u.aimYaw) * cy, Math.sin(u.aimPitch), Math.cos(u.aimYaw) * cy);
-    const [ex, ey, ez] = u.m.eye;
+    const [ex, ey0, ez] = u.m.eye;
+    const ey = u.kind === 'soldier' ? (u.eyeH ?? ey0) : ey0;
     const body = u.kind === 'tank' ? u.aimYaw : u.yaw; // tank hatch turns with the turret
     const sb = Math.sin(body), cb = Math.cos(body);
-    const bob = u.kind === 'soldier' && u.moving ? Math.sin(performance.now() / 110) * 0.04 : 0;
+    const bob = u.kind === 'soldier' && u.moving && u.pos.y < 0.01 ? Math.sin(performance.now() / ((u.stance || 'stand') === 'stand' ? 110 : 170)) * (u.stance === 'prone' ? 0.02 : 0.04) : 0;
     cam.position.set(u.pos.x + ex * cb + ez * sb, u.pos.y + ey + bob, u.pos.z - ex * sb + ez * cb);
     cam.lookAt(_v2.copy(cam.position).addScaledVector(dir, 10));
     const fov = u.kind === 'heli' ? 80 : 75;
@@ -647,6 +891,7 @@ export const army = {
   release() { control(null); },
   /** Remove every unit of a tower (sold) or all units (new map). */
   clear(t = null) {
+    if (!t) for (const g of grenades.splice(0)) H.scene.remove(g.mesh);
     for (let i = units.length - 1; i >= 0; i--) if (!t || units[i].owner === t) removeUnit(units[i], i);
     if (!t) control(null);
   },
