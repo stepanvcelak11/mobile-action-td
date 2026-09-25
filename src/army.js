@@ -11,10 +11,10 @@ import { sfx, sfxAt } from './audio.js';
 
 export const DEPLOY_TYPES = ['barracks', 'factory', 'helipad', 'carrier'];
 export const UNITS = {
-  soldier: { name: 'Rifleman', hp: 65, speed: 3.4, range: 8.5, dmg: 6.5, rate: 0.45, block: 2, air: false, hitsAir: 0.5, radius: 0.45, squad: 3, cap: 6, color: '#3a7bd5' },
-  tank: { name: 'Light Tank', hp: 540, speed: 2.3, range: 13, dmg: 56, rate: 1.7, splash: 2.2, block: 5, air: false, hitsAir: 0, radius: 1.1, squad: 1, cap: 2, color: '#3a7bd5' },
-  jet: { name: 'Jet Fighter', hp: 170, speed: 13, range: 17, dmg: 28, rate: 0.75, splash: 1.6, block: 0, air: true, hitsAir: 1, radius: 1.3, squad: 1, cap: 2, alt: 9, color: '#3a7bd5' },
-  heli: { name: 'Gunship', hp: 200, speed: 6.5, range: 15, dmg: 24, rate: 0.8, splash: 1.3, block: 0, air: true, hitsAir: 1, radius: 1.2, squad: 1, cap: 2, alt: 6.5, color: '#3a7bd5' },
+  soldier: { name: 'Rifleman', hp: 65, speed: 3.4, range: 8.5, dmg: 6, rate: 0.5, block: 1, air: false, hitsAir: 0.5, radius: 0.45, squad: 2, cap: 4, color: '#3a7bd5' },
+  tank: { name: 'Light Tank', hp: 360, speed: 2.3, range: 12, dmg: 28, rate: 1.7, splash: 2.2, block: 3, air: false, hitsAir: 0, radius: 1.1, squad: 1, cap: 2, color: '#3a7bd5' },
+  jet: { name: 'Jet Fighter', hp: 150, speed: 13, range: 16, dmg: 26, rate: 0.75, splash: 1.6, block: 0, air: true, hitsAir: 1, radius: 1.3, squad: 1, cap: 2, alt: 9, color: '#3a7bd5' },
+  heli: { name: 'Gunship', hp: 170, speed: 6.5, range: 13, dmg: 15, rate: 0.8, splash: 1.3, block: 0, air: true, hitsAir: 1, radius: 1.2, squad: 1, cap: 2, alt: 6.5, color: '#3a7bd5' },
 };
 const UNIT_OF = { barracks: 'soldier', factory: 'tank', helipad: 'heli', carrier: 'jet' };
 
@@ -321,7 +321,7 @@ function updateUnit(u, dt, time) {
       }
     }
     if (target && u.m.muzzle2 && u.cd2 <= 0 && u.pos.distanceTo(target.center) < s.range * 0.75) {
-      u.cd2 = 0.16;
+      u.cd2 = 0.4;
       secondShot(u, target.center.clone(), target, s, false);
     }
   }
@@ -406,14 +406,20 @@ function shipsFire(dt) {
 }
 
 /* Blocking: ground units hold enemies that walk into them (each unit holds `block` enemies). */
-function computeBlocks() {
-  for (const e of H.enemies()) e._armyHold = false;
+function computeBlocks(dt) {
+  for (const e of H.enemies()) {
+    if (e._armyHold) e._holdT = (e._holdT || 0) + dt;
+    else if (e._holdT) e._holdT = Math.max(0, e._holdT - dt * 0.5);
+    if (e._holdT >= 2.5) { e._holdT = 0; e._shoveT = 2; }
+    e._shoveT = Math.max(0, (e._shoveT || 0) - dt);
+    e._armyHold = false;
+  }
   for (const u of units) {
     if (u.def.air || !u.def.block || u.drop < 0.9) continue;
     let held = 0;
     for (const e of H.enemies()) {
       if (held >= u.def.block) break;
-      if (!e.alive || e.def.air || e.buried || e._armyHold) continue;
+      if (!e.alive || e.def.air || e.buried || e._armyHold || e._shoveT > 0) continue;
       if (Math.hypot(e.group.position.x - u.pos.x, e.group.position.z - u.pos.z) < u.def.radius + e.def.radius + 0.4) {
         e._armyHold = true;
         held++;
@@ -492,7 +498,7 @@ function crush(u, s, dt) {
     if (Math.hypot(e.group.position.x - u.pos.x, e.group.position.z - u.pos.z) > u.def.radius + e.def.radius * 0.8) continue;
     const small = e.def.radius < 0.7;
     const big = e.type === 'boss' || e.type === 'juggernaut';
-    const dps = (big ? 25 : small ? 160 : 70) * (u === controlled ? 1.4 : 1);
+    const dps = (big ? 20 : small ? 120 : 50) * (u === controlled ? 1.5 : 0.6);
     H.hitEnemy(e, dps * dt, { st: u.owner.stats, manual: u === controlled, point: e.center, quiet: true });
     u.crushT = (u.crushT || 0) - dt;
     if (u.crushT <= 0) {
@@ -833,7 +839,7 @@ export const army = {
   /** Every frame while a map is running. */
   update(dt, time) {
     if (!H) return;
-    computeBlocks();
+    computeBlocks(dt);
     shipsFire(dt);
     updateGrenades(dt);
     if (controlled?.acd) {
