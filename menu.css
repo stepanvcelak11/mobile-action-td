@@ -57,7 +57,11 @@ html.vp-fill #game { position: fixed; left: 0; top: 0; right: auto; bottom: auto
 @media (orientation: landscape) { #army-take { bottom: calc(var(--sab, 0px) + 74px); } }
 #army-ctl { position: fixed; inset: 0; z-index: 20; display: none; touch-action: none; }
 body.army-ctl #army-ctl { display: block; }
-body.army-ctl #fpv-ui, body.army-ctl #army-take, body.army-ctl #abilities, body.army-ctl #minimap { display: none !important; }
+body.army-ctl #army-take, body.army-ctl #abilities { display: none !important; }
+/* while controlling a unit keep the same corner as in a tower (minimap, next, wave, upgrade), hide the rest of the tower HUD */
+body.army-ctl #fpv-ui > :not(#fpv-corner) { display: none !important; }
+body.army-ctl #fpv-ui { z-index: 21; pointer-events: none; }
+body.army-ctl #fpv-corner { z-index: 22; }
 .ac-aim { position: absolute; inset: 0; }
 .ac-stick { position: absolute; left: calc(var(--sal, 0px) + 22px); bottom: calc(var(--sab, 0px) + 22px); width: 132px; height: 132px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)); border: 2px solid rgba(255, 255, 255, 0.25); touch-action: none; }
@@ -402,3 +406,22 @@ body[data-theme="dark"] .bs-chips span { background: rgba(8, 24, 64, 0.35); }
 #army-ctl[data-stance="prone"] .ac-cross { width: 20px; height: 20px; margin: -10px 0 0 -10px; }
 #army-ctl[data-stance="crouch"] .ac-cross { width: 23px; height: 23px; margin: -11.5px 0 0 -11.5px; }
 @media (orientation: portrait) { .ac-acts { right: calc(var(--sar, 0px) + 18px); bottom: calc(var(--sab, 0px) + 146px); } }
+
+/* unit control: ◀ TOWER top-left, ammo on FIRE, reload ring, heat ring on the second gun, tap tip */
+.ac-back { left: calc(var(--sal, 0px) + 12px); right: auto !important; top: calc(var(--sat, 0px) + 64px) !important; }
+.ac-fire { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; overflow: hidden; }
+.ac-fire b { position: relative; z-index: 1; font-weight: 900; }
+.ac-fire small { position: relative; z-index: 1; font: 800 12px/1 system-ui, sans-serif; opacity: 0.9; }
+.ac-fire::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(10, 16, 30, 0.7) calc(var(--rl, 0) * 360deg), transparent 0); pointer-events: none; }
+.ac-fire.reloading { filter: saturate(0.4); }
+.ac-act[data-act="mg"]::after, .ac-act[data-act="gun"]::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 7px; height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg, #ffd24a, #ff4a2a) left / calc(var(--heat, 0) * 100%) 100% no-repeat, rgba(8, 20, 48, 0.6); }
+.ac-act.hot { background: linear-gradient(180deg, #ff7a5a, #b0201a) !important; animation: acHot 0.4s ease-in-out infinite alternate; }
+@keyframes acHot { to { filter: brightness(1.35); } }
+.ac-tip { position: absolute; left: 50%; top: calc(var(--sat, 0px) + 64px); transform: translateX(-50%); color: #fff; font: 800 11px/1 system-ui, sans-serif; letter-spacing: 0.06em;
+  background: rgba(10, 20, 40, 0.55); padding: 6px 10px; border-radius: 10px; pointer-events: none; animation: acTip 5s forwards; }
+@keyframes acTip { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (orientation: landscape) {
+  body.army-ctl .ac-fire { right: calc(var(--sar, 0px) + 96px); }
+  body.army-ctl .ac-acts { right: calc(var(--sar, 0px) + 208px); }
+}
