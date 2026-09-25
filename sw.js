@@ -1,8 +1,8 @@
 // Offline support + fast start.
 // Heavy static files (three.js, icons, fonts) come straight from the cache; the game's own files are
 // network-first with a 2.5 s timeout, so updates show up right away but a slow connection never blocks the start.
-const CACHE = 'serpentline-v3';
-const MODULES = ['src/achievements.js', 'src/army.js', 'src/audio.js', 'src/battlemarks.js', 'src/bunker.js', 'src/campaign.js', 'src/clip.js', 'src/config.js', 'src/daily.js', 'src/effects.js', 'src/entities.js', 'src/errors.js', 'src/i18n.js', 'src/icons.js', 'src/installhint.js', 'src/lang-cs.js', 'src/lite.js', 'src/main.js', 'src/merge.js', 'src/meta.js', 'src/minimap.js', 'src/models.js', 'src/music.js', 'src/perf.js', 'src/perfreport.js', 'src/portraits.js', 'src/post.js', 'src/powers.js', 'src/progress.js', 'src/roguelite.js', 'src/showcase.js', 'src/skill.js', 'src/skinfx.js', 'src/trees.js', 'src/treeview.js', 'src/ui.js', 'src/viewport.js', 'src/voice.js', 'src/world.js'];
+const CACHE = 'serpentline-v4';
+const MODULES = ['src/achievements.js', 'src/army.js', 'src/audio.js', 'src/battlemarks.js', 'src/bunker.js', 'src/campaign.js', 'src/clip.js', 'src/config.js', 'src/daily.js', 'src/effects.js', 'src/enemylod.js', 'src/entities.js', 'src/errors.js', 'src/i18n.js', 'src/icons.js', 'src/installhint.js', 'src/lang-cs.js', 'src/lite.js', 'src/main.js', 'src/merge.js', 'src/meta.js', 'src/minimap.js', 'src/models.js', 'src/music.js', 'src/perf.js', 'src/perfreport.js', 'src/portraits.js', 'src/post.js', 'src/powers.js', 'src/progress.js', 'src/roguelite.js', 'src/showcase.js', 'src/skill.js', 'src/skinfx.js', 'src/trees.js', 'src/treeview.js', 'src/ui.js', 'src/viewport.js', 'src/voice.js', 'src/world.js'];
 const CORE = ['./', 'index.html', 'style.css', 'menu.css', 'manifest.webmanifest', 'vendor/three.module.min.js', 'icons/icon-192.png', ...MODULES];
 const STATIC = /\/vendor\/|\/icons\/|fonts\.(googleapis|gstatic)\.com/;
 

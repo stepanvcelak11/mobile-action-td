@@ -7,6 +7,7 @@ import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph, turretSfx, ambi
 import { music } from './music.js';
 import { createPerf } from './perf.js';
 import { isLite, markDirty } from './lite.js';
+import { prepareEnemy, lodEnemies, lodTurrets, showAll, freeGeometry } from './enemylod.js';
 import { createPost } from './post.js';
 import { buildBunker } from './bunker.js';
 import { skill } from './skill.js';
@@ -67,6 +68,20 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = isCoarse ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 // shadows are redrawn at most every other frame (see frame())
 renderer.shadowMap.autoUpdate = false;
+// checking every new shader for errors blocks until it has compiled; players get no use of the log
+renderer.debug.checkShaderErrors = !!navigator.webdriver || /[?&]test=1/.test(location.search);
+// Transparent double-sided materials (rotor discs, domes, halos) would be drawn twice per object, and
+// three.js flips material.side + needsUpdate for each pass: two shader re-selections per object per
+// frame and a lot of garbage. One pass looks the same on these thin see-through parts.
+THREE.Material.prototype.onBeforeRender = function () {
+  if (this.transparent && this.side === THREE.DoubleSide) this.forceSinglePass = true;
+};
+// The shadow pass shares one depth material; alternating instanced and plain meshes made it switch
+// programs over and over. Instanced casters get their own (see lodTick).
+const instDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+function fixInstancedDepth() {
+  scene.traverse((o) => { if (o.isInstancedMesh && o.castShadow && !o.customDepthMaterial) o.customDepthMaterial = instDepth; });
+}
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -275,7 +290,7 @@ function loadMap(id) {
 
 function clearField() {
   army.clear();
-  for (const e of G.enemies) { scene.remove(e.group); scene.remove(e.bar); }
+  for (const e of G.enemies) { scene.remove(e.group); scene.remove(e.bar); freeGeometry(e.group); }
   G.enemies = [];
   for (const t of G.turrets) { t.plot.group.remove(t.root); t.plot.turret = null; }
   G.turrets = [];
@@ -732,6 +747,7 @@ function spawnEnemy(type, from) {
   placeEnemy(e, 0);
   if (type === 'boss' && !from) initBoss(e);
   else if (!from) maybeElite(e);
+  prepareEnemy(e);
   if (!from) {
     sparks.emit(e.path.pts[0].clone().setY(2.3), '#ff3355', type === 'boss' ? 80 : 14, 6, 0.6, 4, 0.2);
     if (type === 'boss') sfx('boom');
@@ -755,7 +771,9 @@ function placeEnemy(e, dt) {
   if (dt > 0) e.vel.set((e.group.position.x - oldX) / dt, 0, (e.group.position.z - oldZ) / dt);
   _look.copy(e.group.position).add(_t);
   e.group.lookAt(_look);
-  e.group.updateMatrixWorld(true);
+  // only the enemy's own matrix: the whole subtree (legs, eyes…) is updated by the renderer anyway,
+  // and the weak point below refreshes its own chain (getWorldPosition)
+  e.group.updateWorldMatrix(false, false);
   const flying = e.gait === 'fly' || e.gait === 'flyspin';
   e.center.copy(e.group.position).setY(e.def.centerY + (flying ? e.body.position.y : 0) + (e.buried ? -2 : 0));
   e.wp.getWorldPosition(e.wpWorld);
@@ -900,6 +918,7 @@ function removeEnemy(i) {
   e.alive = false;
   scene.remove(e.group);
   scene.remove(e.bar);
+  freeGeometry(e.group);
   e.bar.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
   G.enemies[i] = G.enemies[G.enemies.length - 1];
   G.enemies.pop();
@@ -3279,14 +3298,14 @@ let last = performance.now();
 let hudTick = 0;
 // 120 Hz phones (iPhone Pro) would otherwise render twice as many frames as the game needs:
 // cap at 60 fps in play and 30 fps in the menu. Shadows update on every other drawn frame.
-let lastDraw = 0, shadowFlip = false;
+let lastDraw = 0, shadowFlip = false, lodT = 0, depthFixN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const cap = G.view === 'MENU' ? 1000 / 30 : 1000 / 60;
   if (now - lastDraw < cap - 2) return;
   lastDraw = now;
   shadowFlip = !shadowFlip;
-  if (shadowFlip || G.view === 'MENU') renderer.shadowMap.needsUpdate = true;
+  if ((shadowFlip || G.view === 'MENU') && perf.shadowsLive) renderer.shadowMap.needsUpdate = true;
   const raw = Math.min(0.05, (now - last) / 1000);
   last = now;
   // the menu runs at 30 FPS on purpose: that must not count as a slow phone
@@ -3299,6 +3318,13 @@ function frame(now) {
     updateReadability(raw);
   }
   updateCamera(raw);
+  lodT += raw;
+  if (lodT > 0.15) {
+    lodT = 0;
+    lodEnemies(G.enemies, camera, viewH());
+    lodTurrets(G.turrets, camera, viewH(), G.active);
+    if (++depthFixN % 7 === 0) fixInstancedDepth();
+  }
   const extra = Math.max(0, camera.position.length() - 50);
   scene.fog.near = fogBase[0] + extra;
   scene.fog.far = fogBase[1] + extra;
@@ -3614,6 +3640,7 @@ function updateKick(dt) {
 const debris = [];
 const DEBRIS_MAX = 80;
 const _dq = new THREE.Quaternion();
+const _de = new THREE.Euler();
 function spawnDebris(e, push) {
   const list = [...(e.parts || []), ...(e.legs || []).map((l) => l.pivot), ...(e.tur ? [e.tur] : [])].filter(Boolean);
   if (!list.length) return;
@@ -3623,6 +3650,7 @@ function spawnDebris(e, push) {
   for (const part of list.slice(0, 10)) {
     if (!part.parent) continue;
     scene.attach(part);                         // keeps its world transform
+    showAll(part);
     const out = part.getWorldPosition(new V3()).sub(c).setY(0);
     if (out.lengthSq() < 0.01) out.set(Math.random() - 0.5, 0, Math.random() - 0.5);
     out.normalize();
@@ -3630,7 +3658,7 @@ function spawnDebris(e, push) {
     if (push) v.addScaledVector(push, 4);
     debris.push({ o: part, v, w: new V3((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12), t: 0, life: 1.8 + Math.random() * 0.8, s0: part.scale.clone() });
   }
-  while (debris.length > DEBRIS_MAX) scene.remove(debris.shift().o);
+  while (debris.length > DEBRIS_MAX) { const o = debris.shift().o; scene.remove(o); freeGeometry(o); }
 }
 function updateDebris(dt) {
   for (let i = debris.length - 1; i >= 0; i--) {
@@ -3643,14 +3671,14 @@ function updateDebris(dt) {
       if (d.v.y < 0) d.v.y *= -0.3;
       d.v.x *= 0.6; d.v.z *= 0.6; d.w.multiplyScalar(0.6);
     }
-    _dq.setFromEuler(new THREE.Euler(d.w.x * dt, d.w.y * dt, d.w.z * dt));
+    _dq.setFromEuler(_de.set(d.w.x * dt, d.w.y * dt, d.w.z * dt));
     d.o.quaternion.multiply(_dq);
     const fade = d.t > d.life - 0.5 ? Math.max(0.001, (d.life - d.t) / 0.5) : 1;
     d.o.scale.copy(d.s0).multiplyScalar(fade);
-    if (d.t >= d.life) { scene.remove(d.o); debris.splice(i, 1); }
+    if (d.t >= d.life) { scene.remove(d.o); freeGeometry(d.o); debris.splice(i, 1); }
   }
 }
-function clearDebris() { for (const d of debris) scene.remove(d.o); debris.length = 0; }
+function clearDebris() { for (const d of debris) { scene.remove(d.o); freeGeometry(d.o); } debris.length = 0; }
 
 /* ================================================================ Readable battlefield (F2) */
 // Ground rings coloured by enemy class, drawn in one instanced call; enemies read ~30 % bigger from above.
@@ -3664,7 +3692,6 @@ ringMesh.frustumCulled = false;
 ringMesh.renderOrder = 2;
 scene.add(ringMesh);
 const _rm = new THREE.Matrix4();
-const _rc = new THREE.Color();
 function enemyClassColor(e) {
   if (e.elite) return e.elite.color;
   if (e.type === 'boss') return '#ff3355';
@@ -3675,6 +3702,12 @@ function enemyClassColor(e) {
   return '#eef2f6';
 }
 G.enemyScale = 1;
+const classColors = new Map();   // hex → Color, so the rings don't parse colour strings every frame
+function classColor(hex) {
+  let c = classColors.get(hex);
+  if (!c) { c = new THREE.Color(hex); classColors.set(hex, c); }
+  return c;
+}
 function updateReadability(dt) {
   const top = G.view === 'TOP' || G.view === 'TO_TOP';
   G.enemyScale += ((top ? 1.3 : 1) - G.enemyScale) * Math.min(1, dt * 6);
@@ -3686,7 +3719,7 @@ function updateReadability(dt) {
     const r = e.def.radius * 1.25 * G.enemyScale * (e.def.scale || 1);
     _rm.makeScale(r, 1, r).setPosition(e.group.position.x, 0.07, e.group.position.z);
     ringMesh.setMatrixAt(n, _rm);
-    ringMesh.setColorAt(n, _rc.set(enemyClassColor(e)));
+    ringMesh.setColorAt(n, classColor(enemyClassColor(e)));
     n++;
   }
   ringMesh.count = n;

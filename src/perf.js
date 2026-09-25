@@ -55,12 +55,24 @@ export function createPerf(renderer, { sun = null, onLite = null } = {}) {
     if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) renderer.setPixelRatio(pr);
   }
 
+  // Auto's shadow cut must not recompile every material (castShadow = false would): the shadow
+  // camera is parked where nothing is, the map is cleared once and no longer redrawn.
+  function cutShadows(off) {
+    shadowsCut = off;
+    const c = sun?.shadow?.camera;
+    if (!c) return;
+    if (off) { c.userData.nf ??= [c.near, c.far]; c.near = 5000; c.far = 5001; }
+    else if (c.userData.nf) { [c.near, c.far] = c.userData.nf; delete c.userData.nf; }
+    c.updateProjectionMatrix();
+    renderer.shadowMap.needsUpdate = true;
+  }
+
   function applyPreset() {
     preset = quality === 'auto' ? autoPreset() : PRESETS[quality];
-    if (quality !== 'auto') shadowsCut = false;
+    if (quality !== 'auto' && shadowsCut) cutShadows(false);
     if (setLite(preset.lite)) onLite?.(preset.lite);
     if (sun) {
-      sun.castShadow = preset.shadows && !shadowsCut;
+      sun.castShadow = preset.shadows;
       if (sun.shadow && sun.shadow.mapSize.x !== preset.shadowSize) {
         sun.shadow.mapSize.set(preset.shadowSize, preset.shadowSize);
         sun.shadow.map?.dispose();
@@ -108,9 +120,9 @@ export function createPerf(renderer, { sun = null, onLite = null } = {}) {
       if (!adapt) { goodFor = 0; badFor = 0; return; }
       if (fps < 48 && preset.shadows && !shadowsCut) {
         // shadows go first (after 3 slow seconds in a row) so the picture stays sharp; they stay off
-        // for the session, since switching them back and forth recompiles every material
+        // for the session so the frame rate does not seesaw
         goodFor = 0;
-        if (++badFor >= 3) { shadowsCut = true; badFor = 0; if (sun) sun.castShadow = false; }
+        if (++badFor >= 3) { cutShadows(true); badFor = 0; }
       } else if (fps < 48 && pr > preset.minPr + 0.01) {
         applyPr(pr - (fps < 35 ? 0.25 : 0.125));
         goodFor = 0;
@@ -138,6 +150,8 @@ export function createPerf(renderer, { sun = null, onLite = null } = {}) {
       meter();
     },
     get quality() { return quality; },
+    /** false while the shadow map is frozen empty (auto cut): skip redrawing it */
+    get shadowsLive() { return !shadowsCut && !!sun?.castShadow; },
     get meterOn() { return meterOn; },
     get fps() { return fps; },
     get pixelRatio() { return pr; },
