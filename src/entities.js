@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { ENEMIES, SKINS, TURRETS } from './config.js';
 import { MODEL_BUILDERS } from './models.js';
+import { TREES } from './trees.js';
 import { mergeStatic, referenced } from './merge.js';
 
 const matCache = new Map();
@@ -359,17 +360,17 @@ const HEAD_EXTRA = {
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.5;
       part(p, box(0.08, 0.08, 0.5), M.steelLight, Math.cos(a) * 0.5, Math.sin(a) * 0.5 - 0.05, 0.15);
-      part(p, new THREE.OctahedronGeometry(0.07, 0), glow('#e8c8ff'), Math.cos(a) * 0.5, Math.sin(a) * 0.5 - 0.05, 0.42, false);
+      deco(p, new THREE.OctahedronGeometry(0.07, 0), '#e8c8ff', Math.cos(a) * 0.5, Math.sin(a) * 0.5 - 0.05, 0.42);
     }
     part(p, new THREE.CylinderGeometry(0.58, 0.58, 0.06, 8), M.band, 0, 0.16, -0.1);
   },
   rail(p, h, M) {
     const g = h.barrels[0].group;
     for (const sx of [-0.52, 0.52]) {
-      part(p, box(0.22, 0.34, 0.8), M.steel, sx, -0.02, -0.15);
-      part(p, box(0.04, 0.2, 0.6), glow('#4fc3ff'), sx * 1.25, 0, -0.15, false);
+      part(p, box(0.22, 0.34, 0.8), M.steelDark, sx, -0.02, -0.15);
+      deco(p, box(0.04, 0.2, 0.6), '#4fc3ff', sx * 1.25, 0, -0.15);
     }
-    for (const sx of [-0.24, 0.24]) part(g, box(0.05, 0.05, 2.9), glow('#8fdcff'), sx, 0.05, 1.75, false);
+    for (const sx of [-0.24, 0.24]) deco(g, box(0.05, 0.05, 2.9), '#8fdcff', sx, 0.05, 1.75);
     part(g, box(0.5, 0.3, 0.2), M.steelDark, 0, 0, 3.25);
   },
   sniper(p, h, M) {
@@ -384,7 +385,7 @@ const HEAD_EXTRA = {
   },
   cryo(p, h, M) {
     for (const sx of [-0.6, 0.6]) {
-      const tk = part(p, new THREE.CylinderGeometry(0.15, 0.15, 0.7, 8), glow('#9ae8ff'), sx, 0.05, -0.1, false);
+      const tk = deco(p, new THREE.CylinderGeometry(0.15, 0.15, 0.7, 8), '#9ae8ff', sx, 0.05, -0.1);
       tk.rotation.x = Math.PI / 2;
       for (const z of [-0.45, 0.25]) part(p, cyl(0.17, 0.17, 0.06, 8), M.steelDark, sx, 0.05, z);
     }
@@ -421,7 +422,7 @@ const HEAD_EXTRA = {
     }
     for (const sx of [-0.52, 0.52]) {
       part(p, box(0.14, 0.36, 0.6), M.steel, sx, 0, -0.05);
-      part(p, box(0.03, 0.26, 0.4), glow('#ff9ac0'), sx * 1.16, 0, -0.05, false);
+      deco(p, box(0.03, 0.26, 0.4), '#ff9ac0', sx * 1.16, 0, -0.05);
     }
   },
   scatter(p, h, M) {
@@ -437,7 +438,7 @@ const HEAD_EXTRA = {
     const g = h.barrels[0].group;
     const hose = part(p, cyl(0.05, 0.05, 0.7, 5), M.steelDark, 0.2, 0.3, 0.1);
     hose.rotation.x = 0.6;
-    part(g, new THREE.SphereGeometry(0.06, 6, 4), glow('#b8ff7a'), 0, -0.14, 1.5, false);
+    deco(g, new THREE.SphereGeometry(0.06, 6, 4), '#b8ff7a', 0, -0.14, 1.5);
     for (const z of [0.55, 0.85, 1.15]) part(g, cyl(0.15, 0.15, 0.05, 8), M.band, 0, 0, z);
     for (const sx of [-0.5, 0.5]) part(p, box(0.1, 0.3, 0.7), M.steel, sx, 0, 0);
   },
@@ -483,7 +484,7 @@ const HEAD_EXTRA = {
       const a = (i / 3) * Math.PI * 2;
       const rod = part(g, new THREE.CylinderGeometry(0.025, 0.04, 0.8, 4), M.steelLight, Math.cos(a) * 0.35, 1.2, Math.sin(a) * 0.35);
       rod.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3);
-      part(g, new THREE.SphereGeometry(0.05, 6, 4), glow('#dfe8ff'), Math.cos(a) * 0.48, 1.6, Math.sin(a) * 0.48, false);
+      deco(g, new THREE.SphereGeometry(0.05, 6, 4), '#dfe8ff', Math.cos(a) * 0.48, 1.6, Math.sin(a) * 0.48);
     }
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -527,15 +528,15 @@ const HEAD_EXTRA = {
   },
   carrier(p, h, M) {
     for (const z of [-0.9, -0.3, 0.3, 0.9]) {
-      part(p, box(0.06, 0.03, 0.06), glow('#ffd24a'), -0.55, 0.27, z, false);
-      part(p, box(0.06, 0.03, 0.06), glow('#ffd24a'), 0.55, 0.27, z, false);
+      deco(p, box(0.06, 0.03, 0.06), '#ffd24a', -0.55, 0.27, z);
+      deco(p, box(0.06, 0.03, 0.06), '#ffd24a', 0.55, 0.27, z);
     }
-    part(p, box(0.3, 0.2, 0.08), glow('#8fe3ff'), 0.42, 0.72, 0.01, false);
+    deco(p, box(0.3, 0.2, 0.08), '#8fe3ff', 0.42, 0.72, 0.01);
   },
   helipad(p, h, M) {
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      part(p, box(0.08, 0.04, 0.08), glow(i % 2 ? '#ffd24a' : '#3ee07a'), Math.cos(a) * 1.15, 0.13, Math.sin(a) * 1.15, false);
+      deco(p, box(0.08, 0.04, 0.08), i % 2 ? '#ffd24a' : '#3ee07a', Math.cos(a) * 1.15, 0.13, Math.sin(a) * 1.15);
     }
   },
 };
@@ -543,15 +544,28 @@ const HEAD_EXTRA = {
 /* ------------------------------------------------------ Rarity dressing */
 // Rarer (and pricier) turrets get more hardware: common = plain, rare = trim + radar,
 // epic = reactor core + pauldrons, mythic = spinning energy ring + spikes, legendary = gold,
-// back fins and orbiting shards. Static bits are merged with the base/torso; each moving
-// assembly is one group merged into as few meshes as possible.
+// back wings and orbiting shards.
+// Draw calls: every glowing/gold bit is painted with vertex colours on ONE shared unlit material,
+// so all static trim of a group merges into a single mesh; each moving assembly is one mesh too.
+// Worst case (legendary) = base trim + torso trim + core + ring/shards = +4 draw calls.
 const RARITY_LVL = { common: 0, rare: 1, epic: 2, mythic: 3, legendary: 4 };
 const RARITY_TRIM = { rare: '#4fa8ff', epic: '#b46bff', mythic: '#ff4a6a', legendary: '#ffb020' };
+const decoM = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+const tmpC = new THREE.Color();
+/** Unlit vertex-coloured part; all of them in one group merge into one mesh whatever their colour. */
+function deco(parent, geo, hex, x = 0, y = 0, z = 0) {
+  tmpC.set(hex);
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { arr[i * 3] = tmpC.r; arr[i * 3 + 1] = tmpC.g; arr[i * 3 + 2] = tmpC.b; }
+  geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+  return part(parent, geo, decoM, x, y, z, false);
+}
 
 function dressRarity(root, yaw, rarity, color, M) {
   const lvl = RARITY_LVL[rarity] || 0;
   const anim = [];
-  // Every turret: side armour, back vent grille, rivets on the base.
+  // Every turret: side armour, back vent grille, rivets on the base (existing materials, no extra calls).
   for (const sx of [-0.9, 0.9]) part(yaw, box(0.12, 0.55, 1.0), M.steelDark, sx, 0.7, -0.05);
   for (let i = 0; i < 4; i++) part(yaw, box(0.9, 0.05, 0.05), M.steelDark, 0, 0.4 + i * 0.1, -1.11);
   for (let i = 0; i < 6; i++) {
@@ -559,89 +573,79 @@ function dressRarity(root, yaw, rarity, color, M) {
     part(root, box(0.1, 0.1, 0.1), M.steelDark, Math.cos(a) * 1.42, 0.3, Math.sin(a) * 1.42);
   }
   if (!lvl) return anim;
-  const trim = glow(RARITY_TRIM[rarity]);
+  const trim = RARITY_TRIM[rarity];
 
-  // Rare+: rarity-coloured trim lines and a spinning radar on the back.
-  for (const sx of [-0.97, 0.97]) part(yaw, box(0.03, 0.06, 0.95), trim, sx, 0.95, -0.05, false);
-  part(yaw, box(1.5, 0.05, 0.03), trim, 0, 0.36, 0.57, false);
-  const radar = new THREE.Group();
-  radar.position.set(-0.55, 1.12, -0.85);
-  yaw.add(radar);
-  part(radar, new THREE.CylinderGeometry(0.04, 0.05, 0.3, 5), M.steelLight, 0, 0.15, 0, false);
-  const dish = part(radar, box(0.42, 0.2, 0.04), M.steelLight, 0, 0.36, 0, false);
-  dish.rotation.x = -0.3;
-  part(radar, box(0.04, 0.04, 0.16), M.steelLight, 0, 0.36, 0.08, false);
-  mergeStatic(radar);
-  anim.push((t) => { radar.rotation.y = t * (1.2 + lvl * 0.4); });
-  if (lvl < 2) return anim;
+  // Rare+: rarity-coloured trim lines.
+  for (const sx of [-0.97, 0.97]) deco(yaw, box(0.03, 0.06, 0.95), trim, sx, 0.95, -0.05);
+  deco(yaw, box(1.5, 0.05, 0.03), trim, 0, 0.36, 0.57);
+  if (lvl === 1) {
+    // Rare only: a spinning radar on the back (epic+ get the reactor core instead).
+    const radar = new THREE.Group();
+    radar.position.set(-0.55, 1.12, -0.85);
+    yaw.add(radar);
+    part(radar, new THREE.CylinderGeometry(0.04, 0.05, 0.3, 5), M.steelLight, 0, 0.15, 0, false);
+    part(radar, box(0.42, 0.2, 0.04), M.steelLight, 0, 0.36, 0, false).rotation.x = -0.3;
+    part(radar, box(0.04, 0.04, 0.16), M.steelLight, 0, 0.36, 0.08, false);
+    mergeStatic(radar);
+    anim.push((t) => { radar.rotation.y = t * 1.6; });
+    return anim;
+  }
 
-  // Epic+: glowing reactor core in a cage on the back, shoulder pauldrons, second antenna.
+  // Epic+: pulsing reactor core in a spinning cage on the back, shoulder pauldrons, second antenna.
   const core = new THREE.Group();
   core.position.set(0.3, 0.62, -1.3);
   yaw.add(core);
-  part(core, new THREE.IcosahedronGeometry(0.2, 0), glow(color), 0, 0, 0, false);
-  const cage = new THREE.Group();
-  core.parent.add(cage);
-  cage.position.copy(core.position);
-  for (const r of [0, Math.PI / 2]) part(cage, new THREE.TorusGeometry(0.26, 0.03, 4, 10), M.band, 0, 0, 0, false).rotation.y = r;
-  mergeStatic(cage);
-  anim.push((t) => { const s = 1 + Math.sin(t * 5) * 0.15; core.scale.setScalar(s); cage.rotation.x = t * 1.5; });
+  deco(core, new THREE.IcosahedronGeometry(0.17, 0), color);
+  for (const r of [0, Math.PI / 2]) deco(core, new THREE.TorusGeometry(0.26, 0.03, 4, 10), trim).rotation.y = r;
+  mergeStatic(core);
+  anim.push((t) => { core.scale.setScalar(1 + Math.sin(t * 5) * 0.12); core.rotation.x = t * 1.5; });
   for (const sx of [-1, 1]) {
-    const pd = part(yaw, box(0.42, 0.14, 0.8), M.steel, sx * 0.88, 1.1, -0.1);
-    pd.rotation.z = -sx * 0.3;
-    part(yaw, box(0.04, 0.05, 0.75), trim, sx * 1.08, 1.02, -0.1, false).rotation.z = -sx * 0.3;
+    part(yaw, box(0.42, 0.14, 0.8), M.steel, sx * 0.88, 1.1, -0.1).rotation.z = -sx * 0.3;
+    deco(yaw, box(0.04, 0.05, 0.75), trim, sx * 1.08, 1.02, -0.1).rotation.z = -sx * 0.3;
   }
   part(yaw, new THREE.CylinderGeometry(0.02, 0.02, 0.8, 4), M.steelDark, -0.75, 1.5, -0.7, false);
-  part(yaw, new THREE.SphereGeometry(0.05, 5, 3), trim, -0.75, 1.92, -0.7, false);
+  deco(yaw, new THREE.SphereGeometry(0.05, 5, 3), trim, -0.75, 1.92, -0.7);
   if (lvl < 3) return anim;
 
   // Mythic+: energy ring spinning around the base on three emitters, spikes on the pauldrons.
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + Math.PI / 6;
     part(root, box(0.16, 0.5, 0.16), M.steelDark, Math.cos(a) * 1.55, 0.45, Math.sin(a) * 1.55);
-    part(root, box(0.1, 0.1, 0.1), trim, Math.cos(a) * 1.55, 0.74, Math.sin(a) * 1.55, false);
+    deco(root, box(0.1, 0.1, 0.1), trim, Math.cos(a) * 1.55, 0.74, Math.sin(a) * 1.55);
   }
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
-    part(root, box(0.04, 0.4, 0.04), trim, Math.cos(a) * 1.44, 0.5, Math.sin(a) * 1.44, false);
+    deco(root, box(0.04, 0.4, 0.04), trim, Math.cos(a) * 1.44, 0.5, Math.sin(a) * 1.44);
   }
-  const ring = new THREE.Group();
-  ring.position.y = 0.85;
-  root.add(ring);
-  const rg = part(ring, new THREE.TorusGeometry(1.62, 0.035, 4, 28), trim, 0, 0, 0, false);
-  rg.rotation.x = Math.PI / 2;
+  for (const sx of [-1, 1]) for (const z of [-0.4, 0.2]) {
+    part(yaw, new THREE.ConeGeometry(0.06, 0.3, 4), M.steel, sx * 0.95, 1.28, z).rotation.z = -sx * 0.5;
+  }
+  // The ring and (legendary) the shards high above share one spinning group = one mesh.
+  const spin = new THREE.Group();
+  root.add(spin);
+  deco(spin, new THREE.TorusGeometry(1.62, 0.035, 4, 28), trim, 0, 0.85, 0).rotation.x = Math.PI / 2;
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    part(ring, box(0.12, 0.12, 0.12), trim, Math.cos(a) * 1.62, 0, Math.sin(a) * 1.62, false).rotation.y = a;
+    deco(spin, box(0.12, 0.12, 0.12), trim, Math.cos(a) * 1.62, 0.85, Math.sin(a) * 1.62).rotation.y = a;
   }
-  mergeStatic(ring);
-  anim.push((t) => { ring.rotation.y = t * 0.9; ring.position.y = 0.85 + Math.sin(t * 2.2) * 0.08; });
-  for (const sx of [-1, 1]) for (const z of [-0.4, 0.2]) {
-    const sp = part(yaw, new THREE.ConeGeometry(0.06, 0.3, 4), M.steel, sx * 0.95, 1.28, z);
-    sp.rotation.z = -sx * 0.5;
-  }
-  if (lvl < 4) return anim;
+  anim.push((t) => { spin.rotation.y = t * 0.9; spin.position.y = Math.sin(t * 2.2) * 0.08; });
+  if (lvl < 4) { mergeStatic(spin); return anim; }
 
-  // Legendary: gold trim, tall back fins and three shards orbiting high above.
-  const gold = mat('#ffc93a', { metalness: 0.85, roughness: 0.25 });
-  const gr = part(root, new THREE.TorusGeometry(1.5, 0.05, 4, 6), gold, 0, 0.26, 0, false);
-  gr.rotation.set(Math.PI / 2, 0, Math.PI / 6);
-  part(yaw, box(1.74, 0.06, 0.06), gold, 0, 1.1, 0.58, false);
-  part(yaw, box(1.74, 0.06, 0.06), gold, 0, 1.1, -0.78, false);
+  // Legendary: gold trim, swept-back wings and three shards orbiting high above.
+  const gold = '#e8a820';
+  deco(root, new THREE.TorusGeometry(1.5, 0.05, 4, 6), gold, 0, 0.26, 0).rotation.set(Math.PI / 2, 0, Math.PI / 6);
+  deco(yaw, box(1.74, 0.06, 0.06), gold, 0, 1.1, 0.58);
+  deco(yaw, box(1.74, 0.06, 0.06), gold, 0, 1.1, -0.78);
   for (const sx of [-0.3, 0.3]) {
-    const fin = part(yaw, box(0.06, 0.5, 0.75), gold, sx * 1.5, 1.25, -0.95, false);
-    fin.rotation.set(-0.6, 0, sx > 0 ? -0.35 : 0.35);
+    deco(yaw, box(0.06, 0.5, 0.75), gold, sx * 1.5, 1.25, -0.95).rotation.set(-0.6, 0, sx > 0 ? -0.35 : 0.35);
   }
-  const orbit = new THREE.Group();
-  orbit.position.y = 2.9;
-  root.add(orbit);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2;
-    const s = part(orbit, new THREE.OctahedronGeometry(0.13, 0), trim, Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1, false);
-    s.scale.set(0.7, 1.5, 0.7);
+    const g = new THREE.OctahedronGeometry(0.13, 0);
+    g.scale(0.7, 1.5, 0.7);
+    deco(spin, g, trim, Math.cos(a) * 1.1, 2.9, Math.sin(a) * 1.1);
   }
-  mergeStatic(orbit);
-  anim.push((t) => { orbit.rotation.y = -t * 1.1; orbit.position.y = 2.9 + Math.sin(t * 1.7) * 0.12; });
+  mergeStatic(spin);
   return anim;
 }
 
@@ -769,8 +773,8 @@ export function createTurret(type, color, skinId = 'factory') {
   part(yaw, new THREE.BoxGeometry(1.2, 0.4, 0.5), M.steelLight, 0, 0.55, -0.85);
   const antenna = part(yaw, new THREE.CylinderGeometry(0.03, 0.03, 1.1, 4), M.steelDark, 0.6, 1.5, -0.6, false);
   antenna.rotation.x = -0.2;
-  part(yaw, new THREE.SphereGeometry(0.07, 6, 4), glow('#ff3b3b'), 0.6, 2.05, -0.72, false);
-  part(yaw, new THREE.BoxGeometry(0.34, 0.18, 0.08), glow(color), -0.55, 0.85, 0.58, false);
+  deco(yaw, new THREE.SphereGeometry(0.07, 6, 4), '#ff3b3b', 0.6, 2.05, -0.72);
+  deco(yaw, new THREE.BoxGeometry(0.34, 0.18, 0.08), color, -0.55, 0.85, 0.58);
   const rarityAnim = dressRarity(root, yaw, TURRETS[type]?.rarity, color, M);
   // fewer draw calls: the static base and torso pieces become one mesh per material
   mergeStatic(root);
@@ -812,17 +816,101 @@ export function createTurret(type, color, skinId = 'factory') {
     if (o.geometry.boundingSphere.radius * sc < 0.55) o.castShadow = false;
   });
   return {
-    type, root, yawG: yaw, pitchG: pitch, barrels: head.barrels, muzzles: head.muzzles, camAnchor, accAnim, skinFx: sk.fx,
+    type, root, yawG: yaw, pitchG: pitch, look: { steel: sk.steel, dark: sk.dark, light: sk.light }, barrels: head.barrels, muzzles: head.muzzles, camAnchor, accAnim, skinFx: sk.fx,
     spinner: head.spinner, orb: head.orb, coils: head.coils, lens: head.lens, spin: 0, pips,
     yaw: 0, pitch: 0, cooldown: 0.4, manual: false, nextBarrel: 0, plot: null, picks: [0, 0, 0], invested: 0, beamT: 0, beamTarget: null,
   };
 }
 
-/** Visual rank from the number of bought upgrades (0-10). */
+/* ------------------------------------------------------- Upgrade looks */
+// Bought upgrades show on the torso so a glance at the map tells how a turret was built:
+//   branch 1 = left weapon pods, branch 2 = right ammo drums, branch 3 = sensor mast at the back.
+// Each branch grows at tiers 1 / 3 / 5 and carries one notch per tier in the branch colour.
+// Everything is painted with vertex colours on one lit material (+ one glow mesh at tier 5),
+// so an upgraded turret costs at most two extra draw calls.
+const upgM = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.45, metalness: 0.4 });
+function paint(parent, geo, hex, x, y, z) {
+  const m = deco(parent, geo, hex, x, y, z);
+  m.material = upgM;
+  return m;
+}
+
+function buildUpgrades(t) {
+  const g = new THREE.Group();
+  const L = t.look;
+  const tree = TREES[t.type] || [];
+  const [p0, p1, p2] = t.picks;
+  const col = (b) => tree[b]?.color || '#ffd24a';
+  const zc = (r, h) => cyl(r, r, h, 8);
+  // Branch 1: weapon pods on the left side.
+  if (p0 >= 1) {
+    paint(g, box(0.26, 0.32, 0.6), L.dark, -1.12, 0.62, -0.1);
+    for (let i = 0; i < p0; i++) paint(g, box(0.03, 0.2, 0.08), col(0), -1.26, 0.62, 0.12 - i * 0.12);
+  }
+  if (p0 >= 3) {
+    paint(g, box(0.3, 0.28, 0.7), L.steel, -1.14, 0.98, 0);
+    paint(g, zc(0.07, 0.8), L.light, -1.14, 0.98, 0.7);
+    paint(g, zc(0.1, 0.12), L.dark, -1.14, 0.98, 1.08);
+  }
+  if (p0 >= 5) {
+    paint(g, zc(0.07, 0.8), L.light, -1.14, 1.16, 0.62);
+    paint(g, box(0.34, 0.08, 0.72), col(0), -1.14, 1.14, 0);
+    deco(g, zc(0.075, 0.03), col(0), -1.14, 0.98, 1.15);
+    deco(g, zc(0.075, 0.03), col(0), -1.14, 1.16, 1.03);
+  }
+  // Branch 2: ammo drums on the right side.
+  if (p1 >= 1) {
+    paint(g, box(0.26, 0.32, 0.6), L.dark, 1.12, 0.62, -0.1);
+    for (let i = 0; i < p1; i++) paint(g, box(0.03, 0.2, 0.08), col(1), 1.26, 0.62, 0.12 - i * 0.12);
+  }
+  if (p1 >= 3) {
+    const drum = paint(g, new THREE.CylinderGeometry(0.3, 0.3, 0.3, 10), L.steel, 1.2, 1.02, -0.25);
+    drum.rotation.z = Math.PI / 2;
+    paint(g, box(0.34, 0.06, 0.62), col(1), 1.2, 1.02, -0.25);
+    paint(g, box(0.1, 0.1, 0.5), L.dark, 1.02, 1.1, 0.15);
+  }
+  if (p1 >= 5) {
+    const drum2 = paint(g, new THREE.CylinderGeometry(0.24, 0.24, 0.26, 10), L.light, 1.2, 1.02, 0.3);
+    drum2.rotation.z = Math.PI / 2;
+    for (const z of [-0.55, -0.35]) {
+      paint(g, new THREE.CylinderGeometry(0.06, 0.07, 0.4, 6), L.dark, 1.0, 1.35, z);
+      deco(g, new THREE.CylinderGeometry(0.05, 0.05, 0.03, 6), col(1), 1.0, 1.56, z);
+    }
+  }
+  // Branch 3: sensor mast behind the head (out of the first-person view).
+  if (p2 >= 1) {
+    const h = p2 >= 3 ? 1.1 : 0.55;
+    paint(g, new THREE.CylinderGeometry(0.04, 0.06, h, 6), L.dark, -0.25, 0.75 + h / 2, -0.95);
+    for (let i = 0; i < p2; i++) paint(g, new THREE.CylinderGeometry(0.07, 0.07, 0.05, 6), col(2), -0.25, 0.85 + i * 0.12, -0.95);
+    paint(g, box(0.22, 0.14, 0.14), L.steel, -0.25, 0.8 + h, -0.95);
+    if (p2 >= 3) {
+      const dish = paint(g, new THREE.CylinderGeometry(0.28, 0.12, 0.08, 10), L.light, -0.25, 1.62, -0.85);
+      dish.rotation.x = Math.PI / 2 - 0.4;
+    }
+    if (p2 >= 5) {
+      deco(g, new THREE.TorusGeometry(0.34, 0.025, 4, 16), col(2), -0.25, 2.05, -0.95).rotation.x = Math.PI / 2;
+      deco(g, new THREE.OctahedronGeometry(0.08, 0), col(2), -0.25, 2.05, -0.95);
+    }
+  }
+  mergeStatic(g);
+  return g;
+}
+
+/** Visual rank from the number of bought upgrades (0-10) + the parts each branch adds (t.picks). */
 export function setTurretRank(t, n) {
   const lit = Math.ceil(n / 2);
   t.pips.forEach((p, i) => { p.visible = i < lit; });
   t.root.scale.setScalar(1 + n * 0.018);
+  if (!t.look || !t.picks) return;
+  const key = t.picks.join(',');
+  if (t.upgKey === key) return;
+  t.upgKey = key;
+  if (t.upg) {
+    t.yawG.remove(t.upg);
+    t.upg.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
+  }
+  t.upg = n > 0 ? buildUpgrades(t) : null;
+  if (t.upg) t.yawG.add(t.upg);
 }
 
 /* ----------------------------------------------------------------- Enemies */
