@@ -1,58 +1,187 @@
-// Command bunker: an elevated concrete command post behind the base, overlooking the battlefield
-// through a wide slit window. The player walks around inside (first person) and uses stations:
-// map table (tactical view: build, upgrade, abilities), VR seats (remote-control a turret),
-// wave console, upgrade terminal and a periscope.
+// Command bunker: a low concrete post dug in behind the base. From outside only a grassy mound, the
+// concrete face with the observation slit and the periscope show. Inside the player walks around
+// (first person) and uses stations, each built to look like what it is and signed:
+// map table (lean over it and tap the live map: build, upgrade, aim abilities), radio desk with the
+// big START WAVE button, VR seat (remote-control a turret), upgrade terminal and a periscope.
 import * as THREE from 'three';
 import { mergeStatic } from './merge.js';
+import { TURRETS } from './config.js';
 
-const W = 9, D = 6, H = 3;          // interior width (x), depth (z), height
-const FLOOR_Y = 6.5;                 // world height of the bunker floor
+const W = 9, D = 6, H = 2.5;         // interior width (x), depth (z), height
+const FLOOR_Y = 0.08;                // floor just above the ground: the room sits in an earth mound
+const SLIT0 = 1.3, SLIT1 = 1.95;     // observation slit (height above the floor)
 export const EYE = 1.65;
 
-const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.1, flatShading: true, ...o });
-const glow = (color) => new THREE.MeshBasicMaterial({ color, toneMapped: false });
-
+const matCache = new Map();
+function mat(color, o = {}) {
+  const k = color + JSON.stringify(o);
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.1, flatShading: true, ...o }));
+  return matCache.get(k);
+}
+function glow(color) {
+  const k = 'glow' + color;
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+  return matCache.get(k);
+}
 function box(parent, w, h, d, m, x, y, z) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
   mesh.position.set(x, y, z);
   parent.add(mesh);
   return mesh;
 }
+function geo(parent, g, m, x, y, z) {
+  const mesh = new THREE.Mesh(g, m);
+  mesh.position.set(x, y, z);
+  parent.add(mesh);
+  return mesh;
+}
+/** Triangular earth wedge leaning on a wall: `len` along the wall, `out` away from it, `h` high. */
+function wedge(len, out, h) {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0); s.lineTo(out, 0); s.lineTo(0, h); s.lineTo(0, 0);
+  const g = new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: false });
+  g.translate(0, 0, -len / 2);
+  g.deleteAttribute('uv');
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  return g;          // slope faces +x, wall side at x = 0, runs along z
+}
 
-/** A live little map of the battlefield for the table top. */
-function mapCanvas(map) {
+const EARTH = { grass: '#5f8a3e', desert: '#c8a868', snow: '#e6edf2', canyon: '#a0583a', swamp: '#4f6034', harbor: '#6a8a4a' };
+
+/** Readable station sign: bold title + a short line of what it does. */
+function sign(title, sub, color) {
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 330;
+  c.width = 512; c.height = 160;
+  const g = c.getContext('2d');
+  g.fillStyle = '#10161d'; g.fillRect(0, 0, 512, 160);
+  g.fillStyle = color; g.fillRect(0, 0, 512, 12); g.fillRect(0, 148, 512, 12);
+  g.textAlign = 'center';
+  g.fillStyle = '#ffffff'; g.font = '900 56px system-ui, sans-serif';
+  g.fillText(title, 256, 78);
+  g.fillStyle = color; g.font = 'bold 30px system-ui, sans-serif';
+  g.fillText(sub, 256, 126);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const px = (x) => ((x + 33) / 66) * c.width;
-  const pz = (z) => ((z + 21) / 42) * c.height;
-  function draw(G, world) {
-    const g = c.getContext('2d');
-    g.fillStyle = '#0d2a22'; g.fillRect(0, 0, c.width, c.height);
-    g.strokeStyle = 'rgba(80, 255, 170, 0.12)'; g.lineWidth = 1;
-    for (let x = 0; x < c.width; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, c.height); g.stroke(); }
-    for (let y = 0; y < c.height; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(c.width, y); g.stroke(); }
-    g.strokeStyle = '#3aff9a'; g.lineWidth = 7; g.lineJoin = 'round'; g.lineCap = 'round';
-    for (const r of map.roads) { g.beginPath(); r.forEach(([x, z], i) => (i ? g.lineTo(px(x), pz(z)) : g.moveTo(px(x), pz(z)))); g.stroke(); }
-    if (world) {
-      for (const p of world.plots) {
-        g.fillStyle = p.turret ? '#ffd24a' : 'rgba(80, 220, 255, 0.55)';
-        g.beginPath(); g.arc(px(p.pos.x), pz(p.pos.z), p.turret ? 7 : 4, 0, Math.PI * 2); g.fill();
-      }
-      const b = world.base.position;
-      g.fillStyle = '#58e1ff'; g.fillRect(px(b.x) - 8, pz(b.z) - 8, 16, 16);
+  return new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.47), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+}
+
+/**
+ * The live battlefield map on the table (and the terminal screen). Drawn in the bunker's own frame,
+ * so "up" on the table points out of the slit, just like the real battlefield in front of you.
+ */
+function tableMap(world, map, g, TW, TD) {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = Math.round(1024 * TD / TW);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  // bounds of everything that matters, in bunker-local x/z
+  const loc = (x, z) => g.worldToLocal(new THREE.Vector3(x, 0, z));
+  const pts = [];
+  for (const r of map.roads) for (const [x, z] of r) pts.push(loc(x, z));
+  for (const p of world.plots) pts.push(loc(p.pos.x, p.pos.z));
+  pts.push(loc(world.base.position.x, world.base.position.z));
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
+  const pad = 5;
+  minX -= pad; maxX += pad; minZ -= pad; maxZ += pad;
+  // uniform scale (metres -> pixels), centred
+  const sc = Math.min(c.width / (maxX - minX), c.height / (maxZ - minZ));
+  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+  // canvas x grows towards local -x (the table top is turned 180°), canvas y grows towards local -z
+  const toPx = (l) => [c.width / 2 - (l.x - cx) * sc, c.height / 2 - (l.z - cz) * sc];
+  const wp = (x, z) => toPx(loc(x, z));
+  const roads = map.roads.map((r) => r.map(([x, z]) => wp(x, z)));
+  const paths = (world.paths || []).map((p) => (p.pts || []).map((v) => wp(v.x, v.z)));
+  /** uv on the table top -> world position on the ground */
+  function uvToWorld(uv) {
+    const px = uv.x * c.width, py = (1 - uv.y) * c.height;
+    const lx = cx - (px - c.width / 2) / sc, lz = cz - (py - c.height / 2) / sc;
+    return g.localToWorld(new THREE.Vector3(lx, 0, lz)).setY(0);
+  }
+  /** world position -> fraction of the map (0..1, top-left origin), for the terminal overlay */
+  function worldToFrac(x, z) { const [px, py] = wp(x, z); return [px / c.width, py / c.height]; }
+
+  function draw(G) {
+    const x2 = c.getContext('2d');
+    x2.fillStyle = '#12301f'; x2.fillRect(0, 0, c.width, c.height);
+    // survey grid (10 m)
+    x2.strokeStyle = 'rgba(120, 255, 190, 0.08)'; x2.lineWidth = 1;
+    const step = 10 * sc;
+    for (let x = (c.width / 2) % step; x < c.width; x += step) { x2.beginPath(); x2.moveTo(x, 0); x2.lineTo(x, c.height); x2.stroke(); }
+    for (let y = (c.height / 2) % step; y < c.height; y += step) { x2.beginPath(); x2.moveTo(0, y); x2.lineTo(c.width, y); x2.stroke(); }
+    // roads: dark edge, dirt band, dashed centre line, red IN marker where they start
+    const line = (pl, w, col, dash) => {
+      x2.strokeStyle = col; x2.lineWidth = w; x2.lineJoin = 'round'; x2.lineCap = 'round'; x2.setLineDash(dash || []);
+      x2.beginPath(); pl.forEach(([x, y], i) => (i ? x2.lineTo(x, y) : x2.moveTo(x, y))); x2.stroke();
+    };
+    const rs = paths.some((p) => p.length > 1) ? paths : roads;
+    for (const r of rs) line(r, 4.2 * sc + 6, '#0a1a12');
+    for (const r of rs) line(r, 4.2 * sc, '#8a7650');
+    for (const r of rs) line(r, 2, 'rgba(255, 240, 200, 0.55)', [10, 12]);
+    x2.setLineDash([]);
+    x2.textAlign = 'center';
+    for (const r of roads) {
+      const [sx, sy] = r[0];
+      x2.fillStyle = '#ff4a5a';
+      x2.beginPath(); x2.arc(sx, sy, 15, 0, Math.PI * 2); x2.fill();
+      x2.fillStyle = '#fff'; x2.font = '900 15px system-ui, sans-serif'; x2.fillText('IN', sx, sy + 5);
     }
+    // turret ranges first (under everything)
+    for (const p of world.plots) {
+      const t = p.turret;
+      if (!t) continue;
+      const [x, y] = wp(p.pos.x, p.pos.z);
+      const r = (t.stats?.range || TURRETS[t.type]?.range || 0) * sc;
+      if (r > 0) {
+        x2.fillStyle = 'rgba(255, 210, 74, 0.05)'; x2.strokeStyle = 'rgba(255, 210, 74, 0.28)'; x2.lineWidth = 2;
+        x2.beginPath(); x2.arc(x, y, r, 0, Math.PI * 2); x2.fill(); x2.stroke();
+      }
+    }
+    // pads (+) and turrets (colour disc, initials, name, upgrade count)
+    for (const p of world.plots) {
+      const [x, y] = wp(p.pos.x, p.pos.z);
+      const t = p.turret;
+      if (!t) {
+        x2.strokeStyle = 'rgba(90, 225, 255, 0.9)'; x2.lineWidth = 3;
+        x2.beginPath(); x2.arc(x, y, 16, 0, Math.PI * 2); x2.stroke();
+        x2.fillStyle = 'rgba(90, 225, 255, 0.9)'; x2.fillRect(x - 8, y - 1.5, 16, 3); x2.fillRect(x - 1.5, y - 8, 3, 16);
+        continue;
+      }
+      const d = TURRETS[t.type] || {};
+      const name = d.name || t.type;
+      x2.fillStyle = '#0b0f14'; x2.beginPath(); x2.arc(x, y, 22, 0, Math.PI * 2); x2.fill();
+      x2.fillStyle = d.color || '#ffd24a'; x2.beginPath(); x2.arc(x, y, 18, 0, Math.PI * 2); x2.fill();
+      x2.fillStyle = '#0b0f14'; x2.font = '900 15px system-ui, sans-serif';
+      x2.fillText(name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(), x, y + 5);
+      const n = (t.picks || []).reduce((a, b) => a + b, 0);
+      if (n) { x2.fillStyle = '#ffd24a'; x2.font = '900 14px system-ui, sans-serif'; x2.fillText(`T${n}`, x, y + 38); }
+      x2.fillStyle = '#e8f4ff'; x2.font = 'bold 13px system-ui, sans-serif'; x2.fillText(name.toUpperCase(), x, y - 28);
+    }
+    // base
+    const [bx, by] = wp(world.base.position.x, world.base.position.z);
+    x2.fillStyle = '#0b0f14'; x2.fillRect(bx - 20, by - 20, 40, 40);
+    x2.fillStyle = '#58e1ff'; x2.fillRect(bx - 16, by - 16, 32, 32);
+    x2.fillStyle = '#0b0f14'; x2.font = '900 14px system-ui, sans-serif'; x2.fillText('HQ', bx, by + 5);
+    // enemies
     for (const e of G?.enemies || []) {
       if (!e.alive) continue;
-      g.fillStyle = e.type === 'boss' ? '#ff3355' : e.elite ? e.elite.color : '#ff6a5a';
-      g.beginPath(); g.arc(px(e.group.position.x), pz(e.group.position.z), e.type === 'boss' ? 8 : 4, 0, Math.PI * 2); g.fill();
+      const [x, y] = wp(e.group.position.x, e.group.position.z);
+      const boss = e.type === 'boss';
+      x2.fillStyle = '#1a0508'; x2.beginPath(); x2.arc(x, y, boss ? 13 : 7, 0, Math.PI * 2); x2.fill();
+      x2.fillStyle = boss ? '#ff3355' : e.elite ? e.elite.color : '#ff6a5a';
+      x2.beginPath(); x2.arc(x, y, boss ? 10 : 5, 0, Math.PI * 2); x2.fill();
     }
-    g.fillStyle = '#9dffcf'; g.font = 'bold 18px system-ui, sans-serif';
-    g.fillText(`WAVE ${G?.wave ?? 0}   HOSTILES ${G?.enemies?.length ?? 0}`, 14, 26);
+    // header strip
+    x2.fillStyle = 'rgba(5, 12, 9, 0.8)'; x2.fillRect(0, 0, c.width, 40);
+    x2.textAlign = 'left'; x2.fillStyle = '#9dffcf'; x2.font = '900 24px system-ui, sans-serif';
+    const live = (G?.enemies || []).filter((e) => e.alive).length;
+    x2.fillText(`WAVE ${G?.wave ?? 0}  ·  HOSTILES ${live}  ·  GOLD ${Math.floor(G?.gold ?? 0)}`, 16, 29);
+    x2.textAlign = 'right'; x2.fillStyle = '#ffd24a';
+    x2.fillText(G?.targeting ? 'TAP THE MAP TO AIM' : 'TAP + TO BUILD · TAP A TURRET TO UPGRADE', c.width - 16, 29);
     tex.needsUpdate = true;
   }
-  return { tex, draw };
+  return { tex, draw, uvToWorld, worldToFrac, aspect: c.width / c.height, roads: roads.map((r) => r.map(([x, y]) => [x / c.width, y / c.height])) };
 }
 
 export function buildBunker(world, map, target) {
@@ -64,26 +193,67 @@ export function buildBunker(world, map, target) {
   const pos = base.clone().addScaledVector(toMid, -8).addScaledVector(side, 7).setY(0);
   g.position.copy(pos);
   g.rotation.y = Math.atan2(toMid.x, toMid.z);
+  g.updateMatrixWorld(true);
 
-  const concrete = mat('#7a7d80'), dark = mat('#43474c'), floorM = mat('#34373b'), steel = mat('#5b636c', { metalness: 0.5, roughness: 0.5 });
-  const trim = mat('#c8a040', { roughness: 0.6 });
-  const Y = FLOOR_Y;
-  // tower under the bunker
-  box(g, W + 1.2, Y, D + 1.2, dark, 0, Y / 2, 0);
-  // floor, roof
-  box(g, W + 1.2, 0.3, D + 1.2, floorM, 0, Y - 0.15, 0);
-  box(g, W + 1.6, 0.5, D + 1.8, concrete, 0, Y + H + 0.25, 0.2);
-  // back and side walls
-  box(g, W + 1.2, H, 0.6, concrete, 0, Y + H / 2, -D / 2 - 0.3);
-  box(g, 0.6, H, D + 1.2, concrete, -W / 2 - 0.3, Y + H / 2, 0);
-  box(g, 0.6, H, D + 1.2, concrete, W / 2 + 0.3, Y + H / 2, 0);
-  // front wall with the observation slit (open between 1.15 m and 2.35 m)
-  box(g, W + 1.2, 1.15, 0.7, concrete, 0, Y + 0.575, D / 2 + 0.35);
-  box(g, W + 1.2, H - 2.35, 0.7, concrete, 0, Y + 2.35 + (H - 2.35) / 2, D / 2 + 0.35);
-  for (const x of [-W / 4, 0, W / 4]) box(g, 0.18, 1.2, 0.3, steel, x, Y + 1.75, D / 2 + 0.2);   // slit struts
-  box(g, W, 0.08, 0.4, trim, 0, Y + 1.15, D / 2 + 0.05);                                           // sill
-  // floor stripes
-  box(g, W - 0.4, 0.02, 0.12, trim, 0, Y + 0.01, D / 2 - 0.6);
+  const concrete = mat('#8a8d90'), wallIn = mat('#6d7175'), dark = mat('#3b3f44');
+  // the floor sits a little above the ground and is pushed back in depth: no flicker against it
+  const floorM = mat('#4a4e53', { polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+  const steel = mat('#5b636c', { metalness: 0.5, roughness: 0.5 }), steelL = mat('#9aa4ae', { metalness: 0.6, roughness: 0.4 });
+  const trim = mat('#d8a830', { roughness: 0.6 }), wood = mat('#7a5a3a'), rubber = mat('#1c1f23', { roughness: 0.95 });
+  const earth = mat(EARTH[map.theme] || EARTH.grass, { roughness: 1 });
+  const Y = FLOOR_Y, T = 0.6;      // floor height, wall thickness
+  const keep = new Set();
+  // roof, earth cap, lamps and signs: hidden while you lean over the table (the camera rises above them)
+  const ceiling = new THREE.Group();
+  g.add(ceiling);
+  const earthTop = mat(EARTH[map.theme] || EARTH.grass, { roughness: 0.99 });
+
+  /* -------- shell: floor slab, walls with the slit, roof, earth mound around it */
+  box(g, W + 2 * T, 0.16, D + 2 * T, floorM, 0, Y - 0.08, 0);
+  box(g, W + 2 * T, H, T, concrete, 0, Y + H / 2, -D / 2 - T / 2);
+  box(g, T, H, D + 2 * T, concrete, -W / 2 - T / 2, Y + H / 2, 0);
+  box(g, T, H, D + 2 * T, concrete, W / 2 + T / 2, Y + H / 2, 0);
+  box(g, W + 2 * T, SLIT0, T + 0.1, concrete, 0, Y + SLIT0 / 2, D / 2 + T / 2);
+  box(g, W + 2 * T, H - SLIT1, T + 0.1, concrete, 0, Y + SLIT1 + (H - SLIT1) / 2, D / 2 + T / 2);
+  for (const x of [-W / 3, 0, W / 3]) box(g, 0.2, SLIT1 - SLIT0, 0.34, steel, x, Y + (SLIT0 + SLIT1) / 2, D / 2 + 0.3);
+  box(g, W, 0.08, 0.5, trim, 0, Y + SLIT0 + 0.04, D / 2 + 0.05);                    // sill
+  box(ceiling, W + 2 * T + 0.4, 0.35, D + 2 * T + 0.5, concrete, 0, Y + H + 0.175, 0.1);  // roof slab
+  // earth: a low grassy cap on the roof and wedges against the back and sides; in front only a
+  // low berm below the slit, so from outside just the slit face and the periscope show
+  const cap = new THREE.CylinderGeometry(1, 1.3, 0.45, 4, 1);
+  cap.rotateY(Math.PI / 4);
+  cap.scale((W + 2 * T + 0.4) / Math.SQRT2, 1, (D + 2 * T + 0.5) / Math.SQRT2);
+  geo(ceiling, cap, earthTop, 0, Y + H + 0.55, 0.1);
+  const hw = W / 2 + T, hd = D / 2 + T, top = Y + H + 0.35;
+  geo(g, wedge(D + 2 * T + 0.5, 3.2, top), earth, hw, 0, 0.1);
+  geo(g, wedge(D + 2 * T + 0.5, 3.2, top), earth, -hw, 0, 0.1).rotation.y = Math.PI;
+  geo(g, wedge(W + 2 * T + 6.4, 3.2, top), earth, 0, 0, -hd).rotation.y = Math.PI / 2;
+  geo(g, wedge(W + 2 * T, 2.2, SLIT0 - 0.25), earth, 0, 0, hd + 0.05).rotation.y = -Math.PI / 2;
+  // sandbags along the slit
+  const bag = mat('#b8a47a', { roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const b = geo(g, new THREE.CapsuleGeometry(0.16, 0.36, 2, 6), bag, -W / 2 + 0.3 + i * (W - 0.6) / 13, Y + SLIT0 - 0.12, hd + 0.35);
+    b.rotation.z = Math.PI / 2;
+  }
+
+  /* -------- interior detail: wall ribs, pipes, cable tray, floor markings, lamps, crates */
+  for (let i = 0; i < 7; i++) box(g, 0.22, H, 0.12, wallIn, -W / 2 + 0.7 + i * (W - 1.4) / 6, Y + H / 2, -D / 2 + 0.06);
+  for (const z of [-1.5, 0, 1.5]) {
+    box(g, 0.12, H, 0.22, wallIn, -W / 2 + 0.06, Y + H / 2, z);
+    box(g, 0.12, H, 0.22, wallIn, W / 2 - 0.06, Y + H / 2, z);
+  }
+  for (const y of [H - 0.18, H - 0.34]) geo(ceiling, new THREE.CylinderGeometry(0.06, 0.06, W - 0.3, 8), steel, 0, Y + y, -D / 2 + 0.2).rotation.z = Math.PI / 2;
+  box(ceiling, 0.5, 0.06, D - 0.4, steel, -W / 2 + 0.5, Y + H - 0.1, 0);               // cable tray
+  box(g, W - 1.0, 0.012, 0.1, trim, 0, Y + 0.006, D / 2 - 0.75);                          // floor lines
+  box(g, 0.1, 0.012, D - 1.4, trim, -2.1, Y + 0.006, -0.2);
+  box(g, 0.1, 0.012, D - 1.4, trim, 2.1, Y + 0.006, -0.2);
+  for (const x of [-2.6, 0, 2.6]) {
+    box(ceiling, 1.1, 0.06, 0.3, steel, x, Y + H - 0.04, -0.6);
+    box(ceiling, 1.0, 0.03, 0.22, glow('#fff1c8'), x, Y + H - 0.085, -0.6);
+  }
+  box(g, 0.7, 0.55, 0.6, wood, 4.0, Y + 0.275, -2.55);                                     // ammo crates
+  box(g, 0.6, 0.45, 0.55, wood, 3.3, Y + 0.225, -2.6);
+  box(g, 0.62, 0.05, 0.1, trim, 4.0, Y + 0.56, -2.24);
 
   const stations = [];
   const addStation = (id, label, x, z, hitY = 1.1) => {
@@ -91,62 +261,148 @@ export function buildBunker(world, map, target) {
     stations.push(s);
     return s;
   };
+  const addSign = (title, sub, color, x, y, z, ry) => {
+    const s = sign(title, sub, color);
+    s.position.set(x, Y + y, z);
+    s.rotation.y = ry;
+    ceiling.add(s);
+    keep.add(s);
+    return s;
+  };
 
-  // map table with a live map
-  const table = mapCanvas(map);
-  box(g, 2.4, 0.9, 1.5, steel, 0, Y + 0.45, -0.4);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.3), new THREE.MeshBasicMaterial({ map: table.tex, toneMapped: false }));
-  top.rotation.x = -Math.PI / 2;
-  top.rotation.z = Math.PI;
-  top.position.set(0, Y + 0.91, -0.4);
-  g.add(top);
-  addStation('map', 'MAP TABLE — build, upgrade, abilities', 0, -0.4, 0.9);
+  /* -------- MAP TABLE: big wooden-framed table with the live map and rim lights */
+  const TW = 3.2, TD = 2.0, TX = 0, TZ = -0.2, TH = 0.95;
+  box(g, TW + 0.24, 0.12, TD + 0.24, wood, TX, Y + TH - 0.07, TZ);
+  box(g, TW - 0.2, 0.5, TD - 0.2, dark, TX, Y + 0.55, TZ);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(g, 0.14, TH - 0.1, 0.14, steel, TX + sx * (TW / 2 - 0.1), Y + (TH - 0.1) / 2, TZ + sz * (TD / 2 - 0.1));
+  for (const sz of [-1, 1]) box(g, TW + 0.26, 0.03, 0.03, glow('#3aff9a'), TX, Y + TH - 0.005, TZ + sz * (TD / 2 + 0.13));
+  for (const sx of [-1, 1]) box(g, 0.03, 0.03, TD + 0.26, glow('#3aff9a'), TX + sx * (TW / 2 + 0.13), Y + TH - 0.005, TZ);
+  const tmap = tableMap(world, map, g, TW, TD);
+  const tableTop = new THREE.Mesh(new THREE.PlaneGeometry(TW, TD), new THREE.MeshBasicMaterial({ map: tmap.tex, toneMapped: false }));
+  tableTop.rotation.x = -Math.PI / 2;
+  tableTop.rotation.z = Math.PI;
+  tableTop.position.set(TX, Y + TH + 0.004, TZ);
+  g.add(tableTop);
+  keep.add(tableTop);
+  addStation('map', 'MAP TABLE — lean over it: build, upgrade, aim abilities', TX, TZ, TH);
+  const mapSign = addSign('MAP TABLE', 'build · upgrade · abilities', '#3aff9a', TX, 2.15, TZ - 0.25, Math.PI);
 
-  // wave console with the big red button
-  box(g, 1.2, 1.0, 0.8, dark, -3.3, Y + 0.5, 1.7);
-  const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.12, 16), glow('#ff3b3b'));
-  btn.position.set(-3.3, Y + 1.06, 1.7);
-  g.add(btn);
-  box(g, 0.9, 0.5, 0.05, glow('#1a2a20'), -3.3, Y + 1.45, 2.05);
-  addStation('wave', 'WAVE CONSOLE — start the next wave', -3.3, 1.7);
+  /* -------- RADIO DESK with the big START WAVE button (front left) */
+  const RX = -3.1, RZ = 1.9;
+  box(g, 1.6, 0.08, 0.9, wood, RX, Y + 0.9, RZ);
+  box(g, 1.5, 0.86, 0.8, dark, RX, Y + 0.43, RZ);
+  box(g, 0.7, 0.42, 0.4, mat('#4a5a3a'), RX - 0.35, Y + 1.15, RZ + 0.18);                 // radio set
+  for (let i = 0; i < 3; i++) geo(g, new THREE.CylinderGeometry(0.05, 0.05, 0.05, 10), steelL, RX - 0.55 + i * 0.2, Y + 1.06, RZ - 0.03).rotation.x = Math.PI / 2;
+  box(g, 0.34, 0.12, 0.02, glow('#ffb020'), RX - 0.35, Y + 1.26, RZ - 0.025);             // radio display
+  geo(g, new THREE.CylinderGeometry(0.012, 0.012, H - 1.35, 4), steel, RX - 0.6, Y + 1.35 + (H - 1.35) / 2, RZ + 0.3);
+  box(g, 0.1, 0.22, 0.08, rubber, RX - 0.05, Y + 1.05, RZ + 0.2);                          // handset
+  // START button: yellow/black hazard plate, red glowing mushroom cap, raised glass flip guard
+  box(g, 0.62, 0.05, 0.62, trim, RX + 0.42, Y + 0.965, RZ - 0.05);
+  for (let i = 0; i < 4; i++) box(g, 0.64, 0.052, 0.07, rubber, RX + 0.42, Y + 0.966, RZ - 0.3 + i * 0.165).rotation.y = 0.6;
+  geo(g, new THREE.CylinderGeometry(0.2, 0.22, 0.1, 14), steel, RX + 0.42, Y + 1.04, RZ - 0.05);
+  const btnM = new THREE.MeshBasicMaterial({ color: '#ff2a2a', toneMapped: false });
+  const btn = geo(g, new THREE.SphereGeometry(0.19, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2), btnM, RX + 0.42, Y + 1.08, RZ - 0.05);
+  keep.add(btn);
+  const guard = box(g, 0.46, 0.02, 0.46, new THREE.MeshStandardMaterial({ color: '#bfe8ff', transparent: true, opacity: 0.3, roughness: 0.1 }), RX + 0.42, Y + 1.3, RZ + 0.2);
+  guard.rotation.x = -1.1;
+  keep.add(guard);
+  addStation('wave', 'RADIO — START THE NEXT WAVE', RX, RZ);
+  addSign('START WAVE', 'radio · call the next wave', '#ff4a4a', RX, 2.15, RZ - 0.4, Math.PI);
 
-  // two VR seats
-  for (const z of [0.9, -1.4]) {
-    box(g, 0.8, 0.45, 0.8, dark, 3.3, Y + 0.45, z);
-    box(g, 0.8, 0.9, 0.15, dark, 3.75, Y + 1.0, z);
-    const visor = box(g, 0.45, 0.2, 0.25, glow('#58e1ff'), 3.3, Y + 1.35, z);
-    visor.userData.spin = true;
-  }
-  addStation('vr', 'VR SEAT — take remote control of a turret', 3.3, -0.25);
+  /* -------- VR SEAT (right): a padded chair with the headset hanging over it */
+  const VX = 3.2, VZ = 0.3;
+  const pad = mat('#2a3440', { roughness: 0.9 });
+  geo(g, new THREE.CylinderGeometry(0.08, 0.3, 0.42, 8), steel, VX, Y + 0.21, VZ);
+  box(g, 0.75, 0.16, 0.7, pad, VX, Y + 0.5, VZ);
+  box(g, 0.14, 0.95, 0.75, pad, VX + 0.38, Y + 1.0, VZ).rotation.z = 0.2;
+  for (const sz of [-0.42, 0.42]) box(g, 0.6, 0.1, 0.1, steelL, VX + 0.02, Y + 0.72, VZ + sz);
+  geo(g, new THREE.CylinderGeometry(0.02, 0.02, H - 1.75, 4), steel, VX + 0.1, Y + 1.75 + (H - 1.75) / 2, VZ);
+  box(g, 0.26, 0.2, 0.44, dark, VX + 0.1, Y + 1.66, VZ);
+  box(g, 0.02, 0.1, 0.4, glow('#58e1ff'), VX - 0.035, Y + 1.66, VZ);
+  addStation('vr', 'VR SEAT — take remote control of a turret', VX, VZ);
+  addSign('VR SEAT', 'control a turret yourself', '#58e1ff', VX - 0.15, 2.15, VZ + 1.0, Math.PI);
 
-  // upgrade terminal on the left wall
-  box(g, 0.25, 1.6, 1.4, steel, -W / 2 + 0.15, Y + 1.1, -1.8);
-  box(g, 0.05, 0.9, 1.2, glow('#2a3a6a'), -W / 2 + 0.3, Y + 1.35, -1.8);
-  addStation('upgrade', 'TERMINAL — upgrade and sell turrets', -3.9, -1.8);
+  /* -------- UPGRADE TERMINAL (left wall, back): desk, monitor showing the map, keyboard */
+  const UX = -3.9, UZ = -1.7;
+  box(g, 0.9, 0.08, 1.5, wood, UX, Y + 0.85, UZ);
+  box(g, 0.8, 0.8, 1.4, dark, UX, Y + 0.41, UZ);
+  box(g, 0.12, 0.72, 1.3, steel, UX - 0.28, Y + 1.3, UZ);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2 / tmap.aspect), new THREE.MeshBasicMaterial({ map: tmap.tex, toneMapped: false }));
+  screen.position.set(UX - 0.215, Y + 1.3, UZ);
+  screen.rotation.y = Math.PI / 2;
+  g.add(screen);
+  keep.add(screen);
+  box(g, 0.3, 0.03, 0.8, rubber, UX + 0.1, Y + 0.905, UZ);
+  addStation('upgrade', 'UPGRADE TERMINAL — pick a turret on the map', UX + 0.3, UZ);
+  addSign('UPGRADES', 'pick a turret on the map', '#ffd24a', UX - 0.26, 2.15, UZ, Math.PI / 2);
 
-  // periscope at the slit
-  box(g, 0.25, 1.6, 0.25, steel, 2.4, Y + 0.8, 2.3);
-  box(g, 0.6, 0.3, 0.4, steel, 2.4, Y + 1.65, 2.35);
-  addStation('scope', 'PERISCOPE — zoom on the battlefield', 2.4, 2.2, 1.6);
-
-  // ceiling lamps (emissive only, no real lights: cheap on phones)
-  for (const x of [-2.5, 2.5]) box(g, 1.2, 0.08, 0.3, glow('#fff1c8'), x, Y + H - 0.05, 0);
+  /* -------- PERISCOPE (front right, at the slit): tube through the roof, eyepiece + handles */
+  const PX = 2.7, PZ = 2.35;
+  geo(g, new THREE.CylinderGeometry(0.12, 0.12, H - 1.6, 10), steel, PX, Y + 1.6 + (H - 1.6) / 2, PZ);
+  box(g, 0.42, 0.3, 0.36, steel, PX, Y + 1.6, PZ);
+  box(g, 0.3, 0.12, 0.06, rubber, PX, Y + 1.62, PZ - 0.2);
+  for (const sx of [-0.3, 0.3]) geo(g, new THREE.CylinderGeometry(0.035, 0.035, 0.26, 6), rubber, PX + sx, Y + 1.5, PZ).rotation.z = Math.PI / 2;
+  // outside: the mast above the earth cap and its head (hidden while you look through it)
+  const mastTop = Y + H + 2.0;
+  geo(g, new THREE.CylinderGeometry(0.1, 0.12, 1.5, 8), steel, PX, Y + H + 1.2, PZ);
+  const scopeHead = new THREE.Group();
+  scopeHead.position.set(PX, mastTop, PZ);
+  g.add(scopeHead);
+  box(scopeHead, 0.36, 0.3, 0.5, steel, 0, 0, 0.05);
+  box(scopeHead, 0.26, 0.18, 0.02, glow('#8fe3ff'), 0, 0, 0.31);
+  addStation('scope', 'PERISCOPE — look far over the battlefield', PX, PZ - 0.1, 1.6);
+  addSign('PERISCOPE', 'zoom over the battlefield', '#8fe3ff', PX - 1.0, 2.15, PZ - 0.3, Math.PI);
 
   for (const m of g.children) { m.castShadow = false; m.receiveShadow = false; }
-  g.children[0].castShadow = true;                   // the tower casts a shadow on the ground
-  mergeStatic(g, new Set([top, btn]));
+  ceiling.traverse((m) => { m.castShadow = false; m.receiveShadow = false; });
+  mergeStatic(g, keep);
+  mergeStatic(ceiling, keep);
+  mergeStatic(scopeHead);
+  g.traverse((o) => { if (o.isMesh && o.material === earth) { o.castShadow = true; o.receiveShadow = true; } });
 
   g.updateMatrixWorld(true);
   for (const s of stations) s.pos = g.localToWorld(s.local.clone());
   const toWorld = (v) => g.localToWorld(v.clone());
   const bounds = { minX: -W / 2 + 0.45, maxX: W / 2 - 0.45, minZ: -D / 2 + 0.45, maxZ: D / 2 - 0.55 };
   // obstacles in local x/z (tables, consoles) so the player walks around them
-  const blocks = [[0, -0.4, 1.45, 1.0], [-3.3, 1.7, 0.85, 0.65], [3.3, 0.9, 0.7, 0.6], [3.3, -1.4, 0.7, 0.6], [2.4, 2.3, 0.4, 0.4]];
+  const blocks = [[TX, TZ, TW / 2 + 0.12, TD / 2 + 0.12], [RX, RZ, 0.8, 0.45], [VX, VZ, 0.45, 0.45], [UX, UZ, 0.45, 0.75], [PX, PZ, 0.25, 0.25], [3.7, -2.55, 0.8, 0.35]];
 
+  // camera pose for leaning over the table: from behind the near edge, looking down ~57°,
+  // pulled back until the whole table fits the screen (portrait phones get a higher view;
+  // the roof and earth are single-sided, so a camera above them still sees into the room)
+  const tableCenter = new THREE.Vector3(TX, Y + TH, TZ + 0.1);
+  const tDir = new THREE.Vector3(0, -Math.sin(1.12), Math.cos(1.12));
+  function tablePose(aspect) {
+    const fov = aspect < 1 ? 64 : 48;
+    const vf = THREE.MathUtils.degToRad(fov) / 2;
+    const hf = Math.atan(Math.tan(vf) * aspect);
+    const d = Math.max((TW / 2 + 0.08) / Math.tan(hf), (TD / 2 + 0.12) / Math.tan(vf));
+    const lp = tableCenter.clone().addScaledVector(tDir, -d);
+    const o = new THREE.PerspectiveCamera();            // cameras look down -Z: lookAt points the lens
+    o.position.copy(g.localToWorld(lp));
+    o.lookAt(g.localToWorld(tableCenter.clone()));
+    return { pos: o.position.clone(), quat: o.quaternion.clone(), fov };
+  }
+  // looking through it the mast runs up high: over the base keep and the trees, to see the whole road
+  const scopePos = g.localToWorld(new THREE.Vector3(PX, Y + H + 10, PZ + 0.4));
+
+  let pulse = 0;
   return {
     group: g, stations, bounds, blocks, floorY: Y, yaw0: g.rotation.y, toWorld,
     start: new THREE.Vector3(0, Y + EYE, -2.3),
-    drawTable: (G) => table.draw(G, world),
-    dispose() { g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose?.(); }); table.tex.dispose(); },
+    tableTop, tablePose, scopePos, scopeHead, mapSign, ceiling,
+    uvToWorld: tmap.uvToWorld, worldToFrac: tmap.worldToFrac, mapRoads: tmap.roads, mapAspect: tmap.aspect,
+    drawTable: (G) => tmap.draw(G),
+    /** per frame: the START button pulses while a wave can be called */
+    update(dt, ready) {
+      pulse += dt * (ready ? 5 : 1.5);
+      const s = Math.sin(pulse);
+      btn.scale.set(ready ? 1 + s * 0.06 : 1, ready ? 1 + s * 0.2 : 0.7, ready ? 1 + s * 0.06 : 1);
+      btnM.color.set(ready ? (s > 0 ? '#ff3030' : '#b81414') : '#4a1616');
+    },
+    dispose() {
+      g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material?.map) o.material.map.dispose(); });
+      tmap.tex.dispose();
+    },
   };
 }

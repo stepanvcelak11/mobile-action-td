@@ -304,7 +304,7 @@ const UP = new V3(0, 1, 0);
 // pinch / wheel to zoom, drag to pan, double-tap to jump in, and an idle zoomed camera follows the fight.
 const CAM = { zoom: 1, pan: new V3(), fit: null, lastInput: -1e9 };
 // command bunker state (see the Command bunker section at the end)
-const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, near: null, tableT: 0 };
+const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, table: false, blend: 0, near: null, tableT: 0 };
 const CAM_MAX_ZOOM = 3;
 const _fitCam = new THREE.PerspectiveCamera();
 const _fitV = new V3();
@@ -2061,10 +2061,11 @@ function useAbility(id) {
   if (G.cd[id] > 0) { sfx('deny'); return; }
   if (TARGETED_ABILITIES.includes(id)) {
     if (G.view === 'FPV') castAt(id, groundAim(new V3(), 3, 45));
-    else if (G.view === 'TOP') {
+    else if (G.view === 'TOP' || G.view === 'BUNKER') {
+      if (G.view === 'BUNKER' && !BK.table) setBunkerTable(true);
       G.targeting = G.targeting === id ? null : id;
       document.body.classList.toggle('targeting', !!G.targeting);
-      if (G.targeting) floatyScreen(`TAP THE GROUND — ${ABILITIES[id].name.toUpperCase()}`);
+      if (G.targeting) floatyScreen(`${G.view === 'BUNKER' ? 'TAP THE MAP' : 'TAP THE GROUND'} — ${ABILITIES[id].name.toUpperCase()}`);
       updateHud(true);
     }
     return;
@@ -3199,7 +3200,29 @@ window.__game = {
   G, P, STATE, camera, startWave, endGame, buildTurret, buyUpgrade, sellTurret, enterFPV, exitFPV, startMap, showMenu, nextTurret,
   useAbility, callStrike, castAt, openTurretCard, statsFor, renderAbilities, useGadget, activateHyper, spawnEnemy,
   /** tests: from the bunker straight to the map table (tactical view) */
-  mapTable() { if (G.view === 'BUNKER') { BK.near = BK.b.stations.find((q) => q.id === 'map'); bunkerUse(); } },
+  mapTable() { if (G.view === 'BUNKER') { document.body.classList.remove('bunker'); G.view = 'TO_TOP'; G.trans = snapshotTrans(); } },
+  /** tests: stand 1.6 m in front of a bunker station looking at it, or use it */
+  bunkerAt(id) {
+    const st = BK.b?.stations.find((q) => q.id === id);
+    if (!st) return;
+    const c = BK.b.toWorld(new V3(0, 0, -1.2));
+    const d = new V3(c.x - st.pos.x, 0, c.z - st.pos.z).normalize();
+    BK.pos.set(st.pos.x + d.x * 1.6, BK.b.floorY + 1.65, st.pos.z + d.z * 1.6);
+    BK.yaw = Math.atan2(-d.x, -d.z);
+    BK.pitch = -0.3;
+  },
+  /** tests: put the bunker camera anywhere (bunker-local x/y/z), e.g. outside to look at the mound */
+  bunkerLook(x, y, z, yaw, pitch) { BK.pos.copy(BK.b.toWorld(new V3(x, y, z))); BK.yaw = BK.b.yaw0 + yaw; BK.pitch = pitch; },
+  bunkerDebug() { return { cam: camera.position.toArray().map((v) => +v.toFixed(2)), dir: camera.getWorldDirection(new V3()).toArray().map((v) => +v.toFixed(2)), fov: camera.fov, scope: BK.scope, blend: BK.blend }; },
+  bunkerUseStation(id) { if (G.view === 'BUNKER') { BK.near = BK.b.stations.find((q) => q.id === id); bunkerUse(); } },
+  /** tests: lean over the map table in the bunker */
+  bunkerTable(on = true) { if (G.view === 'BUNKER') setBunkerTable(on); },
+  /** tests: where plot i is drawn on the map table, in screen pixels */
+  tableScreen(i) {
+    const p = world.plots[i].pos, [fx, fy] = BK.b.worldToFrac(p.x, p.z);
+    const v = BK.b.tableTop.localToWorld(new V3((0.5 - fx) * -BK.b.tableTop.geometry.parameters.width, (0.5 - fy) * BK.b.tableTop.geometry.parameters.height, 0)).project(camera);
+    return { x: ((v.x + 1) / 2) * viewW(), y: ((1 - v.y) / 2) * viewH() };
+  },
   get plots() { return world.plots; },
   get world() { return world; },
   plotScreen(i) {
@@ -3986,11 +4009,15 @@ function setupBunker() {
   BK.yaw = BK.b.yaw0;
   BK.pitch = -0.12;
   BK.scope = false;
+  BK.table = false;
+  BK.blend = 0;
   BK.b.drawTable(G);
   $('btn-bunker').style.display = '';
 }
 function teardownBunker() {
-  document.body.classList.remove('bunker', 'bk-scope');
+  document.body.classList.remove('bunker', 'bk-scope', 'bk-table');
+  BK.table = false;
+  BK.scope = false;
   if (!BK.b) return;
   scene.remove(BK.b.group);
   BK.b.dispose();
@@ -4004,11 +4031,51 @@ function bunkerPose() {
   // keep ~90° horizontally on tall portrait screens
   const aspect = viewW() / viewH();
   const wide = aspect < 1 ? Math.min(112, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(45)) / aspect))) : 78;
-  return { pos: BK.pos.clone(), quat: _bkq.clone().setFromEuler(_be), fov: BK.scope ? 18 : wide };
+  const walk = { pos: BK.scope ? BK.b.scopePos.clone() : BK.pos.clone(), quat: _bkq.clone().setFromEuler(_be), fov: BK.scope ? 20 : wide };
+  if (BK.blend <= 0.001) return walk;
+  const t = BK.b.tablePose(aspect), k = ease(Math.min(1, BK.blend));
+  return { pos: walk.pos.lerp(t.pos, k), quat: walk.quat.slerp(t.quat, k), fov: THREE.MathUtils.lerp(walk.fov, t.fov, k) };
+}
+/** Lean over the map table (camera tilts down to it; taps on the table build/upgrade/aim) or step back. */
+function setBunkerTable(on) {
+  if (!BK.b || BK.table === on) return;
+  BK.table = on;
+  BK.scope = false;
+  BK.b.scopeHead.visible = true;
+  document.body.classList.remove('bk-scope');
+  document.body.classList.toggle('bk-table', on);
+  if (!on) { closeSheets(); if (G.targeting) { G.targeting = null; document.body.classList.remove('targeting'); updateHud(true); } }
+  BK.jx = BK.jy = 0;
+  BK.near = undefined;
+  BK.tableT = 0;
+  sfx('whoosh');
+}
+/** A tap on the table: raycast to the table top, map it to the battlefield, then act like a tap on the map. */
+function onTableTap(x, y) {
+  if (!BK.b || !BK.table || BK.blend < 0.9 || !inGame()) return;
+  _ndc.set((x / viewW()) * 2 - 1, -(y / viewH()) * 2 + 1);
+  raycaster.setFromCamera(_ndc, camera);
+  const hit = raycaster.intersectObject(BK.b.tableTop, false)[0];
+  if (!hit?.uv) { closeSheets(); return; }
+  const pos = BK.b.uvToWorld(hit.uv);
+  if (G.targeting) { castAt(G.targeting, pos); BK.tableT = 0; return; }
+  let best = null, bd = 3.2;
+  for (const p of world.plots) {
+    const d = Math.hypot(p.pos.x - pos.x, p.pos.z - pos.z);
+    if (d < bd) { bd = d; best = p; }
+  }
+  if (!best) { closeSheets(); return; }
+  if (best.turret) openTurretCard(best.turret);
+  else openBuild(best);
+  sfx('build');
+  BK.tableT = 0;
 }
 function bunkerCamera(dt) {
+  BK.blend = THREE.MathUtils.clamp(BK.blend + (BK.table ? dt : -dt) / 0.45, 0, 1);
+  BK.b.ceiling.visible = !BK.table && BK.blend <= 0;     // the table camera rises through the roof
+  BK.b.update(dt, G.state === STATE.IDLE || canCallEarly());
   // walk
-  if (BK.jx || BK.jy) {
+  if ((BK.jx || BK.jy) && !BK.table && BK.blend <= 0) {
     const sp = 2.8 * dt;
     const f = new V3(Math.sin(BK.yaw), 0, Math.cos(BK.yaw)), r = new V3(-Math.cos(BK.yaw), 0, Math.sin(BK.yaw));
     const next = BK.pos.clone().addScaledVector(f, BK.jy * sp).addScaledVector(r, BK.jx * sp);
@@ -4043,14 +4110,23 @@ function bunkerCamera(dt) {
     if (a < bestA) { bestA = a; best = s; }
   }
   if (BK.scope) best = BK.b.stations.find((s) => s.id === 'scope');
-  if (best !== BK.near) {
+  if (BK.table) best = BK.b.stations.find((s) => s.id === 'map');
+  const startReady = best?.id === 'wave' && (G.state === STATE.IDLE || canCallEarly());
+  if (best !== BK.near || startReady !== BK.startReady) {
     BK.near = best;
+    BK.startReady = startReady;
     const use = $('bk-use');
     use.style.display = best ? '' : 'none';
-    $('bk-label').textContent = best ? (BK.scope ? 'LEAVE PERISCOPE' : best.label) : 'Walk to a station';
+    use.textContent = BK.table || BK.scope ? 'BACK' : best?.id === 'wave' ? (startReady ? 'START' : 'WAIT') : 'USE';
+    use.classList.toggle('start', startReady);
+    use.classList.toggle('back', BK.table || BK.scope);
+    $('bk-label').textContent = !best ? 'Walk to a station'
+      : BK.scope ? 'PERISCOPE — drag to look around'
+      : BK.table ? 'Tap + on the map to build · tap a turret to upgrade · abilities aim here'
+      : best.id === 'wave' && !startReady ? 'RADIO — wave in progress' : best.label;
   }
   BK.tableT -= dt;
-  if (BK.tableT <= 0) { BK.tableT = 0.3; BK.b.drawTable(G); }
+  if (BK.tableT <= 0) { BK.tableT = BK.table ? 0.12 : 0.3; BK.b.drawTable(G); }
 }
 function goBunker() {
   if (!BK.b || !inGame()) return;
@@ -4064,10 +4140,14 @@ function bunkerUse() {
   const s = BK.near;
   if (!s || !inGame()) return;
   unlockAudio();
+  if (BK.table) { setBunkerTable(false); return; }
   if (s.id === 'scope') {
     BK.scope = !BK.scope;
+    BK.b.scopeHead.visible = !BK.scope;       // the camera sits in the periscope head: hide it
+    if (BK.scope) BK.pitch = Math.min(BK.pitch, -0.05);
     document.body.classList.toggle('bk-scope', BK.scope);
-    BK.near = null;
+    BK.near = undefined;
+    sfx('whoosh');
     return;
   }
   if (s.id === 'wave') {
@@ -4075,13 +4155,7 @@ function bunkerUse() {
     else notify('WAVE IN PROGRESS', 'Clear it first', 1600);
     return;
   }
-  if (s.id === 'map') {
-    document.body.classList.remove('bunker');
-    G.view = 'TO_TOP';
-    G.trans = snapshotTrans();
-    sfx('whoosh');
-    return;
-  }
+  if (s.id === 'map') { setBunkerTable(true); return; }
   if (s.id === 'vr' || s.id === 'upgrade') openBunkerPicker(s.id);
 }
 /** Turret list for the VR seats (take control) and the terminal (upgrade card). */
@@ -4090,14 +4164,26 @@ function openBunkerPicker(kind) {
   if (!G.turrets.length) { notify('NO TURRETS YET', 'Build some at the map table', 2200); return; }
   const el = document.createElement('div');
   el.id = 'bk-picker';
-  el.innerHTML = `<div class="bkp-head"><b>${kind === 'vr' ? 'VR SEAT — choose a turret' : 'TERMINAL — choose a turret'}</b><button class="x-btn" aria-label="Close">✕</button></div>
+  const roads = BK.b.mapRoads.map((r) => `<polyline points="${r.map(([x, y]) => `${(x * 100).toFixed(1)},${(y * 100 / BK.b.mapAspect).toFixed(1)}`).join(' ')}"/>`).join('');
+  const hq = BK.b.worldToFrac(world.base.position.x, world.base.position.z);
+  const pins = G.turrets.map((t, i) => {
+    const [fx, fy] = BK.b.worldToFrac(t.plot.pos.x, t.plot.pos.z);
+    const pic = turretPortrait(t.type, skinOf(t.type));
+    return `<button class="bkp-pin" data-i="${i}" style="left:${(fx * 100).toFixed(1)}%;top:${(fy * 100).toFixed(1)}%;--c:${TURRETS[t.type].color}" aria-label="${TURRETS[t.type].name}">
+      <span class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(t.type)}</span><small>${TURRETS[t.type].name}${upgradesOf(t) ? ` · T${upgradesOf(t)}` : ''}</small></button>`;
+  }).join('');
+  el.innerHTML = `<div class="bkp-head"><b>${kind === 'vr' ? 'VR SEAT — tap a turret to take control' : 'UPGRADE TERMINAL — tap a turret'}</b><button class="x-btn" aria-label="Close">✕</button></div>
+    <div class="bkp-map" style="aspect-ratio:${BK.b.mapAspect.toFixed(3)}">
+      <svg viewBox="0 0 100 ${(100 / BK.b.mapAspect).toFixed(1)}" preserveAspectRatio="none" aria-hidden="true">${roads}</svg>
+      <i class="bkp-hq" style="left:${(hq[0] * 100).toFixed(1)}%;top:${(hq[1] * 100).toFixed(1)}%">HQ</i>${pins}
+    </div>
     <div class="bkp-list">${G.turrets.map((t, i) => {
       const pic = turretPortrait(t.type, skinOf(t.type));
       return `<button class="bkp-t" data-i="${i}"><span class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(t.type)}</span><b>${TURRETS[t.type].name}</b><small>T${upgradesOf(t)}</small></button>`;
     }).join('')}</div>`;
   document.body.append(el);
   el.querySelector('.x-btn').addEventListener('click', () => el.remove());
-  el.querySelectorAll('.bkp-t').forEach((b) => b.addEventListener('click', () => {
+  el.querySelectorAll('.bkp-t, .bkp-pin').forEach((b) => b.addEventListener('click', () => {
     const t = G.turrets[+b.dataset.i];
     el.remove();
     if (!t) return;
@@ -4145,6 +4231,17 @@ function openBunkerPicker(kind) {
   $('bk-look').addEventListener('pointerup', endLook);
   $('bk-look').addEventListener('pointercancel', endLook);
   $('bk-use').addEventListener('click', (ev) => { ev.stopPropagation(); bunkerUse(); });
+  let tableTap = null;
+  ui.addEventListener('pointerdown', (ev) => {
+    if (!BK.table || ev.target !== ui) return;
+    tableTap = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: performance.now() };
+  });
+  ui.addEventListener('pointerup', (ev) => {
+    if (!tableTap || tableTap.id !== ev.pointerId) return;
+    const tp = tableTap;
+    tableTap = null;
+    if (Math.hypot(ev.clientX - tp.x, ev.clientY - tp.y) < 16 && performance.now() - tp.t < 700) onTableTap(ev.clientX, ev.clientY);
+  });
   const keys = new Set();
   const syncKeys = () => {
     if (G.view !== 'BUNKER') return;
@@ -4155,6 +4252,7 @@ function openBunkerPicker(kind) {
     if (G.view !== 'BUNKER') return;
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(ev.code)) { keys.add(ev.code); syncKeys(); }
     if (ev.code === 'KeyE' || ev.code === 'Space') { ev.preventDefault(); bunkerUse(); }
+    if (ev.code === 'Escape' && (BK.table || BK.scope)) { ev.preventDefault(); if (BK.table) setBunkerTable(false); else { BK.near = BK.b.stations.find((q) => q.id === 'scope'); bunkerUse(); } }
   });
   window.addEventListener('keyup', (ev) => { keys.delete(ev.code); syncKeys(); });
   ui.addEventListener('contextmenu', (ev) => ev.preventDefault());
