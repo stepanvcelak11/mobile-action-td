@@ -109,9 +109,9 @@ function weakPoint(parent, geo, color, x, y, z) {
 }
 
 /** Eyes that blink now and then. */
-function eyes(parent, color, pts, r = 0.06) {
+function eyes(parent, color, pts, r = 0.06, ws = 8, hs = 6) {
   const g = new THREE.Group();
-  const geo = new THREE.SphereGeometry(r, 8, 6);
+  const geo = new THREE.SphereGeometry(r, ws, hs);
   const k = kit();
   for (const p of pts) k.add(geo, glow(color), p);
   k.bake(g, false);
@@ -156,18 +156,18 @@ export function buildScout(color = '#c7d43a') {
   const dark = mat('#2b3020', { metalness: 0.25 });
   const k = kit();
   // abdomen (segmented) + thorax
-  k.add(sph(0.5, 14, 10), shell, [0, 0.58, -0.28], [0, 0, 0], [1, 0.62, 1.05]);
-  for (let i = 0; i < 3; i++) k.add(torus(0.42 - i * 0.07, 0.045, 6, 18), band, [0, 0.6 + i * 0.03, -0.55 + i * 0.28], [Math.PI / 2 + 0.2, 0, 0], [1, 1, 0.65]);
-  k.add(sph(0.36, 12, 8), shell, [0, 0.6, 0.3], [0, 0, 0], [1.1, 0.7, 1]);
+  k.add(sph(0.5, 10, 7), shell, [0, 0.58, -0.28], [0, 0, 0], [1, 0.62, 1.05]);
+  for (let i = 0; i < 3; i++) k.add(torus(0.42 - i * 0.07, 0.045, 4, 12), band, [0, 0.6 + i * 0.03, -0.55 + i * 0.28], [Math.PI / 2 + 0.2, 0, 0], [1, 1, 0.65]);
+  k.add(sph(0.36, 9, 6), shell, [0, 0.6, 0.3], [0, 0, 0], [1.1, 0.7, 1]);
   // back spikes
   for (let i = 0; i < 4; i++) k.add(cone(0.07, 0.3, 5), dark, [0, 0.93 - i * 0.03, 0.25 - i * 0.22], [-0.5, 0, 0]);
   // head with mandibles
-  k.add(sph(0.28, 12, 8), dark, [0, 0.6, 0.72], [0, 0, 0], [1.1, 0.8, 1]);
+  k.add(sph(0.28, 8, 6), dark, [0, 0.6, 0.72], [0, 0, 0], [1.1, 0.8, 1]);
   for (const sx of [-1, 1]) {
     k.add(cone(0.06, 0.38, 5), dark, [sx * 0.14, 0.5, 1.0], [Math.PI / 2 + 0.2, 0, sx * 0.5]);
   }
   k.bake(body);
-  eyes(body, '#ff2a2a', [[-0.13, 0.68, 0.95], [0.13, 0.68, 0.95], [-0.07, 0.75, 0.98], [0.07, 0.75, 0.98]], 0.05);
+  eyes(body, '#ff2a2a', [[-0.13, 0.68, 0.95], [0.13, 0.68, 0.95], [-0.07, 0.75, 0.98], [0.07, 0.75, 0.98]], 0.05, 5, 4);
   const ant = new THREE.Group();
   ant.position.set(0, 0.78, 0.9);
   ant.rotation.set(-0.9, 0, 0);
@@ -188,12 +188,12 @@ export function buildScout(color = '#c7d43a') {
     body.add(pivot);
     const lk = kit();
     lk.add(box(0.09, 0.09, 0.48), dark, [0, 0, 0.24]);
-    lk.add(sph(0.07, 6, 4), dark, [0, 0, 0.48]);
+    lk.add(sph(0.07, 5, 3), dark, [0, 0, 0.48]);
     lk.add(cone(0.05, 0.5, 5), dark, [0, -0.2, 0.62], [Math.PI / 2 + 0.9, 0, 0]);
     lk.bake(pivot);
     legs.push({ pivot, phase: i * 1.7 + (side > 0 ? Math.PI : 0) });
   }
-  const wp = weakPoint(body, sph(0.2, 10, 8), '#ff4a2a', 0, 0.86, -0.3);
+  const wp = weakPoint(body, sph(0.2, 8, 6), '#ff4a2a', 0, 0.86, -0.3);
   return { g, body, legs, wp, gait: 'crawl', parts: [body] };
 }
 
@@ -249,6 +249,7 @@ export function buildHeavy() {
 }
 
 /* --------------------------------------------------------------- Drone */
+const blurM = new THREE.MeshBasicMaterial({ color: '#e8f0f8', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
 export function buildDrone() {
   const g = new THREE.Group();
   const body = new THREE.Group();
@@ -256,17 +257,18 @@ export function buildDrone() {
   const shell = smooth('#aab4c0', { metalness: 0.65, roughness: 0.3 });
   const dark = mat('#2a3038', { metalness: 0.6 });
   const k = kit();
-  k.add(sph(0.42, 16, 12), shell, [0, 3.4, 0], [0, 0, 0], [1, 0.55, 1.3]);
-  k.add(sph(0.2, 12, 8), dark, [0, 3.3, 0.45]);
-  k.add(torus(0.34, 0.04, 6, 20), dark, [0, 3.4, 0], [Math.PI / 2, 0, 0], [1, 1.3, 1]);
+  k.add(sph(0.42, 12, 8), shell, [0, 3.4, 0], [0, 0, 0], [1, 0.55, 1.3]);
+  k.add(sph(0.2, 8, 6), dark, [0, 3.3, 0.45]);
+  k.add(torus(0.34, 0.04, 4, 14), dark, [0, 3.4, 0], [Math.PI / 2, 0, 0], [1, 1.3, 1]);
   for (const sx of [-1, 1]) k.add(box(0.05, 0.4, 0.05), dark, [sx * 0.25, 3.05, 0], [0, 0, sx * 0.3]);
   k.add(box(0.7, 0.04, 0.05), dark, [0, 2.86, 0.18]);
   k.add(box(0.7, 0.04, 0.05), dark, [0, 2.86, -0.18]);
   for (let i = 0; i < 4; i++) {
     const a = Math.PI / 4 + i * Math.PI / 2;
     k.add(box(0.9, 0.06, 0.12), dark, [Math.cos(a) * 0.45, 3.45, Math.sin(a) * 0.45], [0, -a, 0]);
-    k.add(torus(0.4, 0.035, 6, 20), shell, [Math.cos(a) * 0.9, 3.55, Math.sin(a) * 0.9], [Math.PI / 2, 0, 0]);
-    k.add(cylY(0.07, 0.09, 0.14, 8), dark, [Math.cos(a) * 0.9, 3.5, Math.sin(a) * 0.9]);
+    k.add(torus(0.4, 0.035, 4, 14), shell, [Math.cos(a) * 0.9, 3.55, Math.sin(a) * 0.9], [Math.PI / 2, 0, 0]);
+    k.add(new THREE.CircleGeometry(0.38, 14).rotateX(-Math.PI / 2), blurM, [Math.cos(a) * 0.9, 3.61, Math.sin(a) * 0.9]);
+    k.add(cylY(0.07, 0.09, 0.14, 6), dark, [Math.cos(a) * 0.9, 3.5, Math.sin(a) * 0.9]);
   }
   k.bake(body);
   eyes(body, '#ff3b3b', [[0, 3.3, 0.64]], 0.09);
@@ -468,12 +470,11 @@ export function buildRunner() {
   g.add(body);
   const skin = smooth('#e0703a', { metalness: 0.1, roughness: 0.45 });
   const dark = mat('#3a2014', { metalness: 0.2 });
-  const fin = mat('#ffb04a', { roughness: 0.5 });
   const k = kit();
   k.add(capZ(0.22, 0.6, 10), skin, [0, 0.8, 0], [-0.35, 0, 0]);
   k.add(sph(0.22, 12, 8), skin, [0, 0.98, 0.5], [0, 0, 0], [0.9, 0.85, 1.2]);
   k.add(box(0.26, 0.08, 0.3), dark, [0, 0.86, 0.62], [0.25, 0, 0]);
-  for (let i = 0; i < 4; i++) k.add(cone(0.05, 0.22, 4), fin, [0, 1.02 + i * 0.02, 0.15 - i * 0.18], [-0.4, 0, 0]);
+  for (let i = 0; i < 4; i++) k.add(cone(0.06, 0.3, 4), glow('#ffb03a'), [0, 1.04 + i * 0.02, 0.15 - i * 0.18], [-0.4, 0, 0]);
   k.add(cone(0.1, 0.8, 6), dark, [0, 0.82, -0.62], [-Math.PI / 2 - 0.3, 0, 0]);
   for (const sx of [-1, 1]) k.add(box(0.05, 0.2, 0.05), dark, [sx * 0.14, 0.72, 0.42], [0.7, 0, 0]);
   k.bake(body);
@@ -503,14 +504,14 @@ export function buildMedic() {
   const dark = mat('#2a3440', { metalness: 0.35 });
   const red = glow('#ff3b3b');
   const k = kit();
-  k.add(capZ(0.34, 0.25, 12), white, [0, 1.05, 0], [Math.PI / 2, 0, 0], [1.05, 1, 0.8]);
+  k.add(capZ(0.34, 0.25, 9), white, [0, 1.05, 0], [Math.PI / 2, 0, 0], [1.05, 1, 0.8]);
   k.add(box(0.3, 0.09, 0.02), red, [0, 1.12, 0.29]);
   k.add(box(0.09, 0.3, 0.02), red, [0, 1.12, 0.29]);
-  k.add(sph(0.24, 14, 10), white, [0, 1.62, 0.05]);
+  k.add(sph(0.24, 10, 7), white, [0, 1.62, 0.05]);
   k.add(box(0.36, 0.1, 0.06), glow('#8fe3ff'), [0, 1.66, 0.27]);
-  k.add(torus(0.26, 0.03, 6, 18), dark, [0, 1.62, 0.05], [0, 0, Math.PI / 2]);
+  k.add(torus(0.26, 0.03, 4, 12), dark, [0, 1.62, 0.05], [0, 0, Math.PI / 2]);
   for (const sx of [-1, 1]) {
-    k.add(sph(0.12, 8, 6), white, [sx * 0.42, 1.3, 0]);
+    k.add(sph(0.12, 6, 4), white, [sx * 0.42, 1.3, 0]);
     k.add(capZ(0.07, 0.3, 6), dark, [sx * 0.46, 1.05, 0.1], [Math.PI / 2 + 0.3, 0, 0]);
     k.add(box(0.06, 0.06, 0.25), glow('#3ee07a'), [sx * 0.46, 0.85, 0.28]);
   }

@@ -85,18 +85,25 @@ function tableMap(world, map, g, TW, TD) {
   for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z); }
   const pad = 5;
   minX -= pad; maxX += pad; minZ -= pad; maxZ += pad;
-  // uniform scale (metres -> pixels), centred
-  const sc = Math.min(c.width / (maxX - minX), c.height / (maxZ - minZ));
+  // uniform scale (metres -> pixels), centred. Normally "up" on the table points out of the slit;
+  // a map that runs mostly towards the slit would end up a thin strip, so it is turned 90° instead
+  const scA = Math.min(c.width / (maxX - minX), c.height / (maxZ - minZ));
+  const scB = Math.min(c.width / (maxZ - minZ), c.height / (maxX - minX));
+  const rot = scB > scA * 1.15;
+  const sc = rot ? scB : scA;
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
   // canvas x grows towards local -x (the table top is turned 180°), canvas y grows towards local -z
-  const toPx = (l) => [c.width / 2 - (l.x - cx) * sc, c.height / 2 - (l.z - cz) * sc];
+  const toPx = (l) => (rot
+    ? [c.width / 2 - (l.z - cz) * sc, c.height / 2 + (l.x - cx) * sc]
+    : [c.width / 2 - (l.x - cx) * sc, c.height / 2 - (l.z - cz) * sc]);
   const wp = (x, z) => toPx(loc(x, z));
   const roads = map.roads.map((r) => r.map(([x, z]) => wp(x, z)));
   const paths = (world.paths || []).map((p) => (p.pts || []).map((v) => wp(v.x, v.z)));
   /** uv on the table top -> world position on the ground */
   function uvToWorld(uv) {
     const px = uv.x * c.width, py = (1 - uv.y) * c.height;
-    const lx = cx - (px - c.width / 2) / sc, lz = cz - (py - c.height / 2) / sc;
+    const lx = rot ? cx + (py - c.height / 2) / sc : cx - (px - c.width / 2) / sc;
+    const lz = rot ? cz - (px - c.width / 2) / sc : cz - (py - c.height / 2) / sc;
     return g.localToWorld(new THREE.Vector3(lx, 0, lz)).setY(0);
   }
   /** world position -> fraction of the map (0..1, top-left origin), for the terminal overlay */
@@ -182,6 +189,36 @@ function tableMap(world, map, g, TW, TD) {
     tex.needsUpdate = true;
   }
   return { tex, draw, uvToWorld, worldToFrac, aspect: c.width / c.height, roads: roads.map((r) => r.map(([x, y]) => [x / c.width, y / c.height])) };
+}
+
+/**
+ * Hide instanced scenery (trees, rocks, bushes, grass) standing on the bunker and its earth mound,
+ * so nothing grows through the roof or into the room. Returns a function that puts it all back.
+ */
+function clearDecor(world, g, hx, z0, z1) {
+  const saved = [];
+  const m = new THREE.Matrix4(), v = new THREE.Vector3(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
+  world.root?.updateMatrixWorld(true);
+  world.root?.traverse((im) => {
+    if (!im.isInstancedMesh) return;
+    let hit = false;
+    for (let i = 0; i < im.count; i++) {
+      im.getMatrixAt(i, m);
+      v.setFromMatrixPosition(m).applyMatrix4(im.matrixWorld);
+      if (v.y > 4) continue;                         // birds and other flyers are left alone
+      g.worldToLocal(v);
+      if (Math.abs(v.x) < hx && v.z > z0 && v.z < z1) {
+        saved.push([im, i, m.clone()]);
+        im.setMatrixAt(i, zero);
+        hit = true;
+      }
+    }
+    if (hit) im.instanceMatrix.needsUpdate = true;
+  });
+  return () => {
+    for (const [im, i, mm] of saved) { im.setMatrixAt(i, mm); im.instanceMatrix.needsUpdate = true; }
+    saved.length = 0;
+  };
 }
 
 export function buildBunker(world, map, target) {
@@ -362,6 +399,7 @@ export function buildBunker(world, map, target) {
 
   g.updateMatrixWorld(true);
   for (const s of stations) s.pos = g.localToWorld(s.local.clone());
+  const cleared = clearDecor(world, g, W / 2 + T + 3.5, -(D / 2 + T + 3.5), D / 2 + T + 2.5);
   const toWorld = (v) => g.localToWorld(v.clone());
   const bounds = { minX: -W / 2 + 0.45, maxX: W / 2 - 0.45, minZ: -D / 2 + 0.45, maxZ: D / 2 - 0.55 };
   // obstacles in local x/z (tables, consoles) so the player walks around them
@@ -401,6 +439,7 @@ export function buildBunker(world, map, target) {
       btnM.color.set(ready ? (s > 0 ? '#ff3030' : '#b81414') : '#4a1616');
     },
     dispose() {
+      cleared();
       g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material?.map) o.material.map.dispose(); });
       tmap.tex.dispose();
     },
