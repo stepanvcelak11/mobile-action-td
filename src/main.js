@@ -2407,8 +2407,11 @@ function showTip(type) {
   const pic = enemyPortrait(type);
   el.innerHTML = `<div class="tip-ico">${pic ? `<img src="${pic}" alt="">` : ''}</div><div><b>NEW ENEMY — ${ENEMIES[type].name.toUpperCase()}</b><span>${ENEMY_TIPS[type]}</span></div>`;
   el.classList.add('show');
+  // the notification column moves below the card while it is up
+  document.body.classList.add('tip-on');
+  requestAnimationFrame(() => document.body.style.setProperty('--tip-bottom', `${Math.round(el.getBoundingClientRect().bottom)}px`));
   clearTimeout(tipTimer);
-  tipTimer = setTimeout(() => el.classList.remove('show'), 4500);
+  tipTimer = setTimeout(() => { el.classList.remove('show'); document.body.classList.remove('tip-on'); }, 4500);
 }
 
 const _proj = new V3();
@@ -2419,7 +2422,8 @@ function floaty(worldPos, text, cls) {
   spawnFloaty(((_proj.x + 1) / 2) * viewW(), ((1 - _proj.y) / 2) * viewH(), text, cls);
 }
 function floatyScreen(text, cls = 'center') {
-  // upper band, well clear of the crosshair
+  // in a match every screen message goes to the one notification column (no overlaps)
+  if (G.view !== 'MENU') { notify(text, '', cls === 'miss' ? 1800 : 1500); return; }
   spawnFloaty(viewW() / 2, viewH() * 0.2, text, `${cls} big`);
 }
 function spawnFloaty(x, y, text, cls) {

@@ -327,6 +327,11 @@ function updateUnit(u, dt, time) {
   }
   // tanks crush what they drive over
   if (u.kind === 'tank' && (u.moving || u === controlled && (Math.abs(ctl.jx) + Math.abs(ctl.jy) > 0.1))) crush(u, s, dt);
+  // squadmates give the controlled soldier room
+  if (controlled && u !== controlled && !def.air && controlled.kind === 'soldier') {
+    const dx = u.pos.x - controlled.pos.x, dz = u.pos.z - controlled.pos.z, d = Math.hypot(dx, dz);
+    if (d < 1.4 && d > 0.001) { u.pos.x += (dx / d) * (1.4 - d) * Math.min(1, dt * 4); u.pos.z += (dz / d) * (1.4 - d) * Math.min(1, dt * 4); }
+  }
   // enemies in contact hurt ground units
   if (!def.air) {
     for (const e of H.enemies()) {
@@ -741,7 +746,7 @@ function buildOverlay() {
   el.innerHTML = `<div class="ac-aim" id="ac-aim"></div>
     <div class="ac-stick" id="ac-stick"><i></i></div>
     <button class="ac-fire" id="ac-fire" type="button"><b>FIRE</b><small id="ac-ammo"></small></button>
-    <div class="ac-tip" id="ac-tip">Tap a unit or a tower to jump into it</div>
+
     <div class="ac-acts" id="ac-acts"></div>
     <button class="ac-back" id="ac-back" type="button">◀ TOWER</button>
     <div class="ac-name" id="ac-name"></div><div class="ac-cross"></div>
@@ -847,6 +852,7 @@ function ensureTakeBtn() {
 function control(u) {
   if (controlled === u) return;
   if (controlled) { controlled.m.body.visible = true; controlled.m.body.children.forEach((c) => { c.visible = true; }); }
+  for (const o of units) o.m.g.visible = true;
   if (vmRifle) vmRifle.visible = false;
   if (vmCockpit) vmCockpit.visible = false;
   controlled = u;
@@ -862,6 +868,7 @@ function control(u) {
     u.heat = u.heat || 0;
     u.aimYaw = u.yaw;
     u.aimPitch = u.kind === 'heli' ? -0.35 : -0.08;
+    if (!ctl.tipped) { ctl.tipped = true; window.dispatchEvent(new CustomEvent('sl:notify', { detail: { title: 'TAP A UNIT OR TOWER', sub: 'to jump into it' } })); }
     document.getElementById('ac-name').textContent = u.def.name.toUpperCase();
     sfx('build');
   }
@@ -962,6 +969,12 @@ export const army = {
       ck.quaternion.copy(cam.quaternion);
       ck.translateY(-(u.kick || 0) * 0.01);
       u.kick = Math.max(0, (u.kick || 0) - 0.2);
+    }
+    // nobody stands in the lens: hide friendly units right in front of the camera
+    for (const o of units) {
+      if (o === u) continue;
+      const d = Math.hypot(o.pos.x - cam.position.x, o.pos.z - cam.position.z);
+      o.m.g.visible = !(d < 1.6 && Math.abs(o.pos.y - u.pos.y) < 2);
     }
     // soldier: hide the body, show a rifle in front of the camera
     if (u.kind === 'soldier') {

@@ -488,3 +488,8 @@ body[data-theme="dark"] .abc-desc, body[data-theme="dark"] .abc-now { color: #df
   .ov.chest .chest-stage.sum .chest-items { grid-column: 1 / -1; grid-row: 2; max-height: 62vh; }
   .ov.chest .chest-stage.sum #chest-ok { grid-column: 1 / -1; grid-row: 3; }
 }
+
+/* B1: one notification column — it steps below the new-enemy card; B6: only the active tab lights up */
+body.tip-on #feed { top: calc(var(--tip-bottom, 130px) + 6px) !important; }
+body[data-theme="dark"] .bottomnav button.center:not(.active) { background: linear-gradient(180deg, #4a8ef0, #2a62cc); color: #fff; }
+body[data-theme="dark"] .bottomnav button.center:not(.active) .nav-ico { filter: drop-shadow(0 2px 0 rgba(11, 42, 102, 0.8)); }

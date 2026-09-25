@@ -71,7 +71,8 @@ const TIER_COL = { 1: '#d08a4a', 2: '#c9d6e2', 3: '#ffcf5a' };
 /* --------------------------------------------------------------- toast */
 const queue = [];
 let showing = false;
-const inMatch = () => document.body.classList.contains('ingame') && !document.getElementById('result')?.classList.contains('show');
+// wait while a match runs AND while its results are up; they show in the menu afterwards
+const inMatch = () => document.body.classList.contains('ingame') || !!document.querySelector('#result.show, .ov.show#result');
 function toastNext() {
   if (showing || !queue.length || inMatch()) return;
   showing = true;
@@ -110,6 +111,8 @@ function check() {
 
 // flush held toasts when the match ends (result screen) or the menu opens
 window.addEventListener('sl:later', (e) => { queue.push({ mastery: true, ...e.detail }); toastNext(); });
+// queued toasts show once the match and its results are closed
+setInterval(() => { if (queue.length && !showing && !inMatch()) toastNext(); }, 1000);
 new MutationObserver(() => setTimeout(toastNext, 600)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 window.addEventListener('sl:match', () => setTimeout(toastNext, 2500));
 
