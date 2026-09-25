@@ -68,15 +68,26 @@ function buildTank() {
   const blue = mat('#3a7bd5'), dark = mat('#1c2530'), light = mat('#9ab6d8', { metalness: 0.5 });
   add(body, new THREE.BoxGeometry(1.3, 0.45, 1.8), blue, 0, 0.55, 0);
   add(body, new THREE.BoxGeometry(1.24, 0.35, 0.5), light, 0, 0.5, 0.95).rotation.x = 0.5;
+  const wheels = [];
   for (const sx of [-0.72, 0.72]) {
     add(body, new THREE.BoxGeometry(0.34, 0.42, 2.0), dark, sx, 0.25, 0);
-    for (let i = 0; i < 4; i++) add(body, new THREE.CylinderGeometry(0.15, 0.15, 0.36, 8).rotateZ(Math.PI / 2), light, sx, 0.2, -0.7 + i * 0.47);
+    for (let i = 0; i < 4; i++) {
+      const w = add(body, new THREE.CylinderGeometry(0.15, 0.15, 0.36, 8).rotateZ(Math.PI / 2), light, sx, 0.2, -0.7 + i * 0.47);
+      add(w, new THREE.BoxGeometry(0.37, 0.05, 0.05), dark, 0, 0, 0, false);      // hub bar shows the spin
+      wheels.push(w);
+    }
+    for (let i = 0; i < 9; i++) add(body, new THREE.BoxGeometry(0.36, 0.04, 0.08), dark, sx, 0.47, -0.9 + i * 0.225); // track links on top
   }
   const tur = new THREE.Group();
   tur.position.set(0, 0.92, -0.05);
   body.add(tur);
   add(tur, new THREE.CylinderGeometry(0.45, 0.55, 0.36, 8), blue, 0, 0, 0);
-  add(tur, new THREE.CylinderGeometry(0.08, 0.1, 1.3, 8).rotateX(Math.PI / 2), dark, 0, 0.04, 0.8);
+  const gun = new THREE.Group();
+  gun.position.set(0, 0.04, 0);
+  tur.add(gun);
+  add(gun, new THREE.CylinderGeometry(0.08, 0.1, 1.3, 8).rotateX(Math.PI / 2), dark, 0, 0, 0.8);
+  add(gun, new THREE.CylinderGeometry(0.12, 0.12, 0.2, 8).rotateX(Math.PI / 2), dark, 0, 0, 1.42);   // muzzle brake
+  add(gun, new THREE.CylinderGeometry(0.15, 0.15, 0.3, 8).rotateX(Math.PI / 2), light, 0, 0, 0.3);   // mantlet
   add(tur, new THREE.SphereGeometry(0.06, 6, 4), glowM('#8fe3ff'), 0.25, 0.2, 0.3, false);
   // roof machine gun on a small ring mount, commander hatch
   add(tur, new THREE.CylinderGeometry(0.2, 0.2, 0.08, 10), dark, -0.2, 0.22, -0.15);
@@ -85,7 +96,7 @@ function buildTank() {
   add(tur, new THREE.BoxGeometry(0.16, 0.12, 0.04), light, -0.2, 0.38, 0.14);
   add(tur, new THREE.CylinderGeometry(0.14, 0.16, 0.06, 10), light, 0.18, 0.21, -0.25);
   for (const sx of [-0.38, 0.38]) add(body, new THREE.BoxGeometry(0.12, 0.12, 0.4), light, sx, 0.84, -0.7);
-  return { g, body, tur, legs: [], muzzle2: new THREE.Vector3(-0.2, 1.28, 0.6), muzzle: new THREE.Vector3(0, 0.96, 1.5), eye: [0, 1.75, -0.55], camH: 3.0, camBack: 6.0, camSide: 0 };
+  return { g, body, tur, gun, wheels, legs: [], muzzle2: new THREE.Vector3(-0.2, 1.28, 0.6), muzzle: new THREE.Vector3(0, 0.96, 1.5), eye: [0, 1.75, -0.55], camH: 3.0, camBack: 6.0, camSide: 0 };
 }
 function buildHeli() {
   const g = new THREE.Group();
@@ -109,6 +120,8 @@ function buildHeli() {
   body.add(rotor);
   add(rotor, new THREE.BoxGeometry(3.6, 0.03, 0.18), dark, 0, 0, 0, false);
   add(rotor, new THREE.BoxGeometry(0.18, 0.03, 3.6), dark, 0, 0, 0, false);
+  const disc = add(rotor, new THREE.CircleGeometry(1.8, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#c8d4e0', transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide }), 0, 0.02, 0, false);
+  disc.renderOrder = 2;
   const tail = new THREE.Group();
   tail.position.set(0.1, 0.35, -2.4);
   body.add(tail);
@@ -384,7 +397,33 @@ function updateUnit(u, dt, time) {
     const want = u === controlled ? u.aimYaw - u.yaw : 0;
     u.m.tur.rotation.y += (want - u.m.tur.rotation.y) * Math.min(1, dt * 8);
   }
-  if (u.m.rotor) { u.m.rotor.rotation.y += dt * 30; u.m.tail.rotation.x += dt * 40; u.m.body.rotation.z = Math.sin(time * 1.5 + u.anim) * 0.05; }
+  // velocity from the last frame drives tilt, wheel spin and dust
+  u.prev ||= u.pos.clone();
+  const vx = (u.pos.x - u.prev.x) / Math.max(dt, 1e-3), vz = (u.pos.z - u.prev.z) / Math.max(dt, 1e-3);
+  const moved = Math.hypot(u.pos.x - u.prev.x, u.pos.z - u.prev.z);
+  u.prev.copy(u.pos);
+  const fwd = vx * Math.sin(u.yaw) + vz * Math.cos(u.yaw), side = vx * Math.cos(u.yaw) - vz * Math.sin(u.yaw);
+  if (u.m.rotor) {
+    u.m.rotor.rotation.y += dt * 30; u.m.tail.rotation.x += dt * 40;
+    // a helicopter noses down to fly forward and banks into sideways flight
+    const yawRate = ((u.yaw - (u.lastYaw ?? u.yaw) + Math.PI * 3) % (Math.PI * 2) - Math.PI) / Math.max(dt, 1e-3);
+    u.lastYaw = u.yaw;
+    const tp = THREE.MathUtils.clamp(fwd * 0.045, -0.3, 0.35), tb = THREE.MathUtils.clamp(-side * 0.05 - yawRate * 0.18 - (u === controlled ? ctl.jx * 0.3 : 0), -0.45, 0.45);
+    u.tilt = (u.tilt || 0) + (tp - (u.tilt || 0)) * Math.min(1, dt * 3);
+    u.bank = (u.bank || 0) + (tb - (u.bank || 0)) * Math.min(1, dt * 3);
+    u.m.body.rotation.set(u.tilt, 0, u.bank + Math.sin(time * 1.5 + u.anim) * 0.03);
+  }
+  if (u.kind === 'tank') {
+    for (const w of u.m.wheels) w.rotation.x += moved / 0.15;
+    u.recoil = Math.max(0, (u.recoil || 0) - dt * 3.5);
+    u.m.gun.position.z = -u.recoil * 0.28;
+    // the hull rocks back when the gun fires and squats a little when it pulls away
+    const accel = THREE.MathUtils.clamp((fwd - (u.lastFwd || 0)) / Math.max(dt, 1e-3) * 0.01, -0.06, 0.06);
+    u.lastFwd = fwd;
+    u.pitchT = (u.pitchT || 0) + ((-u.recoil * 0.08 - accel) - (u.pitchT || 0)) * Math.min(1, dt * 8);
+    u.m.body.rotation.x = u.pitchT;
+    if (moved > 0.01 && Math.random() < dt * 7) H.smoke(u.pos.clone().add(_v2.set(-Math.sin(u.yaw) * 1.1, 0.2, -Math.cos(u.yaw) * 1.1)), 1);
+  }
   u.m.body.scale.setScalar(1 + u.flash * 0.6);
   u.moving = false;
   // bar
@@ -1056,6 +1095,7 @@ export const army = {
     cam.position.set(u.pos.x + ex * cb + ez * sb, u.pos.y + ey + bob, u.pos.z - ex * sb + ez * cb);
     cam.lookAt(_v2.copy(cam.position).addScaledVector(dir, 10));
     if (u.kind === 'jet') cam.rotateZ(-(u.roll || 0) * 0.75);
+    if (u.kind === 'heli') { cam.rotateZ((u.bank || 0) * 0.6); cam.rotateX(-(u.tilt || 0) * 0.3); }
     const fov = u.kind === 'heli' ? 80 : 75;
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     if (u.kind === 'jet' || u.kind === 'heli') {
