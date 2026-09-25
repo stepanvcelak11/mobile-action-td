@@ -1023,7 +1023,7 @@ function killEnemy(e, point, st, manual) {
   reward = Math.round(reward * G.rules.gold * G.rules.killGold * (run.active ? run.mods.gold : 1) * (e.elite ? 2 : 1));
   const owner = st?.owner;
   skill.kill({ type: st?.owner?.type, manual, zone: e.lastZone });
-  emit('kill', { type: e.type, turret: st?.owner?.type || null, manual, zone: e.lastZone, weak: e.lastZone === 'weak', combo: G.combo, boss: e.type === 'boss', elite: !!e.elite });
+  emit('kill', { x: e.group.position.x, z: e.group.position.z, r: e.def.radius, air: !!e.def.air, type: e.type, turret: st?.owner?.type || null, manual, zone: e.lastZone, weak: e.lastZone === 'weak', combo: G.combo, boss: e.type === 'boss', elite: !!e.elite });
   if (e.type === 'boss') emit('highlight', { kind: 'bosskill', value: 1 });
   if (manual) {
     const now = performance.now();
@@ -1688,6 +1688,7 @@ function laserTick(t, from, target, dmg, st, manual, weak) {
 }
 
 function explode(pos, radius, dmg, st, manual, direct, weak, groundOnly) {
+  if (pos.y < 2) emit('blast', { x: pos.x, z: pos.z, r: radius });
   for (const e of [...G.enemies]) {
     if (!e.alive || (groundOnly && e.def.air)) continue;
     const d = Math.max(0, e.center.distanceTo(pos) - e.def.radius * 0.6);
