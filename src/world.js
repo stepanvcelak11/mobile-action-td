@@ -1,5 +1,6 @@
 // World: themed ground, waypoint roads (one or more), build plots, spawn portals, base, decor.
 import * as THREE from 'three';
+import { liteKey } from './lite.js';
 import { mergeStatic, referenced } from './merge.js';
 
 export const ROAD_WIDTH = 3.2;
@@ -1099,7 +1100,7 @@ function addWind(material, amount, flat = false) {
       transformed.x += sin(wPhase) * ${amount.toFixed(3)} * wH * wH * wGust;
       transformed.z += cos(wPhase * 0.8) * ${(amount * 0.5).toFixed(3)} * wH * wH * wGust;`);
   };
-  material.customProgramCacheKey = () => 'wind' + amount + flat;
+  material.customProgramCacheKey = () => 'wind' + amount + flat + liteKey();
 }
 
 // Birds per decor: colour, count, size.

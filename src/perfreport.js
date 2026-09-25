@@ -24,6 +24,6 @@ function tick(now) {
   const p10 = 1000 / sorted[Math.floor(sorted.length * 0.1)];
   const ri = g.renderInfo || {};
   const q = g.P?.settings?.quality || 'auto';
-  report(`perf fps ${avg.toFixed(0)} low10 ${p10.toFixed(0)} calls ${ri.calls ?? '?'} tris ${ri.triangles ?? '?'} dpr ${devicePixelRatio} q ${q} map ${g.G.map?.id} view ${g.G.view} turrets ${g.G.turrets?.length ?? 0} enemies ${g.G.enemies?.length ?? 0}`, { src: 'perfreport.js', line: 1 });
+  report(`perf fps ${avg.toFixed(0)} low10 ${p10.toFixed(0)} calls ${ri.calls ?? '?'} tris ${ri.triangles ?? '?'} dpr ${devicePixelRatio} pr ${g.renderPr ?? '?'}${g.lite ? ' lite' : ''} q ${q} map ${g.G.map?.id} view ${g.G.view} turrets ${g.G.turrets?.length ?? 0} enemies ${g.G.enemies?.length ?? 0}`, { src: 'perfreport.js', line: 1 });
 }
 requestAnimationFrame(tick);

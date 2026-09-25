@@ -1,21 +1,27 @@
-// Frame-rate keeper for phones: adaptive render resolution, quality presets and an FPS meter.
+// Frame-rate keeper for phones: quality presets, adaptive render resolution and an FPS meter.
 //
-//   const perf = createPerf(renderer, { sun });   // sun = the DirectionalLight that casts shadows
-//   perf.frame(now);                              // once per animation frame, before render
+//   const perf = createPerf(renderer, { sun, onLite });  // sun casts the shadows; onLite(on) after lite shading flips
+//   perf.frame(now, adapt);                       // once per drawn frame; adapt = false in the menu (capped at 30 FPS)
 //   perf.setQuality('auto' | 'low' | 'medium' | 'high');
 //   perf.showMeter(true);
 //
-// 'auto' starts on medium and lowers the resolution when the game drops under ~50 FPS,
-// then raises it again when there is headroom. Presets:
-//   low    – no shadows, resolution ×1.0 max
-//   medium – shadows 1024, resolution up to ×1.5
-//   high   – soft shadows 2048, resolution up to ×2
-const KEY = 'serpentline.perf.v1';
+// Phones are limited by the cost of every pixel, so the presets cut shading cost first and keep the
+// resolution sharp (lite.js: Lambert + highlight instead of PBR with an environment map):
+//   low    – lite shading, no shadows, resolution ×1.25–1.5
+//   medium – lite shading, shadows 1024, resolution ×1.25–2
+//   high   – full PBR, soft shadows 2048, resolution ×1.5–2 (+ bloom, see main.js glowOn)
+// 'auto' = medium on touch screens, high with a mouse. When the game still drops under ~48 FPS it
+// switches the shadows off first, then lowers the resolution down to the preset's floor (and raises
+// it again when there is headroom).
+import { setLite } from './lite.js';
+
+const KEY = 'serpentline.perf.v2';
 const PRESETS = {
-  low: { maxPr: 1, minPr: 0.6, shadows: false, shadowSize: 512 },
-  medium: { maxPr: 1.5, minPr: 0.75, shadows: true, shadowSize: 1024 },
-  high: { maxPr: 2, minPr: 1, shadows: true, shadowSize: 2048 },
+  low: { maxPr: 1.5, minPr: 1.25, shadows: false, shadowSize: 1024, lite: true },
+  medium: { maxPr: 2, minPr: 1.25, shadows: true, shadowSize: 1024, lite: true },
+  high: { maxPr: 2, minPr: 1.5, shadows: true, shadowSize: 2048, lite: false },
 };
+const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 function load() {
   try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
@@ -24,7 +30,7 @@ function store(s) {
   try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode */ }
 }
 
-export function createPerf(renderer, { sun = null } = {}) {
+export function createPerf(renderer, { sun = null, onLite = null } = {}) {
   const saved = load();
   const device = Math.min(window.devicePixelRatio || 1, 2);
   let quality = saved.quality || 'auto';
@@ -40,6 +46,9 @@ export function createPerf(renderer, { sun = null } = {}) {
   let goodFor = 0;
   let fps = 60;
   let ms = 16.7;
+  let badFor = 0;
+  let shadowsCut = false;             // auto switched the shadows off to hold the frame rate
+  const autoPreset = () => PRESETS[touch ? 'medium' : 'high'];
 
   function applyPr(v) {
     pr = Math.max(preset.minPr, Math.min(preset.maxPr, device, v));
@@ -47,9 +56,11 @@ export function createPerf(renderer, { sun = null } = {}) {
   }
 
   function applyPreset() {
-    preset = PRESETS[quality === 'auto' ? 'medium' : quality];
+    preset = quality === 'auto' ? autoPreset() : PRESETS[quality];
+    if (quality !== 'auto') shadowsCut = false;
+    if (setLite(preset.lite)) onLite?.(preset.lite);
     if (sun) {
-      sun.castShadow = preset.shadows;
+      sun.castShadow = preset.shadows && !shadowsCut;
       if (sun.shadow && sun.shadow.mapSize.x !== preset.shadowSize) {
         sun.shadow.mapSize.set(preset.shadowSize, preset.shadowSize);
         sun.shadow.map?.dispose();
@@ -72,14 +83,14 @@ export function createPerf(renderer, { sun = null } = {}) {
     meterEl.style.display = '';
     const info = renderer.info.render;
     const col = fps >= 55 ? '#6fd08c' : fps >= 40 ? '#f2c14e' : '#ef6b6b';
-    meterEl.innerHTML = `<b style="color:${col}">${fps.toFixed(0)} FPS</b> ${ms.toFixed(1)} ms\n×${pr.toFixed(2)} · ${info.calls} calls · ${quality}`;
+    meterEl.innerHTML = `<b style="color:${col}">${fps.toFixed(0)} FPS</b> ${ms.toFixed(1)} ms\n×${pr.toFixed(2)} · ${info.calls} calls · ${quality}${preset.lite ? ' lite' : ''}${shadowsCut ? ' −shadow' : ''}`;
   }
 
   applyPreset();
 
   return {
-    /** Call once per requestAnimationFrame with its timestamp. */
-    frame(now) {
+    /** Call once per drawn frame. adapt = false while the frame rate is capped on purpose (menu, pause). */
+    frame(now, adapt = true) {
       if (!last) { last = now; windowStart = now; return; }
       const dt = now - last;
       last = now;
@@ -94,18 +105,25 @@ export function createPerf(renderer, { sun = null } = {}) {
       frames = 0;
       meter();
       if (quality !== 'auto') return;
-      if (fps < 48 && pr > preset.minPr + 0.01) {
+      if (!adapt) { goodFor = 0; badFor = 0; return; }
+      if (fps < 48 && preset.shadows && !shadowsCut) {
+        // shadows go first (after 3 slow seconds in a row) so the picture stays sharp; they stay off
+        // for the session, since switching them back and forth recompiles every material
+        goodFor = 0;
+        if (++badFor >= 3) { shadowsCut = true; badFor = 0; if (sun) sun.castShadow = false; }
+      } else if (fps < 48 && pr > preset.minPr + 0.01) {
         applyPr(pr - (fps < 35 ? 0.25 : 0.125));
         goodFor = 0;
         store({ ...load(), autoPr: pr });
       } else if (fps > 57) {
+        badFor = 0;
         goodFor++;
         if (goodFor >= 5 && pr < Math.min(preset.maxPr, device) - 0.01) {
           applyPr(pr + 0.125);
           goodFor = 0;
           store({ ...load(), autoPr: pr });
         }
-      } else goodFor = 0;
+      } else { goodFor = 0; badFor = 0; }
     },
     setQuality(q) {
       if (q !== 'auto' && !PRESETS[q]) return;

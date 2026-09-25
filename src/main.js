@@ -6,6 +6,7 @@ import { Particles, Projectiles, Beams, AmbientFx, Rings } from './effects.js';
 import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph, turretSfx, ambience } from './audio.js';
 import { music } from './music.js';
 import { createPerf } from './perf.js';
+import { isLite, markDirty } from './lite.js';
 import { createPost } from './post.js';
 import { buildBunker } from './bunker.js';
 import { skill } from './skill.js';
@@ -51,8 +52,13 @@ if (!isCoarse) document.body.classList.add('mouse');
 /* --------------------------------------------------------------- Renderer */
 const canvas = $('game');
 // Screen size comes from the canvas: on iPhone home-screen apps viewport.js can make it larger than the window.
-const viewW = () => canvas.clientWidth || window.innerWidth;
-const viewH = () => canvas.clientHeight || window.innerHeight;
+// Cached: reading clientWidth every frame forced a layout pass right after the HUD had changed the DOM.
+const VIEW = { w: 0, h: 0 };
+function measureView() { VIEW.w = canvas.clientWidth || window.innerWidth; VIEW.h = canvas.clientHeight || window.innerHeight; }
+measureView();
+const viewW = () => VIEW.w;
+const viewH = () => VIEW.h;
+if (typeof ResizeObserver === 'function') new ResizeObserver(() => { const w = VIEW.w, h = VIEW.h; measureView(); if (w !== VIEW.w || h !== VIEW.h) onResize(); }).observe(canvas);
 // dense phone screens (DPR ≥ 2) hide jaggies on their own, so skip the costly multisampling there
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: (window.devicePixelRatio || 1) < 2, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCoarse ? 1.75 : 2));
@@ -106,10 +112,20 @@ Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 32, bottom: -32, n
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
 scene.add(sun);
-const perf = createPerf(renderer, { sun });
-
 const muzzleLight = new THREE.PointLight('#ffb050', 0, 9, 2);
 scene.add(muzzleLight);
+let envTex = null;
+// lite shading (phones): no environment map and no point lights in the shaders — see lite.js / perf.js
+function applyLite() {
+  const lite = isLite();
+  gunLight.visible = !lite;
+  muzzleLight.visible = !lite;
+  scene.environment = lite ? null : envTex;
+  markDirty(scene);
+}
+const perf = createPerf(renderer, { sun, onLite: () => applyLite() });
+
+
 
 const sparks = new Particles(scene, 2200, 0.28, true);
 const smoke = new Particles(scene, 900, 1.1, false);
@@ -235,8 +251,9 @@ function applyTheme(th) {
   sunPanel.position.set(5, 7, 4);
   sunPanel.lookAt(0, 0, 0);
   envScene.add(sunPanel);
-  if (scene.environment) scene.environment.dispose();
-  scene.environment = pmrem.fromScene(envScene, 0.02).texture;
+  if (envTex) envTex.dispose();
+  envTex = pmrem.fromScene(envScene, 0.02).texture;
+  scene.environment = isLite() ? null : envTex;
   g.dispose();
   if (weather) { weather.dispose(scene); weather = null; }
   if (th.fx) weather = new AmbientFx(scene, th.fx);
@@ -3056,6 +3073,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function onResize() {
+  measureView();
   const w = viewW(), h = viewH();
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
@@ -3271,7 +3289,8 @@ function frame(now) {
   if (shadowFlip || G.view === 'MENU') renderer.shadowMap.needsUpdate = true;
   const raw = Math.min(0.05, (now - last) / 1000);
   last = now;
-  perf.frame(now);
+  // the menu runs at 30 FPS on purpose: that must not count as a slow phone
+  perf.frame(now, G.view !== 'MENU' && !G.paused);
   if (!G.paused) {
     const steps = Math.max(1, Math.round(G.timeScale * (G.view === 'MENU' ? 1 : G.speed)));
     const sim = fxDt(raw);
@@ -3338,6 +3357,8 @@ window.__game = {
     const v = BK.b.tableTop.localToWorld(new V3((0.5 - fx) * -BK.b.tableTop.geometry.parameters.width, (0.5 - fy) * BK.b.tableTop.geometry.parameters.height, 0)).project(camera);
     return { x: ((v.x + 1) / 2) * viewW(), y: ((1 - v.y) / 2) * viewH() };
   },
+  /** perfreport.js / tests: quality presets, render resolution, lite shading */
+  perf, get renderPr() { return perf.pixelRatio; }, get lite() { return isLite(); },
   /** perfreport.js: draw calls and triangles of the last frame */
   get renderInfo() { return renderer.info.render; },
   get plots() { return world.plots; },

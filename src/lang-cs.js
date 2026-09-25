@@ -488,7 +488,7 @@ export default {
 "Arming turrets…": "Nabíjím věže…",
 "Armored Cockpit": "Pancéřový kokpit",
 "Artillery Net": "Dělostřelecká síť",
-"Auto lowers the resolution when your phone struggles": "Auto sníží rozlišení, když telefon nestíhá",
+"LOW/MID use simpler lighting to stay sharp; HIGH = full lighting. Auto turns off shadows before lowering sharpness": "LOW/MID mají jednodušší osvětlení, aby obraz zůstal ostrý; HIGH = plné osvětlení. Auto při záseku nejdřív vypne stíny, ostrost sníží až pak",
 "Avionics": "Avionika",
 "BASE DESTROYED": "ZÁKLADNA ZNIČENA",
 "BOMBERS are armored flyers. Ground-only weapons can't touch them.": "BOMBARDÉRY jsou obrněné letce. Pozemní zbraně na ně nedosáhnou.",
