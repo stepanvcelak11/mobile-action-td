@@ -263,6 +263,7 @@ function clearField() {
   for (const t of G.turrets) { t.plot.group.remove(t.root); t.plot.turret = null; }
   G.turrets = [];
   G.fires = [];
+  G.mines = [];
   G.timers = [];
   for (const z of G.zones) scene.remove(z.mesh);
   G.zones = [];
@@ -1505,6 +1506,11 @@ function autoFire(t, target, aim, st, _dt, again) {
   const d = TURRETS[t.type];
   if (!again && st.doubletap && Math.random() < st.doubletap) G.timers.push({ t: 0.12, fn: () => { if (target.alive) autoFire(t, target, target.center.clone(), t.stats, 0, true); } });
   switch (d.kind) {
+    case 'mine':
+      for (let i = 0; i < Math.max(1, st.shots); i++) layMine(t, roadAhead(target, 3 + (target.def.speed || 3) * 0.8 + i * 1.6), st, st.damage, false);
+      t.barrels[0].recoil = 0.25;
+      sfx(turretSfx(t.type) || 'zap', 0.08);
+      return;
     case 'pulse':
       sonicPulse(t, st.range, st.damage, st, false, null);
       return;
@@ -1563,6 +1569,67 @@ function autoFire(t, target, aim, st, _dt, again) {
   }
   if (t.spinner) t.spin = 30;
   sfx(turretSfx(t.type) || (d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : d.kind === 'sniper' ? 'rail' : 'auto'), 0.05);
+}
+
+/* ------------------------------------------------------------------ Tesla mines (Mine Layer) */
+// Mines lie on the road: armed after 0.6 s, a ground enemy within 1.7 m sets one off -> a lightning
+// chain from the mine + stun. Each turret keeps at most `mines` (+ extra "shots") mines; the oldest goes.
+// Drawn as two instanced meshes (casing + glowing core) for every mine on the map.
+const MINE_MAX = 64;
+const mineCase = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.55, 0.65, 0.2, 10), new THREE.MeshStandardMaterial({ color: '#3a4450', metalness: 0.6, roughness: 0.4, flatShading: true }), MINE_MAX);
+const mineCore = new THREE.InstancedMesh(new THREE.SphereGeometry(0.24, 8, 6), new THREE.MeshBasicMaterial({ color: '#7affd8', toneMapped: false }), MINE_MAX);
+for (const im of [mineCase, mineCore]) { im.count = 0; im.frustumCulled = false; scene.add(im); }
+const _mm = new THREE.Matrix4(), _mq = new THREE.Quaternion(), _ms = new V3();
+function layMine(t, pos, st, dmg, manual) {
+  G.mines ||= [];
+  const mine = { t, pos: pos.clone().setY(0), dmg, st, manual, arm: 0.6, life: 30, seed: Math.random() * 6 };
+  G.mines.push(mine);
+  const cap = (TURRETS[t.type].mines || 4) + Math.max(0, st.shots - 1);
+  const own = G.mines.filter((m) => m.t === t);
+  if (own.length > cap) G.mines.splice(G.mines.indexOf(own[0]), 1);
+  if (G.mines.length > MINE_MAX) G.mines.shift();
+  muzzleWorld(t, 0, _muzzle);
+  beams.line(_muzzle, mine.pos.clone().setY(0.3), '#7affd8', 0.05, 0.25);
+  sparks.emit(mine.pos.clone().setY(0.3), '#7affd8', 10, 3, 0.3, 3, 0.3);
+}
+function updateMines(dt) {
+  const list = G.mines || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    m.arm -= dt;
+    m.life -= dt;
+    if (m.life <= 0 || !G.turrets.includes(m.t)) { list.splice(i, 1); continue; }
+    if (m.arm > 0) continue;
+    let hit = null;
+    for (const e of G.enemies) {
+      if (!e.alive || e.def.air || e.buried) continue;
+      if (Math.hypot(e.group.position.x - m.pos.x, e.group.position.z - m.pos.z) < 1.7 + e.def.radius * 0.4) { hit = e; break; }
+    }
+    if (!hit) continue;
+    list.splice(i, 1);
+    const from = m.pos.clone().setY(0.4);
+    chainZap(from, hit, m.dmg, m.st.chain || 0, m.st, m.manual, false, (e) => !e.def.air);
+    stunEnemy(hit, m.st.stun || 0.6, false);
+    sparks.emit(from, '#7affd8', 34, 7, 0.5, 6, 0.4);
+    rings.pulse(from, 2.2, '#7affd8', 0.35);
+    sfx('zap', 0.05);
+  }
+  let k = 0;
+  for (const m of list) {
+    const armed = m.arm <= 0;
+    const s = armed ? 1 + 0.25 * Math.sin(G.time * 8 + m.seed) : 0.6;
+    mineCase.setMatrixAt(k, _mm.compose(_ms.set(m.pos.x, 0.1, m.pos.z), _mq.identity(), new V3(1, 1, 1)));
+    mineCore.setMatrixAt(k, _mm.compose(_ms.set(m.pos.x, 0.24, m.pos.z), _mq.identity(), new V3(s, s, s)));
+    k++;
+  }
+  mineCase.count = mineCore.count = k;
+  mineCase.instanceMatrix.needsUpdate = mineCore.instanceMatrix.needsUpdate = true;
+}
+/** Road point a little ahead of an enemy (where it will be when the mine is armed). */
+function roadAhead(e, ahead) {
+  const p = new V3(), tan = new V3();
+  e.path.sample(Math.min(e.path.length, e.s + ahead), p, tan);
+  return p;
 }
 
 function jitter(v, s) {
@@ -1905,6 +1972,12 @@ function manualShot() {
         $('ramp').textContent = '×1.0';
         beams.line(_muzzle, _aim, '#ff3d7f', 0.04, 0.12);
       }
+      break;
+    }
+    case 'mine': {
+      layMine(t, groundAim(new V3(), 2, st.range * 1.3), st, ms.damage, true);
+      b.recoil = 0.3;
+      sfx('zap', 0.06);
       break;
     }
     case 'mortar': {
@@ -3169,6 +3242,7 @@ function update(dt) {
     updateManual(dt);
     projectiles.update(dt, projectileHit, projectileGround, projectileTick);
     updateFires(dt);
+    updateMines(dt);
     updateAbilities(dt);
     checkWaveEnd();
   }
@@ -4032,6 +4106,13 @@ function uniqueAct(t, act, pos, st, base, color, inRange) {
         G.fires.push({ pos: target.setY(0.1), r: 4.5, t: 7, dps: 30, tick: 0, slow: 0.4, color: '#8fe04a' });
         smoke.emit(target, '#6ab03a', 30, 3, 1.5, -0.3, 0.5, 3);
       }
+      break;
+    }
+    case 'minefield': {
+      const path = world.paths.reduce((b, p) => (p.distanceTo(pos.x, pos.z) < b.distanceTo(pos.x, pos.z) ? p : b), world.paths[0]);
+      const pts = path.pts.filter((q) => q.distanceTo(pos) < Math.min(st.range, 14)).filter((_, i) => i % 5 === 0).slice(0, 6);
+      for (const q of pts) { const m = { ...st, shots: 99 }; layMine(t, q, m, st.damage * 1.2, false); }
+      for (const m of G.mines) if (m.t === t) m.arm = 0;
       break;
     }
     case 'pull':

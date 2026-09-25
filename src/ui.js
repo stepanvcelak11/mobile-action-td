@@ -467,6 +467,7 @@ const KIND_TEXT = {
   rail: 'Charged slug that pierces every enemy in a line.',
   venom: 'Poison globs: damage over time and a toxic puddle.',
   harpoon: 'Heavy harpoons that pierce and drag enemies back.',
+  mine: 'Drops a tesla mine where you aim. It zaps the first walker that steps on it and chains to the next ones.',
   pulse: 'Sonic waves in a cone — hits everything in front of it and staggers.',
   orb: 'Slow plasma orbs with a big blast radius.',
 };

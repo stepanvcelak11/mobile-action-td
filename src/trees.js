@@ -283,6 +283,29 @@ export const TREES = {
       ['Death Bloom', 'Executes below 15% HP', { execute: 0.15 }],
     ]),
   ],
+  minelayer: [
+    B('Charge', '#7affd8', [
+      ['Hot Coils', '+25% damage', { dmg: 0.25 }],
+      ['Arc Jumper', 'Lightning jumps to +1 enemy', { chain: 1 }],
+      ['Capacitor Bank', '+35% damage', { dmg: 0.35 }],
+      ['Overload Stun', '+0.4 s stun', { stun: 0.4 }],
+      ['Thunderhead', '+60% damage, jumps to +2 enemies', { dmg: 0.6, chain: 2 }],
+    ]),
+    B('Minefield', '#ffd24a', [
+      ['Quick Arm', '+20% laying speed', { rate: 0.2 }],
+      ['Bigger Rack', '+1 mine at once', { shots: 1 }],
+      ['Long Throw', '+15% range', { range: 0.15 }],
+      ['Double Drop', 'Lays 2 mines per throw', { shots: 1, rate: 0.15 }],
+      ['Carpet of Mines', '+2 mines at once, +25% laying speed', { shots: 2, rate: 0.25 }],
+    ]),
+    B('Sensors', '#5fd8ff', [
+      ['Proximity Fuse', 'Weak points +0.3×', { weakMul: 0.3 }],
+      ['Ground Radar', 'Detects cloaked Phantoms', { detect: 1 }],
+      ['Shrapnel Casing', 'Blasts shred armor (+25% damage taken)', { shred: 1 }],
+      ['Salvage', '+2 gold per kill', { bounty: 2 }],
+      ['Chain Reaction', 'Executes enemies below 15% HP', { execute: 0.15 }],
+    ]),
+  ],
   bouncer: [
     B('Explosives', '#c8a040', [
       ['Bigger Charge', '+25% damage', { dmg: 0.25 }],

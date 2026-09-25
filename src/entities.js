@@ -198,6 +198,21 @@ function headBouncer(pitch, M) {
   part(holder, cyl(0.28, 0.28, 0.12, 10), M.steelDark, 0, 0.1, 1.28);
   return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.1, 1.4)], cam: [0, 1.0, -0.75] };
 }
+function headMineLayer(pitch, M) {
+  part(pitch, new THREE.BoxGeometry(1.0, 0.55, 1.0), M.steelDark, 0, 0, -0.1);
+  const holder = new THREE.Group();
+  pitch.add(holder);
+  // a short launch rail with a mine ready at the mouth, and a rack of spare mines on the back
+  part(holder, new THREE.BoxGeometry(0.5, 0.3, 1.2), M.steel, 0, 0.05, 0.55);
+  part(holder, new THREE.BoxGeometry(0.4, 0.06, 1.1), M.band, 0, 0.22, 0.6);
+  part(holder, new THREE.CylinderGeometry(0.2, 0.22, 0.1, 10), M.steelLight, 0, 0.3, 1.0);
+  part(holder, new THREE.SphereGeometry(0.08, 8, 6), glow('#7affd8'), 0, 0.38, 1.0, false);
+  for (const x of [-0.3, 0, 0.3]) {
+    part(pitch, new THREE.CylinderGeometry(0.17, 0.19, 0.09, 10), M.steelLight, x, 0.33, -0.45);
+    part(pitch, new THREE.SphereGeometry(0.05, 6, 4), glow('#7affd8'), x, 0.4, -0.45, false);
+  }
+  return { barrels: [{ group: holder, recoil: 0 }], muzzles: [new THREE.Vector3(0, 0.38, 1.1)], cam: [0, 0.75, -0.35] };
+}
 function headHarpoon(pitch, M) {
   part(pitch, new THREE.BoxGeometry(0.8, 0.45, 1.1), M.steelDark, 0, 0, -0.1);
   const reel = part(pitch, new THREE.CylinderGeometry(0.3, 0.3, 0.7, 12), M.steelLight, 0, 0.1, -0.55);
@@ -449,6 +464,13 @@ const HEAD_EXTRA = {
     }
     for (let i = 0; i < 5; i++) part(p, new THREE.SphereGeometry(0.09, 6, 4), M.band, -0.5 + i * 0.25, -0.2, -0.52);
     part(h.barrels[0].group, box(0.6, 0.06, 0.3), M.steelDark, 0, 0.4, 0.6);
+  },
+  minelayer(p, h, M) {
+    for (const sx of [-0.55, 0.55]) {
+      part(p, box(0.1, 0.4, 0.8), M.steel, sx, 0, -0.1);
+      deco(p, box(0.03, 0.12, 0.5), '#7affd8', sx * 1.1, 0.05, -0.1);
+    }
+    for (let i = 0; i < 3; i++) part(p, box(0.8, 0.04, 0.06), M.band, 0, 0.29, 0.25 - i * 0.2);
   },
   harpoon(p, h, M) {
     for (const sx of [-0.5, 0.5]) {
@@ -739,7 +761,7 @@ function addAccessory(root, yaw, acc, sk) {
   return anim;
 }
 
-const HEADS = { carrier: headCarrier, barracks: headBarracks, factory: headFactory, helipad: headHelipad, scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
+const HEADS = { carrier: headCarrier, barracks: headBarracks, factory: headFactory, helipad: headHelipad, scatter: headScatter, venom: headVenom, bouncer: headBouncer, harpoon: headHarpoon, minelayer: headMineLayer, sonic: headSonic, plasma: headPlasma, storm: headStorm, silo: headSilo, prism: headPrism, howitzer: headHowitzer, cannon: headCannon, gatling: headGatling, rocket: headRocket, tesla: headTesla, rail: headRail, sniper: headSniper, cryo: headCryo, flame: headFlame, mortar: headMortar, laser: headLaser };
 
 export function createTurret(type, color, skinId = 'factory') {
   const root = new THREE.Group();

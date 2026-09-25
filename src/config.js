@@ -92,6 +92,12 @@ export const TURRETS = {
     range: 16, interval: 2.2, damage: 44, shots: 1, speed: 70, kind: 'harpoon', pierce: 2, slow: 0.6, target: 'strong',
     manual: { interval: 1.2, damage: 90, heat: 20, speed: 90 }, fov: 70,
   },
+  minelayer: {
+    name: 'Tesla Mine Layer', rarity: 'epic', cost: 190, unlockTP: 7, color: '#7affd8',
+    desc: 'Lays tesla mines on the road ahead of the enemies. A mine zaps the first walker that steps on it, chains to 2 more and stuns them. Up to 4 mines per turret. Manual: drop a mine where you aim.',
+    range: 14, interval: 2.4, damage: 70, shots: 1, kind: 'mine', chain: 2, stun: 0.6, groundOnly: true, mines: 4,
+    manual: { interval: 0.8, damage: 80, heat: 16 }, fov: 75,
+  },
   sonic: {
     name: 'Sonic Emitter', rarity: 'epic', cost: 210, unlockTP: 7, color: '#ff66cc',
     desc: 'Shockwave pulses hit every enemy around it and stagger them. Manual: aimed sonic blast.',
@@ -155,7 +161,7 @@ export const TURRETS = {
     manual: { interval: 0.6, damage: 24, heat: 12 }, fov: 80,
   },
 };
-export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer', 'barracks', 'helipad', 'factory', 'carrier'];
+export const TURRET_ORDER = ['cannon', 'gatling', 'sniper', 'scatter', 'cryo', 'venom', 'flame', 'bouncer', 'rocket', 'harpoon', 'minelayer', 'mortar', 'sonic', 'tesla', 'plasma', 'laser', 'storm', 'rail', 'silo', 'prism', 'howitzer', 'barracks', 'helipad', 'factory', 'carrier'];
 
 // How to play each turret yourself (shown in the Armory).
 export const TURRET_TIPS = {
@@ -169,6 +175,7 @@ export const TURRET_TIPS = {
   bouncer: 'Grenades arc — fire where the enemy will be when the grenade lands.',
   rocket: 'Rockets fly straight when you aim them; lead fast targets.',
   harpoon: 'Line enemies up: the spear pierces and pins everything it hits.',
+  minelayer: 'Put it where the road bends back on itself: mines land ahead of the enemies and one blast chains into the pack.',
   mortar: 'Watch the landing ring and lead the group.',
   sonic: 'Point the blast at the thickest crowd — everything in the cone is staggered.',
   tesla: 'Aim at the middle of a group so the chain reaches everyone.',

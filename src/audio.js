@@ -202,7 +202,7 @@ const SOUNDS = {
 // Which voice a turret fires with (auto and manual); anything missing falls back to the old generic sounds.
 const TURRET_SFX = {
   cannon: 'cannon', gatling: 'gatling', sniper: 'sniper', cryo: 'cryo', flame: 'flame', rocket: 'rocket', mortar: 'mortar',
-  tesla: 'zap', laser: 'laser', rail: 'rail', scatter: 'scatter', venom: 'venom', bouncer: 'bouncer', harpoon: 'harpoon',
+  tesla: 'zap', minelayer: 'zap', laser: 'laser', rail: 'rail', scatter: 'scatter', venom: 'venom', bouncer: 'bouncer', harpoon: 'harpoon',
   sonic: 'sonic', plasma: 'plasma', storm: 'storm', silo: 'silo', prism: 'prism', howitzer: 'howitzer',
 };
 export const turretSfx = (type) => TURRET_SFX[type] || null;
