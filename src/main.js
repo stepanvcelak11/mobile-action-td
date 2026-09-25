@@ -304,7 +304,9 @@ const UP = new V3(0, 1, 0);
 // pinch / wheel to zoom, drag to pan, double-tap to jump in, and an idle zoomed camera follows the fight.
 const CAM = { zoom: 1, pan: new V3(), fit: null, lastInput: -1e9 };
 // command bunker state (see the Command bunker section at the end)
-const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, table: false, blend: 0, near: null, tableT: 0 };
+const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, table: false, blend: 0, near: null, tableT: 0, alarm: 0 };
+// bunker tour (O1) state, see the Command bunker section
+const BT = { step: -1, el: null, arrow: null, start: null };
 const CAM_MAX_ZOOM = 3;
 const _fitCam = new THREE.PerspectiveCamera();
 const _fitV = new V3();
@@ -448,6 +450,7 @@ function updateCamera(dt) {
     camera.lookAt(0, 0, 0);
     return;
   }
+  BK.b?.setFade(G.view === 'TOP' || G.view === 'TO_TOP');   // the mound never hides the tactical map
   if (G.view === 'BUNKER') { bunkerCamera(dt); return; }
   if (G.view === 'TOP') {
     followFight(dt);
@@ -1075,6 +1078,10 @@ function damageBase(amount, e) {
     return;
   }
   G.baseHp = Math.max(0, G.baseHp - amount);
+  if (BK.b) {                                    // in the bunker: red beacons, a jolt, dust and the radio
+    if (BK.alarm <= 0) sfx('radio', 1.5);
+    BK.alarm = 2.5;
+  }
   if (e) skill.leak();
   const bp = world.base.position.clone().setY(3);
   sparks.emit(bp, '#5fd8ff', 30, 7, 0.7, 8, 0.4);
@@ -3229,6 +3236,8 @@ window.__game = {
   /** tests: put the bunker camera anywhere (bunker-local x/y/z), e.g. outside to look at the mound */
   bunkerLook(x, y, z, yaw, pitch) { BK.pos.copy(BK.b.toWorld(new V3(x, y, z))); BK.yaw = BK.b.yaw0 + yaw; BK.pitch = pitch; },
   bunkerDebug() { return { cam: camera.position.toArray().map((v) => +v.toFixed(2)), dir: camera.getWorldDirection(new V3()).toArray().map((v) => +v.toFixed(2)), fov: camera.fov, scope: BK.scope, blend: BK.blend }; },
+  /** tests: the base takes a hit while you are in the bunker (beacons, jolt, dust) */
+  bunkerAlarm() { BK.alarm = 2.5; },
   bunkerUseStation(id) { if (G.view === 'BUNKER') { BK.near = BK.b.stations.find((q) => q.id === id); bunkerUse(); } },
   /** tests: lean over the map table in the bunker */
   bunkerTable(on = true) { if (G.view === 'BUNKER') setBunkerTable(on); },
@@ -4054,6 +4063,71 @@ function uniqueAct(t, act, pos, st, base, color, inRange) {
 // around (left half = move, right half = look), USE stations — the map table opens the tactical
 // view, VR seats take over a turret, the wave console starts the next wave, the terminal upgrades,
 // the periscope zooms on the battlefield. Leaving a turret or the map returns to the bunker.
+/* ---- O1: first battle in the bunker = a short guided tour (once, skippable) */
+// Each step is a whole sentence (easy to translate) and, where it helps, an arrow to the station.
+const BK_TUT = [
+  { station: 'map', title: 'Step 1 of 4', text: 'Walk to the MAP TABLE and press USE.', done: () => BK.table },
+  { station: null, title: 'Step 2 of 4', text: 'Tap a + on the table to build your first turret.', done: (s) => G.turrets.length > s.turrets },
+  { station: 'wave', title: 'Step 3 of 4', text: 'Press BACK, walk to the RADIO and press START to call the wave.', done: () => G.state !== STATE.IDLE },
+  { station: 'vr', title: 'Step 4 of 4', text: 'Sit in the VR SEAT to take control of a turret yourself.', done: () => G.view === 'FPV' || G.view === 'TO_FPV' },
+];
+function bunkerTutStart() {
+  bunkerTutEnd(false);
+  if (P.bunkerTut || !BK.b) return;
+  BT.step = 0;
+  BT.el = document.createElement('div');
+  BT.el.id = 'bk-tut';
+  BT.el.innerHTML = '<small></small><b></b><button type="button">SKIP TOUR</button>';
+  BT.el.querySelector('button').addEventListener('click', (ev) => { ev.stopPropagation(); bunkerTutEnd(true); });
+  BT.arrow = document.createElement('div');
+  BT.arrow.id = 'bk-tut-arrow';
+  document.body.append(BT.el, BT.arrow);
+  bunkerTutShow();
+}
+function bunkerTutShow() {
+  const st = BK_TUT[BT.step];
+  BT.start = { turrets: G.turrets.length };
+  BT.el.querySelector('small').textContent = st.title;
+  BT.el.querySelector('b').textContent = st.text;
+}
+function bunkerTutEnd(finished) {
+  if (finished) { P.bunkerTut = true; save(); }
+  BT.el?.remove(); BT.arrow?.remove();
+  BT.el = BT.arrow = null;
+  BT.step = -1;
+}
+/** Per frame: advance the steps, point the arrow at the station (clamped to the screen edge). */
+function bunkerTutTick() {
+  if (BT.step < 0) return;
+  const st = BK_TUT[BT.step];
+  if (st.done(BT.start)) {
+    BT.step++;
+    sfx('tick');
+    if (BT.step >= BK_TUT.length) { bunkerTutEnd(true); notify('BUNKER TOUR DONE', 'You know every station now', 2400); return; }
+    bunkerTutShow();
+    return;
+  }
+  const target = st.station && G.view === 'BUNKER' && !BK.table && !BK.scope ? BK.b?.stations.find((q) => q.id === st.station) : null;
+  BT.arrow.style.display = target ? '' : 'none';
+  if (!target) return;
+  const v = target.pos.clone().setY(target.pos.y + 0.6).project(camera);
+  const w = viewW(), h = viewH();
+  let x = ((v.x + 1) / 2) * w, y = ((1 - v.y) / 2) * h;
+  const behind = v.z > 1;
+  if (behind) { x = w - x; y = h - y; }
+  const m = 46;
+  const inside = !behind && x > m && x < w - m && y > m && y < h - m;
+  if (inside) {
+    BT.arrow.className = 'on';
+    BT.arrow.style.transform = `translate(${x}px, ${y}px)`;
+  } else {
+    // off screen: stick to the edge and point towards it
+    const cx = w / 2, cy = h / 2, dx = x - cx, dy = y - cy;
+    const k = Math.min((w / 2 - m) / (Math.abs(dx) || 1), (h / 2 - m) / (Math.abs(dy) || 1));
+    BT.arrow.className = 'edge';
+    BT.arrow.style.transform = `translate(${cx + dx * k}px, ${cy + dy * k}px) rotate(${Math.atan2(dy, dx) - Math.PI / 2}rad)`;
+  }
+}
 const bunkerMode = () => P.settings.bunker !== false && G.tut < 0;
 function setupBunker() {
   teardownBunker();
@@ -4069,8 +4143,10 @@ function setupBunker() {
   BK.blend = 0;
   BK.b.drawTable(G);
   $('btn-bunker').style.display = '';
+  bunkerTutStart();
 }
 function teardownBunker() {
+  bunkerTutEnd(false);
   document.body.classList.remove('bunker', 'bk-scope', 'bk-table');
   BK.table = false;
   BK.scope = false;
@@ -4129,7 +4205,9 @@ function onTableTap(x, y) {
 function bunkerCamera(dt) {
   BK.blend = THREE.MathUtils.clamp(BK.blend + (BK.table ? dt : -dt) / 0.45, 0, 1);
   BK.b.ceiling.visible = !BK.table && BK.blend <= 0;     // the table camera rises through the roof
-  BK.b.update(dt, G.state === STATE.IDLE || canCallEarly());
+  BK.alarm = Math.max(0, BK.alarm - dt);
+  bunkerTutTick();
+  BK.b.update(dt, G.state === STATE.IDLE || canCallEarly(), BK.alarm, G);
   // walk
   if ((BK.jx || BK.jy) && !BK.table && BK.blend <= 0) {
     const sp = 2.8 * dt;
@@ -4152,8 +4230,13 @@ function bunkerCamera(dt) {
   const p = bunkerPose();
   camera.position.copy(p.pos);
   camera.quaternion.copy(p.quat);
-  // head bob while walking
+  // head bob while walking, a jolt while the base takes hits
   if (BK.jx || BK.jy) camera.position.y += Math.sin(G.time * 9) * 0.03;
+  if (BK.alarm > 1.9) {
+    const k = (BK.alarm - 1.9) * 0.06;
+    camera.position.x += (Math.random() - 0.5) * k;
+    camera.position.y += (Math.random() - 0.5) * k;
+  }
   if (Math.abs(camera.fov - p.fov) > 0.1) { camera.fov += (p.fov - camera.fov) * Math.min(1, dt * 10); camera.updateProjectionMatrix(); }
   // what am I looking at?
   const fwd = camera.getWorldDirection(new V3());
@@ -4220,18 +4303,45 @@ function openBunkerPicker(kind) {
   if (!G.turrets.length) { notify('NO TURRETS YET', 'Build some at the map table', 2200); return; }
   const el = document.createElement('div');
   el.id = 'bk-picker';
-  const roads = BK.b.mapRoads.map((r) => `<polyline points="${r.map(([x, y]) => `${(x * 100).toFixed(1)},${(y * 100 / BK.b.mapAspect).toFixed(1)}`).join(' ')}"/>`).join('');
-  const hq = BK.b.worldToFrac(world.base.position.x, world.base.position.z);
+  // the mini map is fitted to the whole route (every road + every pad), in the same frame as the table
+  const A = BK.b.mapAspect;
+  const U = (x, z) => { const [fx, fy] = BK.b.worldToFrac(x, z); return [fx * A, fy]; };
+  const routes = (world.paths || []).map((pa) => (pa.pts || []).map((v) => U(v.x, v.z))).filter((r) => r.length > 1);
+  const pts = [...routes.flat(), ...world.plots.map((pl) => U(pl.pos.x, pl.pos.z)), U(world.base.position.x, world.base.position.z)];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.08;
+  x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  const rw = x1 - x0, rh = y1 - y0, asp = rw / rh;
+  const P = ([x, y]) => [((x - x0) / rw) * 100, ((y - y0) / rh) * 100];          // -> percent of the box
+  const roads = routes.map((r) => `<polyline points="${r.map((q) => { const [px, py] = P(q); return `${px.toFixed(1)},${(py / asp).toFixed(1)}`; }).join(' ')}"/>`).join('');
+  const hq = P(U(world.base.position.x, world.base.position.z));
+  // turret pins at their pads; pins that would overlap are pushed apart (a thin line keeps them tied to the pad)
+  const pinR = 5.2;                                   // pin radius in % of the box width
+  const pos = G.turrets.map((t) => { const [px, py] = P(U(t.plot.pos.x, t.plot.pos.z)); return { ax: px, ay: py / asp, x: px, y: py / asp }; });
+  for (let it = 0; it < 40; it++) {
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) {
+      const a = pos[i], b = pos[j];
+      let dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 0.01;
+      if (d >= pinR * 2.3) continue;
+      if (d < 0.02) { dx = 1; dy = 0.3; }
+      const push = (pinR * 2.3 - d) / 2 / (Math.hypot(dx, dy) || 1);
+      a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
+    }
+    for (const q of pos) { q.x = Math.min(96, Math.max(4, q.x)); q.y = Math.min(100 / asp - 4, Math.max(4, q.y)); }
+  }
+  const leaders = pos.map((q) => (Math.hypot(q.x - q.ax, q.y - q.ay) > 1 ? `<line x1="${q.ax.toFixed(1)}" y1="${q.ay.toFixed(1)}" x2="${q.x.toFixed(1)}" y2="${q.y.toFixed(1)}"/><circle cx="${q.ax.toFixed(1)}" cy="${q.ay.toFixed(1)}" r="0.9"/>` : '')).join('');
   const pins = G.turrets.map((t, i) => {
-    const [fx, fy] = BK.b.worldToFrac(t.plot.pos.x, t.plot.pos.z);
     const pic = turretPortrait(t.type, skinOf(t.type));
-    return `<button class="bkp-pin" data-i="${i}" style="left:${(fx * 100).toFixed(1)}%;top:${(fy * 100).toFixed(1)}%;--c:${TURRETS[t.type].color}" aria-label="${TURRETS[t.type].name}">
+    const q = pos[i];
+    return `<button class="bkp-pin" data-i="${i}" style="left:${q.x.toFixed(1)}%;top:${(q.y * asp).toFixed(1)}%;--c:${TURRETS[t.type].color}" aria-label="${TURRETS[t.type].name}">
       <span class="t-icon">${pic ? `<img src="${pic}" alt="">` : turretIcon(t.type)}</span><small>${TURRETS[t.type].name}${upgradesOf(t) ? ` · T${upgradesOf(t)}` : ''}</small></button>`;
   }).join('');
   el.innerHTML = `<div class="bkp-head"><b>${kind === 'vr' ? 'VR SEAT — tap a turret to take control' : 'UPGRADE TERMINAL — tap a turret'}</b><button class="x-btn" aria-label="Close">✕</button></div>
-    <div class="bkp-map" style="aspect-ratio:${BK.b.mapAspect.toFixed(3)}">
-      <svg viewBox="0 0 100 ${(100 / BK.b.mapAspect).toFixed(1)}" preserveAspectRatio="none" aria-hidden="true">${roads}</svg>
-      <i class="bkp-hq" style="left:${(hq[0] * 100).toFixed(1)}%;top:${(hq[1] * 100).toFixed(1)}%">HQ</i>${pins}
+    <div class="bkp-map" style="aspect-ratio:${asp.toFixed(3)};width:min(100%, calc((100dvh - 150px) * ${asp.toFixed(3)}))">
+      <svg viewBox="0 0 100 ${(100 / asp).toFixed(1)}" preserveAspectRatio="none" aria-hidden="true">${roads}<g class="bkp-lead">${leaders}</g></svg>
+      <i class="bkp-hq" style="left:${hq[0].toFixed(1)}%;top:${hq[1].toFixed(1)}%">HQ</i>${pins}
     </div>
     <div class="bkp-list">${G.turrets.map((t, i) => {
       const pic = turretPortrait(t.type, skinOf(t.type));
@@ -4243,7 +4353,7 @@ function openBunkerPicker(kind) {
     const t = G.turrets[+b.dataset.i];
     el.remove();
     if (!t) return;
-    if (kind === 'vr') { document.body.classList.remove('bunker'); enterFPV(t); }
+    if (kind === 'vr') { document.body.classList.remove('bunker'); enterFPV(t); bunkerTutTick(); }
     else openTurretCard(t);
   }));
 }

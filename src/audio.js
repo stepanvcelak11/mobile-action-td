@@ -169,6 +169,11 @@ const SOUNDS = {
   clear: () => { [523, 659, 784].forEach((f, i) => tone({ f0: f, dur: 0.25, gain: 0.12, type: 'triangle', delay: i * 0.1, wet: 0.5 })); },
   // Active reload (B1): tick while the window runs, bright ok, dull fail.
   tick: () => click(3000, 0.12),
+  radio: () => {
+    burst({ dur: 0.4, gain: 0.14, freq: 2200, type: 'bandpass', q: 1.2 });
+    tone({ f0: 1250, dur: 0.07, gain: 0.07, type: 'square', delay: 0.42 });
+    tone({ f0: 950, dur: 0.07, gain: 0.07, type: 'square', delay: 0.52 });
+  },
   reloadOk: () => { click(5000, 0.25); tone({ f0: 1320, dur: 0.12, gain: 0.1, type: 'triangle' }); tone({ f0: 1760, dur: 0.16, gain: 0.08, type: 'triangle', delay: 0.06 }); },
   reloadFail: () => { tone({ f0: 200, f1: 120, dur: 0.25, gain: 0.14, type: 'sawtooth' }); burst({ dur: 0.3, gain: 0.15, freq: 400 }); },
   // Menu UI.
