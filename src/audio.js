@@ -176,10 +176,57 @@ const SOUNDS = {
   },
   reloadOk: () => { click(5000, 0.25); tone({ f0: 1320, dur: 0.12, gain: 0.1, type: 'triangle' }); tone({ f0: 1760, dur: 0.16, gain: 0.08, type: 'triangle', delay: 0.06 }); },
   reloadFail: () => { tone({ f0: 200, f1: 120, dur: 0.25, gain: 0.14, type: 'sawtooth' }); burst({ dur: 0.3, gain: 0.15, freq: 400 }); },
+  // One voice per turret (Z1): each gun is recognisable by ear.
+  cannon: () => { click(4500, 0.2); burst({ dur: 0.22, gain: 0.35, freq: 1400, sweep: 0.2, wet: 0.45 }); thump(130, 0.4, 0.18); },
+  sniper: () => { click(7000, 0.3); burst({ dur: 0.06, gain: 0.45, freq: 5000, type: 'highpass' }); burst({ dur: 0.55, gain: 0.22, freq: 1200, sweep: 0.2, wet: 0.85 }); thump(160, 0.28, 0.1); },
+  flame: () => burst({ dur: 0.16, gain: 0.12, freq: 700, type: 'bandpass', q: 0.7, sweep: 1.6 }),
+  laser: () => { tone({ f0: 1800, f1: 1700, dur: 0.1, gain: 0.035, type: 'sine' }); tone({ f0: 3600, dur: 0.06, gain: 0.015, type: 'sine' }); },
+  cryo: () => { tone({ f0: 2400, f1: 3300, dur: 0.1, gain: 0.05, type: 'triangle', wet: 0.4 }); burst({ dur: 0.08, gain: 0.12, freq: 6000, type: 'highpass' }); },
+  venom: () => { burst({ dur: 0.12, gain: 0.15, freq: 500, type: 'bandpass', q: 3, sweep: 0.5 }); tone({ f0: 300, f1: 160, dur: 0.1, gain: 0.05, type: 'sine' }); },
+  mortar: () => { thump(90, 0.45, 0.25); burst({ dur: 0.3, gain: 0.2, freq: 600, sweep: 0.3 }); tone({ f0: 900, f1: 1500, dur: 0.4, gain: 0.02, type: 'sine', delay: 0.1 }); },
+  bouncer: () => { thump(170, 0.3, 0.1); tone({ f0: 400, f1: 250, dur: 0.08, gain: 0.06, type: 'triangle' }); },
+  plasma: () => { tone({ f0: 200, f1: 900, dur: 0.25, gain: 0.07, type: 'sawtooth', wet: 0.5 }); tone({ f0: 400, f1: 1800, dur: 0.2, gain: 0.04, type: 'sine' }); },
+  sonic: () => { tone({ f0: 120, f1: 60, dur: 0.35, gain: 0.2, type: 'sine' }); tone({ f0: 240, f1: 120, dur: 0.3, gain: 0.05, type: 'square' }); },
+  harpoon: () => { tone({ f0: 700, f1: 180, dur: 0.22, gain: 0.08, type: 'triangle' }); click(3000, 0.2); },
+  scatter: () => { burst({ dur: 0.12, gain: 0.45, freq: 2200, sweep: 0.2 }); burst({ dur: 0.3, gain: 0.22, freq: 700, wet: 0.4 }); thump(140, 0.35, 0.12); },
+  silo: () => { burst({ dur: 0.6, gain: 0.28, freq: 300, sweep: 5, type: 'bandpass', q: 1.2, wet: 0.4 }); thump(80, 0.3, 0.3); },
+  prism: () => { tone({ f0: 2600, f1: 2640, dur: 0.1, gain: 0.03, type: 'sine' }); tone({ f0: 3900, dur: 0.08, gain: 0.02, type: 'triangle' }); },
+  storm: () => { burst({ dur: 0.05, gain: 0.35, freq: 6000, type: 'highpass' }); burst({ dur: 0.9, gain: 0.35, freq: 400, sweep: 0.2, wet: 0.8 }); tone({ f0: 60, f1: 30, dur: 0.7, gain: 0.22, type: 'sine' }); },
+  howitzer: () => { thump(70, 0.55, 0.5); burst({ dur: 1.0, gain: 0.45, freq: 500, sweep: 0.1, wet: 0.8 }); click(3000, 0.2); },
+  radio: () => { burst({ dur: 0.12, gain: 0.06, freq: 2200, type: 'bandpass', q: 4 }); tone({ f0: 1200, dur: 0.05, gain: 0.03, type: 'square', delay: 0.12 }); },
   // Menu UI.
   tap: () => click(2500, 0.1),
   reward: () => { [784, 988, 1175, 1568].forEach((f, i) => tone({ f0: f, dur: 0.3, gain: 0.1, type: 'triangle', delay: i * 0.06, wet: 0.6 })); },
 };
+
+// Which voice a turret fires with (auto and manual); anything missing falls back to the old generic sounds.
+const TURRET_SFX = {
+  cannon: 'cannon', gatling: 'gatling', sniper: 'sniper', cryo: 'cryo', flame: 'flame', rocket: 'rocket', mortar: 'mortar',
+  tesla: 'zap', laser: 'laser', rail: 'rail', scatter: 'scatter', venom: 'venom', bouncer: 'bouncer', harpoon: 'harpoon',
+  sonic: 'sonic', plasma: 'plasma', storm: 'storm', silo: 'silo', prism: 'prism', howitzer: 'howitzer',
+};
+export const turretSfx = (type) => TURRET_SFX[type] || null;
+
+/** Quiet radio hiss + random chatter blips while you are in the bunker (Z1). */
+let amb = null, ambT = 0;
+export function ambience(on) {
+  if (!ctx || ctx.state !== 'running') return;
+  if (on && !amb) {
+    const src = ctx.createBufferSource();
+    src.buffer = noise; src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.6;
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    g.gain.exponentialRampToValueAtTime(0.012, ctx.currentTime + 0.8);
+    src.connect(f).connect(g).connect(out);
+    src.start();
+    amb = { src, g };
+  } else if (!on && amb) {
+    const a = amb; amb = null;
+    a.g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    setTimeout(() => { try { a.src.stop(); } catch { /* ignore */ } }, 600);
+  }
+  if (on && performance.now() > ambT) { ambT = performance.now() + 4000 + Math.random() * 7000; sfx('radio', 1); }
+}
 
 export function sfx(name, minGap = 0.035) {
   if (!ctx || ctx.state !== 'running') return;

@@ -20,6 +20,9 @@ const THEMES = {
   swamp: { root: 43, prog: [0, 1, 5, 4], bpm: 96, lead: 'triangle', cut: 700 },
   magma: { root: 40, prog: [0, 5, 1, 4], bpm: 120, lead: 'sawtooth', cut: 1000 },
   neon: { root: 49, prog: [0, 5, 3, 4], bpm: 124, lead: 'square', cut: 2600 },
+  jungle: { root: 46, prog: [0, 3, 6, 5], bpm: 108, lead: 'triangle', cut: 1600 },
+  storm: { root: 44, prog: [0, 6, 3, 1], bpm: 116, lead: 'sawtooth', cut: 1300 },
+  coast: { root: 48, prog: [0, 5, 6, 4], bpm: 100, lead: 'sine', cut: 1900 },
 };
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 const PHRYG = [0, 1, 3, 5, 7, 8, 10];

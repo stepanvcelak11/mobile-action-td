@@ -529,6 +529,7 @@ function paradrop(u) {
   }
   H.spark(u.pos.clone().setY(u.pos.y - 1), '#c9d6e2', 12);
   sfxAt('build', 0, 0);
+  voice('para');
   return true;
 }
 
@@ -570,6 +571,8 @@ function cockpitModel() {
   H.scene.add(vmCockpit);
   return vmCockpit;
 }
+
+const voice = (line) => window.dispatchEvent(new CustomEvent('sl:voice', { detail: { line } }));
 
 const ctl = { jx: 0, jy: 0, fire: false, alt: false, vert: 0, el: null, stick: null };
 function driveControlled(u, dt, s) {
@@ -624,7 +627,7 @@ function driveControlled(u, dt, s) {
   }
   if (ctl.fire && u.cd <= 0 && u.ammo > 0 && !(u.reloadT > 0)) {
     u.cd = s.rate * (u.kind === 'soldier' ? 0.55 : 0.8);
-    if (--u.ammo <= 0) u.reloadT = am.reload;
+    if (--u.ammo <= 0) { u.reloadT = am.reload; voice('reload'); }
     const { best, point } = aimRay(u, s, 1.1, u.kind === 'heli' ? 1.15 : u.kind === 'soldier' ? 2.2 : 1.8);
     shoot(u, point, best, { ...s, dmg: s.dmg * 1.5 * (u.kind === 'soldier' ? st.dmg : 1) }, true);
     if (best) hitMark();
@@ -672,6 +675,7 @@ const ACTS = {
     { id: 'nade', label: 'GRENADE', key: 'g', cd: 5, tap: (u, s) => {
       H.camera.getWorldDirection(_v);
       lob(u, null, s.dmg * 6, true, _v.clone().multiplyScalar(13).add(_v2.set(0, 4.5, 0)));
+      voice('grenade');
       return true;
     } },
   ],
@@ -870,6 +874,7 @@ function control(u) {
     u.aimPitch = u.kind === 'heli' ? -0.35 : -0.08;
     if (!ctl.tipped) { ctl.tipped = true; window.dispatchEvent(new CustomEvent('sl:notify', { detail: { title: 'TAP A UNIT OR TOWER', sub: 'to jump into it' } })); }
     document.getElementById('ac-name').textContent = u.def.name.toUpperCase();
+    voice(u.kind === 'tank' ? 'tank' : u.air ? 'air' : u.def.air ? 'air' : 'move');
     sfx('build');
   }
   H.onControl?.(u);

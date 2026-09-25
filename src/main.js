@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { buildWorld } from './world.js';
 import { createTurret, createEnemy, setTurretRank } from './entities.js';
 import { Particles, Projectiles, Beams, AmbientFx, Rings } from './effects.js';
-import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph } from './audio.js';
+import { sfx, unlockAudio, setVolume, setMusicLevel, audioGraph, turretSfx, ambience } from './audio.js';
 import { music } from './music.js';
 import { createPerf } from './perf.js';
 import { createPost } from './post.js';
@@ -678,6 +678,7 @@ function startWave() {
   G.spawnTimer = 0.4;
   prepareNextWave();
   banner(`WAVE ${G.wave}`, isBossWave(G.wave) ? 'Boss incoming' : '');
+  if (G.wave % 3 === 1) emit('voice', { line: 'wave' });
   sfx('wave');
   if (early) { const g = skill.waveEnd(); emit('wave', { n: G.wave - 1, grade: g?.grade || null, score: g?.score || 0, early: true }); }
   skill.waveStart(G.wave);
@@ -1550,7 +1551,7 @@ function autoFire(t, target, aim, st, _dt, again) {
     b.recoil = d.kind === 'bullet' ? 0.05 : 0.25;
   }
   if (t.spinner) t.spin = 30;
-  sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : d.kind === 'sniper' ? 'rail' : 'auto', 0.05);
+  sfx(turretSfx(t.type) || (d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : d.kind === 'sniper' ? 'rail' : 'auto'), 0.05);
 }
 
 function jitter(v, s) {
@@ -1927,7 +1928,8 @@ function manualShot() {
         });
       }
       b.recoil = d.kind === 'bullet' ? 0.06 : 0.35;
-      sfx(d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : 'manual', 0.04);
+      sfx(turretSfx(t.type) || (d.kind === 'bullet' ? 'gatling' : d.kind === 'rocket' ? 'rocket' : 'manual'), 0.04);
+      if (turretSfx(t.type) && d.kind !== 'bullet') sfx('manual', 0.04);
     }
   }
   if (t.spinner) t.spin = 40;
@@ -3135,6 +3137,7 @@ function update(dt) {
   if (G.view !== 'MENU') army.update(dt, G.time);
   if (weather) weather.update(dt, G.time);
   if (!music.playing && audioGraph()) music.play(G.view === 'MENU' ? 'menu' : G.map.theme);
+  ambience(G.view === 'BUNKER' && !G.paused);
   G.musicT = (G.musicT || 0) + dt;
   if (G.musicT > 0.5) {
     G.musicT = 0;
@@ -3856,6 +3859,7 @@ function initBoss(e) {
   e.coreT = 0;
   e.wpOpen = false;
   banner(e.bossName.toUpperCase(), 'Its core opens for a moment — hit it then');
+  emit('voice', { line: 'boss' });
   if (G.view === 'TOP' || G.view === 'TO_TOP') CAM.shot = { focus: e.group.position.clone().setY(0), t: 1.6, T: 1.6 };
   slowMo(0.8);
 }

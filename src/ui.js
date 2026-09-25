@@ -1100,6 +1100,7 @@ function openSettings() {
       <div class="set-row"><span>Aim assist</span>${seg('aimAssist', [[true, 'ON'], [false, 'OFF']])}<small>The crosshair slows down a little over an enemy's head</small></div>
       <div class="set-row"><span>Cockpit view</span>${seg('cockpit', [[true, 'ON'], [false, 'OFF']])}<small>Sit inside the turret with its frame and dashboard around you</small></div>
       <div class="set-row"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-range="volume"><b id="v-volume">${Math.round(s.volume * 100)}%</b></div>
+      <div class="set-row"><span>Voice lines</span>${seg('voice', [[true, 'ON'], [false, 'OFF']])}<small>Units and the radio call out reloads, grenades, bosses and a base under fire</small></div>
       <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
       <div class="set-row"><span>Graphics</span>${seg('quality', [['auto', 'AUTO'], ['low', 'LOW'], ['medium', 'MID'], ['high', 'HIGH']])}<small>Auto lowers the resolution when your phone struggles</small></div>
       <div class="set-row"><span>Glow</span>${seg('glow', [['auto', 'AUTO'], ['on', 'ON'], ['off', 'OFF']])}<small>Bloom on lights and explosions. Auto = only on High graphics.</small></div>
