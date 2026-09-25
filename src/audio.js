@@ -193,7 +193,7 @@ const SOUNDS = {
   prism: () => { tone({ f0: 2600, f1: 2640, dur: 0.1, gain: 0.03, type: 'sine' }); tone({ f0: 3900, dur: 0.08, gain: 0.02, type: 'triangle' }); },
   storm: () => { burst({ dur: 0.05, gain: 0.35, freq: 6000, type: 'highpass' }); burst({ dur: 0.9, gain: 0.35, freq: 400, sweep: 0.2, wet: 0.8 }); tone({ f0: 60, f1: 30, dur: 0.7, gain: 0.22, type: 'sine' }); },
   howitzer: () => { thump(70, 0.55, 0.5); burst({ dur: 1.0, gain: 0.45, freq: 500, sweep: 0.1, wet: 0.8 }); click(3000, 0.2); },
-  radio: () => { burst({ dur: 0.12, gain: 0.06, freq: 2200, type: 'bandpass', q: 4 }); tone({ f0: 1200, dur: 0.05, gain: 0.03, type: 'square', delay: 0.12 }); },
+  chatter: () => { burst({ dur: 0.12, gain: 0.06, freq: 2200, type: 'bandpass', q: 4 }); tone({ f0: 1200, dur: 0.05, gain: 0.03, type: 'square', delay: 0.12 }); },
   // Menu UI.
   tap: () => click(2500, 0.1),
   reward: () => { [784, 988, 1175, 1568].forEach((f, i) => tone({ f0: f, dur: 0.3, gain: 0.1, type: 'triangle', delay: i * 0.06, wet: 0.6 })); },
@@ -225,7 +225,7 @@ export function ambience(on) {
     a.g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
     setTimeout(() => { try { a.src.stop(); } catch { /* ignore */ } }, 600);
   }
-  if (on && performance.now() > ambT) { ambT = performance.now() + 4000 + Math.random() * 7000; sfx('radio', 1); }
+  if (on && performance.now() > ambT) { ambT = performance.now() + 4000 + Math.random() * 7000; sfx('chatter', 1); }
 }
 
 export function sfx(name, minGap = 0.035) {
