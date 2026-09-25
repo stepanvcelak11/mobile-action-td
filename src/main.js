@@ -3850,8 +3850,8 @@ function wardenCut(e) {
 
 /* ================================================================ Boss fights (G3) */
 // map bosses with their own model and mechanic (see updateBoss)
-const MAP_BOSS = { harbor: 'battleship', neon: 'hackerdrone', dunes: 'sandworm' };
-const BOSS_NAMES = { harbor: 'Iron Leviathan', valley: 'The Warden of Green', dunes: 'Sand Worm Shai-Rakh', frost: 'Frost Colossus', canyon: 'Canyon Crusher', swamp: 'Bog Hydra', magma: 'Magmaw', neon: 'Hacker Drone X-0' };
+const MAP_BOSS = { harbor: 'battleship', neon: 'hackerdrone', dunes: 'sandworm', frozen: 'battleship' };
+const BOSS_NAMES = { harbor: 'Iron Leviathan', valley: 'The Warden of Green', dunes: 'Sand Worm Shai-Rakh', frost: 'Frost Colossus', canyon: 'Canyon Crusher', swamp: 'Bog Hydra', magma: 'Magmaw', neon: 'Hacker Drone X-0', frozen: 'Icebreaker Kraken', volcano: 'Magma Titan' };
 const CORE_CYCLE = 7.5, CORE_OPEN = 2.5;
 function initBoss(e) {
   e.bossName = (BOSS_NAMES[G.map.id] || 'The Serpent') + (G.enemies.filter((o) => o.type === 'boss').length > 1 ? ' II' : '');

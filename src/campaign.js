@@ -17,12 +17,13 @@ export const CHAPTERS = [
   { name: 'Chapter 2 · Cold Steel', maps: ['frost', 'canyon'] },
   { name: 'Chapter 3 · The Serpent\'s Nest', maps: ['swamp', 'magma', 'neon'] },
   { name: 'Season 2 · Storm Front', maps: ['jungle', 'storm', 'harbor'] },
+  { name: 'Season 3 · Fire and Ice', maps: ['frozen', 'volcano'] },
 ];
 // Node positions on the world map (0–100 × 0–60 units).
 const NODES = {
-  valley: [8, 44], dunes: [20, 30], frost: [32, 14], canyon: [43, 34], swamp: [54, 50], magma: [65, 30], neon: [75, 12], jungle: [84, 30], storm: [92, 50], harbor: [99, 22],
+  valley: [8, 44], dunes: [20, 30], frost: [32, 14], canyon: [43, 34], swamp: [54, 50], magma: [65, 30], neon: [75, 12], jungle: [84, 30], storm: [92, 50], harbor: [99, 22], frozen: [90, 6], volcano: [99, 58],
 };
-const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast', harbor: 'Iron Harbor' };
+const NAMES = { valley: 'Green Valley', dunes: 'Dune Sea', frost: 'Frostbite Pass', canyon: 'Red Canyon', swamp: 'Toxic Swamp', magma: 'Magma Core', neon: 'Neon Ruins', jungle: 'Jungle Delta', storm: 'Storm Coast', harbor: 'Iron Harbor', frozen: 'Frozen Harbor', volcano: 'Volcano Island' };
 
 // Two voices: HQ (your side) and VIPER (the enemy commander).
 const TALK = {
@@ -53,6 +54,14 @@ const TALK = {
   neon: {
     before: [['VIPER', 'Three gates. One base. Night. Welcome to my home.'], ['HQ', 'Last stand, Commander. Make every shot count.']],
     after: [['HQ', 'Viper is down. The Serpent Line is broken. Outstanding work, Commander.'], ['HQ', 'Hard mode is open on every map with 3 stars. The swarm always comes back.']],
+  },
+  frozen: {
+    before: [['HQ', 'Season three, Commander. The swarm crossed the pack ice to a frozen harbor.'], ['VIPER', 'My ships break the ice for my walkers. You cannot watch both.']],
+    after: [['HQ', 'The harbor is ours. Smoke on the horizon: the island volcano is waking up.']],
+  },
+  volcano: {
+    before: [['HQ', 'Two roads, two narrow bridges over the lava. Hold the bridges and you hold the island.'], ['VIPER', 'Fire and stone, Commander. Let us see which one breaks first.']],
+    after: [['HQ', 'The island is quiet and Viper is running out of places to hide. Outstanding work, Commander.']],
   },
   jungle: {
     before: [['HQ', 'Season two, Commander. A storm front is pushing the swarm south into the delta.'], ['VIPER', 'Did you miss me? My priests will keep my children alive.']],

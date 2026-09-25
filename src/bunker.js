@@ -180,6 +180,7 @@ function tableMap(world, map, g, TW, TD) {
     : [c.width / 2 - (l.x - cx) * sc, c.height / 2 - (l.z - cz) * sc]);
   const wp = (x, z) => toPx(loc(x, z));
   const roads = map.roads.map((r) => r.map(([x, z]) => wp(x, z)));
+  const lavaPx = map.lava ? map.lava.map(([x, z]) => wp(x, z)) : null;
   const paths = (world.paths || []).map((p) => (p.pts || []).map((v) => wp(v.x, v.z)));
   /** uv on the table top -> world position on the ground */
   function uvToWorld(uv) {
@@ -204,6 +205,7 @@ function tableMap(world, map, g, TW, TD) {
       x2.strokeStyle = col; x2.lineWidth = w; x2.lineJoin = 'round'; x2.lineCap = 'round'; x2.setLineDash(dash || []);
       x2.beginPath(); pl.forEach(([x, y], i) => (i ? x2.lineTo(x, y) : x2.moveTo(x, y))); x2.stroke();
     };
+    if (lavaPx) { line(lavaPx, 5.5 * sc, '#5a1a0a'); line(lavaPx, 3.2 * sc, '#ff6a1a'); line(lavaPx, 1.2 * sc, '#ffc04a'); }
     const rs = paths.some((p) => p.length > 1) ? paths : roads;
     for (const r of rs) line(r, 4.2 * sc + 6, '#0a1a12');
     for (const r of rs) line(r, 4.2 * sc, '#8a7650');

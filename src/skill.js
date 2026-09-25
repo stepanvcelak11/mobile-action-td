@@ -34,6 +34,8 @@ export const CHALLENGES = {
   jungle: { text: 'Win with at most 3 enemies getting through', check: (m) => m.leaks <= 3 },
   storm: { text: 'Win with 150 manual kills', check: (m) => m.manualKills >= 150 },
   harbor: { text: 'Win without letting a single ship through', check: (m) => m.leaks === 0 },
+  frozen: { text: 'Win with at most 2 enemies getting through', check: (m) => m.leaks <= 2 },
+  volcano: { text: 'Win with 120 manual kills', check: (m) => m.manualKills >= 120 },
 };
 
 /* --------------------------------------------------------------- Mastery */

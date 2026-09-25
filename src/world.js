@@ -221,6 +221,26 @@ function decorGeometries(kind) {
     br3.rotateX(0.9); br3.translate(0, 2.0, 0.35);
     return { a: t, b: mergeGeos([br1, br2, br3]), aColor: '#3a3226', bColors: ['#3a3226', '#2e281e'] };
   }
+  if (kind === 'palm') {
+    // a leaning, segmented trunk and a crown of drooping fronds
+    const segs = [];
+    for (let i = 0; i < 4; i++) {
+      const s = new THREE.CylinderGeometry(0.13 - i * 0.015, 0.16 - i * 0.015, 0.8, 6);
+      s.translate(i * 0.12, 0.4 + i * 0.78, 0);
+      segs.push(s);
+    }
+    const fronds = [];
+    for (let i = 0; i < 6; i++) {
+      const f = new THREE.ConeGeometry(0.28, 1.9, 4);
+      f.scale(1, 1, 0.25);
+      f.translate(0, 0.95, 0);
+      f.rotateZ(1.25);
+      f.rotateY((i / 6) * Math.PI * 2);
+      f.translate(0.48, 3.25, 0);
+      fronds.push(f);
+    }
+    return { a: mergeGeos(segs), b: mergeGeos(fronds), aColor: '#7a5a3a', bColors: ['#3f8a3a', '#4f9a3a', '#5aa648', '#357a30'] };
+  }
   if (kind === 'lamp') {
     const post = new THREE.CylinderGeometry(0.07, 0.1, 3.4, 5);
     post.translate(0, 1.7, 0);
@@ -557,9 +577,12 @@ export function buildWorld(map, theme) {
   stdCache = new Map();
   const root = new THREE.Group();
   const paths = map.roads.map((nodes) => new RoadPath(nodes));
+  // a lava river (Volcano Island) is not walked, but nothing may be built or grow on it
+  const lava = map.lava ? new RoadPath(map.lava) : null;
   const roadDist = (x, z) => {
     let d = Infinity;
     for (const p of paths) d = Math.min(d, p.distanceTo(x, z));
+    if (lava) d = Math.min(d, lava.distanceTo(x, z) - 1.2);
     return d;
   };
   const rand = mulberry(1337 + map.id.length * 101);
@@ -575,10 +598,12 @@ export function buildWorld(map, theme) {
   paths.forEach((path, i) => {
     if ((map.water || []).includes(i)) {
       // a canal: sandy banks, shallow edge, deep blue middle
+      const [bank, shallow, mid, deep] = theme.canal || ['#c8b27a', '#6ac0e8', '#2f8fd0', '#1f6fb8'];
       const canal = new THREE.Mesh(ribbon(path, [
-        { off: -hw - 1.4, color: '#c8b27a' }, { off: -hw - 0.6, color: '#6ac0e8' }, { off: -1.0, color: '#2f8fd0' },
-        { off: 0, color: '#1f6fb8' }, { off: 1.0, color: '#2f8fd0' }, { off: hw + 0.6, color: '#6ac0e8' }, { off: hw + 1.4, color: '#c8b27a' },
+        { off: -hw - 1.4, color: bank }, { off: -hw - 0.6, color: shallow }, { off: -1.0, color: mid },
+        { off: 0, color: deep }, { off: 1.0, color: mid }, { off: hw + 0.6, color: shallow }, { off: hw + 1.4, color: bank },
       ], 0.03), waterM);
+      if (theme.floes) root.add(buildFloes(path, hw, mulberry(99 + i)));
       canal.receiveShadow = true;
       root.add(canal);
       return;
@@ -592,6 +617,7 @@ export function buildWorld(map, theme) {
     root.add(road);
   });
 
+  const lavaAnim = lava ? buildLava(root, lava, paths) : null;
   const base = buildBase(paths[0]);
   root.add(base);
   const plotPositions = buildPlots(paths, roadDist, base.position);
@@ -673,6 +699,7 @@ export function buildWorld(map, theme) {
     if (poolAnim) poolAnim(t, dt);
     if (birds) birds.update(dt, t);
     for (const a of landmarkAnim) a(dt, t);
+    if (lavaAnim) lavaAnim(t);
     const cr = base.userData.crystal;
     cr.rotation.y += dt * 1.2;
     cr.position.y = 9 + Math.sin(t * 2) * 0.25;
@@ -878,6 +905,46 @@ function buildLandmark(root, kind, rand, theme) {
     const v2 = mesh(root, new THREE.ConeGeometry(18, 20, 10), std('#241818', { roughness: 1 }), -55, 9, -45, false);
     v2.rotation.y = 0.3;
     anim.push((dt, t) => { lavaTop.material.color.setHSL(0.05, 1, 0.5 + 0.08 * Math.sin(t * 2)); });
+  } else if (kind === 'icebergs') {
+    const ice = new THREE.MeshStandardMaterial({ color: '#e8f6ff', emissive: '#4a8ab8', emissiveIntensity: 0.12, roughness: 0.3, metalness: 0.05, flatShading: true });
+    const sea = mesh(root, new THREE.RingGeometry(46, 160, 40), new THREE.MeshStandardMaterial({ color: '#2a6a98', roughness: 0.2, metalness: 0.3 }), 0, 0.4, 0, false);
+    sea.rotation.x = -Math.PI / 2;
+    for (let i = 0; i < 16; i++) {
+      const [x, z] = onEdge(rand, 38);
+      const s = 2 + rand() * 5;
+      const berg = mesh(root, new THREE.DodecahedronGeometry(s, 0), ice, x, hillish(x, z) + s * 0.35, z);
+      berg.scale.set(1, 0.7 + rand() * 0.8, 1);
+      berg.rotation.y = rand() * 3;
+    }
+    // a lighthouse on the far shore with a turning beam
+    const lh = new THREE.Group();
+    lh.position.set(36, hillish(36, -24), -24);
+    mesh(lh, new THREE.CylinderGeometry(1.0, 1.5, 9, 10), std('#f2f2f2'), 0, 4.5, 0);
+    for (let k = 0; k < 3; k++) mesh(lh, new THREE.CylinderGeometry(1.08 - k * 0.12, 1.2 - k * 0.12, 1.0, 10), std('#c8303a'), 0, 1.5 + k * 3, 0);
+    mesh(lh, new THREE.CylinderGeometry(0.8, 0.8, 1.2, 10), new THREE.MeshBasicMaterial({ color: '#fff4c0', toneMapped: false }), 0, 9.6, 0, false);
+    mesh(lh, new THREE.ConeGeometry(1.1, 1.3, 10), std('#2a2a30'), 0, 10.9, 0);
+    const beam = mesh(lh, new THREE.ConeGeometry(2.4, 18, 12, 1, true).rotateZ(Math.PI / 2).translate(9, 0, 0), new THREE.MeshBasicMaterial({ color: '#fff4c0', transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }), 0, 9.6, 0, false);
+    root.add(lh);
+    anim.push((dt) => { beam.rotation.y += dt * 0.6; });
+  } else if (kind === 'island') {
+    // the erupting volcano behind the map, and the sea all around the island
+    const sea = mesh(root, new THREE.RingGeometry(50, 160, 40), new THREE.MeshStandardMaterial({ color: '#1f5a7a', roughness: 0.25, metalness: 0.3 }), 0, 0.6, 0, false);
+    sea.rotation.x = -Math.PI / 2;
+    const v = mesh(root, new THREE.CylinderGeometry(7, 30, 30, 14, 1, true), std('#2e2622', { roughness: 1 }), 8, 14, -72, false);
+    v.material.side = THREE.DoubleSide;
+    const lavaTop = mesh(root, new THREE.CircleGeometry(7, 14), new THREE.MeshBasicMaterial({ color: '#ff6a1a', toneMapped: false }), 8, 28.6, -72, false);
+    lavaTop.rotation.x = -Math.PI / 2;
+    for (let k = 0; k < 4; k++) {
+      const flow = mesh(root, new THREE.BoxGeometry(1.2, 0.3, 26), new THREE.MeshBasicMaterial({ color: '#ff5a10', toneMapped: false }), 8 + (k - 1.5) * 6, 16, -60, false);
+      flow.rotation.set(-0.95, (k - 1.5) * 0.25, 0);
+    }
+    const plume = mesh(root, new THREE.ConeGeometry(9, 26, 10, 1, true), new THREE.MeshBasicMaterial({ color: '#3a3032', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }), 8, 42, -72, false);
+    plume.rotation.x = Math.PI;
+    anim.push((dt, t) => {
+      lavaTop.material.color.setHSL(0.05, 1, 0.5 + 0.1 * Math.sin(t * 2.3));
+      plume.rotation.y += dt * 0.15;
+      plume.scale.set(1 + 0.05 * Math.sin(t), 1, 1 + 0.05 * Math.sin(t));
+    });
   } else if (kind === 'city') {
     const win = document.createElement('canvas');
     win.width = 64; win.height = 128;
@@ -912,6 +979,81 @@ function buildLandmark(root, kind, rand, theme) {
 }
 
 function hillish(x, z) { return hillY(x, z); }
+
+/** Ice floes drifting along the banks of a frozen canal (one merged mesh). */
+function buildFloes(path, hw, rand) {
+  const geos = [];
+  const p = new THREE.Vector3(), t = new THREE.Vector3();
+  for (let i = 0; i < 46; i++) {
+    path.sample(rand() * path.length, p, t);
+    const side = rand() < 0.5 ? -1 : 1;
+    const off = (hw - 0.2 + rand() * 1.3) * side;
+    const r = 0.35 + rand() * 0.75;
+    const g = new THREE.CylinderGeometry(r, r * 1.08, 0.14, 5 + ((rand() * 3) | 0));
+    g.rotateY(rand() * 3);
+    g.translate(p.x - t.z * off, 0.06, p.z + t.x * off);
+    geos.push(g.toNonIndexed());
+  }
+  const m = new THREE.Mesh(mergeGeos(geos), new THREE.MeshStandardMaterial({ color: '#f4fbff', roughness: 0.35, metalness: 0.05, flatShading: true }));
+  m.receiveShadow = true;
+  return m;
+}
+
+/** A glowing lava river with dark crusted banks, and a bridge wherever a road crosses it. */
+function buildLava(root, lava, paths) {
+  const lavaM = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  const river = new THREE.Mesh(ribbon(lava, [
+    { off: -3.2, color: '#1c1614' }, { off: -2.4, color: '#4a1a0a' }, { off: -1.5, color: '#e8420e' },
+    { off: 0, color: '#ffb03a' }, { off: 1.5, color: '#e8420e' }, { off: 2.4, color: '#4a1a0a' }, { off: 3.2, color: '#1c1614' },
+  ], 0.02), lavaM);
+  root.add(river);
+  // bridges: find where each road passes over the river
+  const stone = new THREE.MeshStandardMaterial({ color: '#5a524a', roughness: 1, flatShading: true });
+  const wood = new THREE.MeshStandardMaterial({ color: '#6a4a2e', roughness: 0.9, flatShading: true });
+  const chain = new THREE.MeshStandardMaterial({ color: '#2a2a2e', metalness: 0.6, roughness: 0.4, flatShading: true });
+  for (const path of paths) {
+    let best = null;
+    for (let i = 0; i < path.pts.length; i += 2) {
+      const q = path.pts[i];
+      const d = lava.distanceTo(q.x, q.z);
+      if (d < 1.0 && (!best || d < best.d)) best = { d, i };
+    }
+    if (!best) continue;
+    const a = path.pts[Math.max(0, best.i - 2)], b = path.pts[Math.min(path.pts.length - 1, best.i + 2)], c = path.pts[best.i];
+    const ang = Math.atan2(b.x - a.x, b.z - a.z);
+    const g = new THREE.Group();
+    g.position.set(c.x, 0, c.z);
+    g.rotation.y = ang;
+    const L = 8.5, Wd = 4.6;
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(Wd, 0.14, L), wood);
+    deck.position.y = 0.06;
+    deck.receiveShadow = true;
+    g.add(deck);
+    for (let k = 0; k < 9; k++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(Wd + 0.1, 0.04, 0.12), stone);
+      plank.position.set(0, 0.15, -L / 2 + 0.5 + k * ((L - 1) / 8));
+      g.add(plank);
+    }
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const tower = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.6, 0.6), stone);
+        tower.position.set(sx * (Wd / 2 + 0.3), 0.8, sz * (L / 2 - 0.3));
+        tower.castShadow = true;
+        g.add(tower);
+      }
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, L - 0.6), chain);
+      rail.position.set(sx * (Wd / 2 + 0.3), 1.0, 0);
+      g.add(rail);
+      for (let k = 1; k < 6; k++) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.1), chain);
+        post.position.set(sx * (Wd / 2 + 0.3), 0.5, -L / 2 + k * (L / 6));
+        g.add(post);
+      }
+    }
+    root.add(g);
+  }
+  return (t) => { lavaM.color.setScalar(0.85 + 0.15 * Math.sin(t * 1.7)); };
+}
 
 function buildFlowers(root, roadDist, plotPositions, rand) {
   const n = 380;
@@ -962,6 +1104,7 @@ function addWind(material, amount, flat = false) {
 
 // Birds per decor: colour, count, size.
 const BIRDS = {
+  palm: { color: '#e8e8e8', n: 8, size: 0.7 }, // gulls
   pine: { color: '#2b2f36', n: 11, size: 0.65 },
   snowpine: { color: '#3a3f48', n: 7, size: 0.6 },
   cactus: { color: '#2a2220', n: 4, size: 0.9 }, // vultures

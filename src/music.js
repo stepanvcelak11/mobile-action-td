@@ -23,6 +23,8 @@ const THEMES = {
   jungle: { root: 46, prog: [0, 3, 6, 5], bpm: 108, lead: 'triangle', cut: 1600 },
   storm: { root: 44, prog: [0, 6, 3, 1], bpm: 116, lead: 'sawtooth', cut: 1300 },
   coast: { root: 48, prog: [0, 5, 6, 4], bpm: 100, lead: 'sine', cut: 1900 },
+  ice: { root: 54, prog: [0, 4, 5, 3], bpm: 94, lead: 'sine', cut: 2600 },       // glassy and cold
+  volcanic: { root: 41, prog: [0, 1, 6, 5], bpm: 126, lead: 'sawtooth', cut: 900 }, // low, driving, phrygian bite
 };
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 const PHRYG = [0, 1, 3, 5, 7, 8, 10];

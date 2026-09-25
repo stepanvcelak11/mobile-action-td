@@ -375,6 +375,20 @@ export const THEMES = {
     hemi: ['#e0f4ff', '#4a6a30', 0.8], exposure: 1.08, decor: 'pine', rock: '#9aa0a6', fx: 'petals',
     pools: { color: '#3aa8e0', color2: '#6ad0ff', glow: false, n: 2 }, landmark: 'windmill', flowers: true,
   },
+  // Season 3
+  ice: {
+    sky: '#cfe4f2', skyTop: '#6f9cc8', fog: [48, 125], groundA: '#e4edf3', groundB: '#d2e0ea', edge: '#9fb2c2', hill: '#f2f7fb',
+    road: ['#5f6f80', '#7f8f9e', '#93a2b0', '#6c7c8c'], sun: ['#f4fbff', 2.2], amb: 0.62,
+    hemi: ['#e8f4ff', '#7a8ca0', 0.75], exposure: 0.92, decor: 'snowpine', rock: '#8a9aa8', fx: 'snow',
+    pools: { color: '#9fd4ee', color2: '#dff4ff', glow: false, n: 3 }, landmark: 'icebergs',
+    canal: ['#e6f2f8', '#a8dcf0', '#4aa0d0', '#2a6ea8'], floes: true,
+  },
+  volcanic: {
+    sky: '#c89a82', skyTop: '#4a3a4a', fog: [45, 120], groundA: '#3e3a34', groundB: '#4d5a3a', edge: '#2a2420', hill: '#2e2a28',
+    road: ['#2a2622', '#4a4038', '#584c42', '#3a332c'], sun: ['#ffd0a0', 2.3], amb: 0.5,
+    hemi: ['#ffc8a0', '#2a1a14', 0.7], exposure: 1.05, decor: 'palm', rock: '#3a3632', fx: 'embers',
+    pools: { color: '#ff5a1a', color2: '#ffb03a', glow: true, n: 5, rim: true }, landmark: 'island',
+  },
   storm: {
     sky: '#6a7a8a', skyTop: '#2a3444', fog: [40, 110], groundA: '#4a5a4a', groundB: '#566656', edge: '#3a3a34', hill: '#44504a',
     road: ['#3a3a3a', '#555552', '#5f5f5a', '#8a8a80'], sun: ['#c8d4ff', 1.7], amb: 0.5,
@@ -450,5 +464,23 @@ export const MAPS = [
       [[-28, -14], [-16, -9], [-18, 1], [-6, 3], [2, -6], [12, -10], [20, -4], [24, 0]],
       [[-28, 13], [-16, 15], [-4, 12], [6, 14], [14, 10], [20, 5], [24, 1]],
     ],
+  },
+  // Season 3 · Fire and Ice
+  {
+    id: 'frozen', name: 'Frozen Harbor', sub: 'An icebreaker lane through the floes and a switchback road on the shore. Ships and walkers at once.', theme: 'ice', season: 3,
+    waves: 16, bosses: [8, 16], hpScale: 1.35, intro: 9, budget: 0.85, water: [1],
+    roads: [
+      [[-28, -15], [-18, -8], [-24, 0], [-12, 2], [-8, -10], [2, -14], [6, -4], [14, -8], [20, -2], [24, 0]],
+      [[-28, 15], [-18, 12], [-8, 16], [2, 10], [10, 14], [18, 8], [24, 1]],
+    ],
+  },
+  {
+    id: 'volcano', name: 'Volcano Island', sub: 'Two roads cross a river of lava on narrow bridges. The island is erupting.', theme: 'volcanic', season: 3,
+    waves: 18, bosses: [9, 18], hpScale: 1.45, intro: 10, budget: 0.85,
+    roads: [
+      [[-28, -12], [-18, -16], [-8, -10], [-2, -15], [8, -10], [6, -3], [14, -2], [24, 0]],
+      [[-28, 12], [-18, 16], [-10, 8], [-2, 13], [8, 10], [14, 4], [24, 0]],
+    ],
+    lava: [[-3, -22], [0, -10], [-3, -2], [1, 6], [-2, 22]],
   },
 ];
