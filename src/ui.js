@@ -357,7 +357,22 @@ function renderArmory(c) {
   c.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => { armoryTab = b.dataset.sub; renderMenu(); }));
   const body = $('arm-body');
   if (armoryTab === 'turrets') {
-    body.innerHTML = `${deckHtml('a-deck')}<div class="tcards">${TURRET_ORDER.map((id) => {
+    const F = armFilter();
+    const RANK = { common: 0, rare: 1, epic: 2, mythic: 3, legendary: 4 };
+    let ids = TURRET_ORDER.filter((id) => (F.rar === 'all' || (TURRETS[id].rarity || 'common') === F.rar) && (!F.owned || P.unlocked[id]));
+    const by = {
+      rarity: (a, b) => RANK[TURRETS[b].rarity || 'common'] - RANK[TURRETS[a].rarity || 'common'],
+      level: (a, b) => (P.unlocked[b] ? tlevel(b) : 0) - (P.unlocked[a] ? tlevel(a) : 0),
+      cost: (a, b) => TURRETS[a].cost - TURRETS[b].cost,
+      name: (a, b) => TURRETS[a].name.localeCompare(TURRETS[b].name),
+    }[F.sort];
+    if (by) ids = [...ids].sort((a, b) => by(a, b) || TURRET_ORDER.indexOf(a) - TURRET_ORDER.indexOf(b));
+    const chip = (k, v, label, on) => `<button class="af-chip${on ? ' on' : ''}" data-af="${k}:${v}" ${v !== 'all' && k === 'rar' ? `style="--rc:${RARITY_COLORS[v]}"` : ''}>${label}</button>`;
+    const bar = `<div class="afbar">
+      <div class="af-row">${['all', 'common', 'rare', 'epic', 'mythic', 'legendary'].map((r) => chip('rar', r, r === 'all' ? 'ALL' : r.toUpperCase(), F.rar === r)).join('')}</div>
+      <div class="af-row"><span class="af-l">SORT</span>${[['order', 'DEFAULT'], ['rarity', 'RARITY'], ['level', 'LEVEL'], ['cost', 'COST'], ['name', 'A–Z']].map(([k, n]) => chip('sort', k, n, F.sort === k)).join('')}
+        ${chip('owned', F.owned ? '0' : '1', F.owned ? '✓ OWNED' : 'OWNED', F.owned)}<span class="af-n">${ids.length}/${TURRET_ORDER.length}</span></div></div>`;
+    body.innerHTML = `${deckHtml('a-deck')}${bar}<div class="tcards">${ids.map((id) => {
       const t = TURRETS[id];
       const owned = !!P.unlocked[id];
       const L = tlevel(id);
@@ -373,6 +388,14 @@ function renderArmory(c) {
       </button>`;
     }).join('')}</div><p class="menu-note">Collect turret cards from chests, then level turrets up with coins: +7% damage and +1.5% range per level. Level ${POWER_UNLOCK.gadget} unlocks Tactics, ${POWER_UNLOCK.star} Traits, ${POWER_UNLOCK.gear1} and ${POWER_UNLOCK.gear2} Mod chips, ${POWER_UNLOCK.hyper} Overload.</p>`;
     body.querySelectorAll('.tcard').forEach((b) => b.addEventListener('click', () => { detailTab = 'info'; openTurretDetail(b.dataset.t, null); }));
+    body.querySelectorAll('[data-af]').forEach((b) => b.addEventListener('click', () => {
+      const [k, v] = b.dataset.af.split(':');
+      const f = armFilter();
+      if (k === 'owned') f.owned = v === '1'; else f[k] = v;
+      try { localStorage.setItem('serpentline.armoryFilter', JSON.stringify(f)); } catch {}
+      sfx('tap');
+      renderMenu();
+    }));
     $('a-deck').addEventListener('click', () => openDeck());
   } else if (armoryTab === 'abilities') {
     body.innerHTML = `${loadoutHtml('a-loadout')}<div class="abcards">${ABILITY_ORDER.map((a) => {
@@ -413,6 +436,12 @@ function renderArmory(c) {
     }).join('')}</div><p class="menu-note">Perks are bought with coins. Every commander level pays 120 coins and every new star 60.</p>`;
     body.querySelectorAll('[data-perk]').forEach((b) => b.addEventListener('click', () => { if (buyPerk(b.dataset.perk)) renderMenu(); }));
   }
+}
+
+function armFilter() {
+  let f = null;
+  try { f = JSON.parse(localStorage.getItem('serpentline.armoryFilter') || 'null'); } catch {}
+  return { rar: 'all', sort: 'order', owned: false, ...(f || {}) };
 }
 
 function powerDots(id) {
@@ -534,7 +563,7 @@ function openTurretDetail(id, sheet = detailSheet) {
     const draw = () => {
       sel = renderTree($('bs-tree'), { type: id, picks: [0, 0, 0] }, {
         gold: Infinity, cost: () => 0, buy: () => {}, sel, rootIcon: turretIcon(id),
-        onSelect: (v) => { sel = v; sfx('tap'); draw(); },
+        onSelect: (v) => { sel = v; sfx('tap'); draw(); $('bs-tree').classList.add('picked'); },
       });
       // preview only: upgrades are bought in a match
       const b = $('bs-tree').querySelector('.tbuy');
@@ -630,7 +659,7 @@ function sheetHtml(id, sheet, { owned, L, ps, tp, lb }) {
         <div class="pw-act">${locked ? lockTag(POWER_UNLOCK.hyper) : ps.hyper ? '<span class="pw-eq">✓ OWNED</span>' : `<button class="btn ${P.coins >= POWER_PRICE.hyper ? 'primary' : ''}" data-buy="hyper:0" ${P.coins >= POWER_PRICE.hyper ? '' : 'disabled'}>UNLOCK · ${coinIcon()}${POWER_PRICE.hyper}</button>`}</div>
       </div></div>`;
   }
-  if (sheet === 'tree') return `<p class="pw-intro">Upgrades are bought with <b>gold during a match</b>: hold your turret, or tap ⬆ inside it. Up to <b>10</b> upgrades, and only <b>one path</b> can go past tier 3 to its ★ signature.</p><div id="bs-tree" class="bs-tree"></div>`;
+  if (sheet === 'tree') return `<div id="bs-tree" class="bs-tree" style="--tp:url('${turretPortrait(id, skinOf(id))}')"></div>`;
   if (sheet === 'skins') return `<div class="skins">${SKIN_ORDER.map((sk) => {
       const s = SKINS[sk];
       const have = !!P.skins[sk];
@@ -927,6 +956,7 @@ export function openChest(kind) {
     $('ch-left').textContent = '';
     $('chest-items').innerHTML = rewards.map((r, i) => `<div class="citem t${r.tier}${r.isNew ? ' new' : ''}${r.skin ? ' skin' : ''}" style="--rc:${r.color};animation-delay:${i * 60}ms">${r.art}<b>${r.skin ? 'SKIN' : r.prefix + r.n}</b><small>${r.label}</small></div>`).join('');
     ov.querySelector('.ch-stage').classList.add('small');
+    ov.querySelector('.chest-stage').classList.add('sum');
     $('chest-ok').style.display = '';
     sfx('reward');
   };
@@ -979,7 +1009,8 @@ export function openChest(kind) {
     }
     if (idx >= 0 && idx < rewards.length) next();
   };
-  ov.querySelector('.chest-stage').addEventListener('click', (ev) => { if (!ev.target.closest('#chest-ok')) tap(ev); });
+  // tap anywhere on the screen (not only on the chest in the middle)
+  ov.onclick = (ev) => { if (!ev.target.closest('#chest-ok') && !ev.target.closest('.chest-items')) tap(ev); };
   setTimeout(() => { if (!opened && taps === 0) open(); }, 2600);
   $('chest-ok').addEventListener('click', (ev) => { ev.stopPropagation(); stopFx?.(); ov.classList.remove('show'); renderMenu(); });
 }

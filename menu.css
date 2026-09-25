@@ -425,3 +425,66 @@ body[data-theme="dark"] .bs-chips span { background: rgba(8, 24, 64, 0.35); }
   body.army-ctl .ac-fire { right: calc(var(--sar, 0px) + 96px); }
   body.army-ctl .ac-acts { right: calc(var(--sar, 0px) + 208px); }
 }
+
+/* ==================================================================== 25. 9. feedback: contrast, patterns, tree, filter, chest */
+/* A playful background pattern (stars + bolts + diagonal stripes) instead of flat blue everywhere */
+:root {
+  --sl-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.07' stroke-width='3' stroke-linejoin='round'%3E%3Cpath d='M30 14l5 10 11 2-8 8 2 11-10-5-10 5 2-11-8-8 11-2z'/%3E%3Cpath d='M92 70l-10 16h9l-6 16 16-20h-9l6-12z'/%3E%3Ccircle cx='88' cy='22' r='7'/%3E%3Cpath d='M18 80h14M25 73v14'/%3E%3C/g%3E%3C/svg%3E"),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0 16px, transparent 16px 32px);
+}
+body[data-theme="dark"] .card-panel, body[data-theme="dark"] .quest, body[data-theme="dark"] .dly, body[data-theme="dark"] .cslot,
+body[data-theme="dark"] #overlay-body:not(.bs-host), body[data-theme="dark"] .map-chip {
+  background-image: var(--sl-pattern), linear-gradient(180deg, #3a7ee8, #2256c0) !important;
+}
+body[data-theme="dark"] .bottomnav { background-image: var(--sl-pattern), linear-gradient(180deg, #1c4fb0, #123a88); }
+.ov.full #overlay-body { background: var(--sl-pattern), radial-gradient(120% 90% at 25% 35%, color-mix(in srgb, var(--tc, #4a8ef0) 45%, #3f86f0), #163f99 70%) !important; }
+
+/* Sheets (tree, skins, how to play, tactics, mods): dark navy so icons and text stand out */
+.bs-sheet { background: var(--sl-pattern), linear-gradient(180deg, #16306e, #0b1a40) !important; border: 3px solid #07122e !important; }
+.bs-sheet .pw, .bs-sheet .mod, .bs-sheet .mod-slot, .bs-sheet .ovl, .bs-sheet .ht-step, .bs-sheet .ht-vs, .bs-sheet .skin { background: rgba(255, 255, 255, 0.07); }
+.bs-sheet .skin { border-color: color-mix(in srgb, var(--rc) 80%, transparent); }
+.bs-sheet .skin.sel { background: color-mix(in srgb, var(--rc) 22%, rgba(255, 255, 255, 0.06)); }
+.bs-sheet .ht-demo { background: #06102a; }
+/* abilities tab: darker cards, readable text */
+body[data-theme="dark"] .abcard { background: var(--sl-pattern), linear-gradient(180deg, color-mix(in srgb, var(--ac) 30%, #16306e), #0d1f4c) !important; }
+body[data-theme="dark"] .abc-desc, body[data-theme="dark"] .abc-now { color: #dfe9ff; }
+
+/* Upgrade tree: no text walls, the turret itself as a faded backdrop, node info only after a tap */
+.bs-tree { position: relative; isolation: isolate; min-height: 260px; }
+.bs-tree::before { content: ""; position: absolute; inset: -10px -10px 0; z-index: -1; background: var(--tp) center 40% / min(380px, 90%) no-repeat; opacity: 0.22; filter: saturate(1.2); }
+.bs-tree .tinfo { display: none; }
+.bs-tree.picked .tinfo { display: flex; background: rgba(6, 14, 36, 0.85); }
+.bs-tree .tnode, .bs-tree .troot { background-color: #0d1f4c; }
+.bs-tree .tnode:not(.owned):not(.on) svg { opacity: 0.95; }
+
+/* Armory filter + sort bar */
+.afbar { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 10px; }
+.af-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.af-l, .af-n { font: 800 11px/1 'Nunito', system-ui, sans-serif; letter-spacing: 0.1em; color: #cfe0ff; }
+.af-n { margin-left: auto; }
+.af-chip { border: 2px solid #0b2a66; border-radius: 999px; padding: 6px 11px; background: linear-gradient(180deg, #4a8ef0, #2a62cc); color: #fff;
+  font: 400 12px/1 'Lilita One', system-ui, sans-serif; letter-spacing: 0.04em; box-shadow: 0 2px 0 #0b2a66; }
+.af-chip[style*="--rc"] { background: linear-gradient(180deg, color-mix(in srgb, var(--rc) 70%, #4a8ef0), color-mix(in srgb, var(--rc) 45%, #1d4aa6)); }
+.af-chip.on { background: linear-gradient(180deg, #ffe45c, #ffb21a) !important; color: #3a2200; }
+
+/* Chest: fits the screen (no clipping), in landscape the chest sits left and the card right; tap anywhere */
+.ov.chest { overflow: hidden !important; cursor: pointer; }
+.ov.chest .chest-stage { position: absolute; inset: 0; width: auto; margin: 0; padding: calc(var(--sat, 0px) + 14px) 16px calc(var(--sab, 0px) + 14px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.ov.chest .chest-stage > .kicker { margin-bottom: 4px; }
+.ov.chest .chest-items { max-height: 52vh; overflow-y: auto; touch-action: pan-y; cursor: default; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .ov.chest .chest-stage { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr auto; align-items: center; justify-items: center; column-gap: 24px; }
+  .ov.chest .chest-stage > .kicker { grid-column: 1 / -1; grid-row: 1; }
+  .ov.chest .ch-stage { grid-column: 1; grid-row: 2; height: 200px; }
+  .ov.chest .chest-big { width: 130px; }
+  .ov.chest .ch-rays { width: 300px; height: 300px; }
+  .ov.chest .ch-reveal { grid-column: 2; grid-row: 2; }
+  .ov.chest .chest-hint { grid-column: 1; grid-row: 3; }
+  .ov.chest .ch-left { grid-column: 2; grid-row: 3; }
+  .ov.chest .chest-stage:not(:has(.ch-card)):not(.sum) .ch-stage { grid-column: 1 / -1; }
+  .ov.chest .chest-stage.sum { grid-template-rows: auto 1fr auto; }
+  .ov.chest .chest-stage.sum .ch-stage { display: none; }
+  .ov.chest .chest-stage.sum .chest-items { grid-column: 1 / -1; grid-row: 2; max-height: 62vh; }
+  .ov.chest .chest-stage.sum #chest-ok { grid-column: 1 / -1; grid-row: 3; }
+}
