@@ -686,7 +686,9 @@ function startWave() {
 
 function spawnEnemy(type, from) {
   const hpMult = G.rules.hp * (1 + (G.map.hpScale - 1) * Math.min(1, G.wave / 6)) * (1 + (G.wave - 1) * 0.12) * (G.mode === 'endless' && G.wave > 20 ? 1 + (G.wave - 20) * 0.06 : 1);
-  const e = createEnemy(type, from ? from.hpMult : hpMult);
+  const variant = type === 'boss' && !from ? MAP_BOSS[G.map.id] : null;
+  const e = createEnemy(variant || type, from ? from.hpMult : hpMult);
+  if (variant) { e.type = 'boss'; e.variant = variant; }
   e.hpMult = from ? from.hpMult : hpMult;
   e.speedMult = (1 + Math.min(G.wave - 1, 14) * 0.02) * G.rules.speed;
   if (from) {
@@ -695,7 +697,7 @@ function spawnEnemy(type, from) {
   } else {
     // maps with a water lane: ships sail it, everything else keeps to the roads
     const water = G.map.water || [];
-    const pool = water.length ? world.paths.filter((_, i) => water.includes(i) === !!ENEMIES[type].naval) : world.paths;
+    const pool = water.length ? world.paths.filter((_, i) => water.includes(i) === !!ENEMIES[variant || type].naval) : world.paths;
     const list = pool.length ? pool : world.paths;
     e.path = list[G.spawnCount++ % list.length];
   }
@@ -1436,6 +1438,13 @@ function updateTurrets(dt) {
     if (t.coils) t.coils.forEach((c, i) => c.scale.setScalar(1 + 0.1 * Math.sin(G.time * 6 - i)));
     for (const a of t.accAnim) a(G.time);
     tickPowers(t, dt);
+    if (t.jamT > 0) {
+      t.jamT -= dt;
+      t.yaw += Math.sin(G.time * 23 + t.plot.index) * 0.03;
+      if (Math.random() < dt * 6) sparks.emit(t.root.getWorldPosition(_pivot).setY(2.2), '#ffd24a', 3, 3, 0.3, 4, 0.2);
+      applyTurretPose(t);
+      continue;
+    }
     if (army.isDeploy(t.type)) { if (!t.manual) army.tick(t, dt); applyTurretPose(t); continue; }
     if (t.manual) { applyTurretPose(t); continue; }
     t.cooldown -= dt * rateBoost(t);
@@ -1784,7 +1793,7 @@ function rayEnemy(maxDist) {
       const tt = _tmp.distanceTo(camera.position);
       if (tt < bestT) { bestT = tt; best = e; weak = true; zone = null; continue; }
     }
-    const hz = HITZONES[e.type]?.head;
+    const hz = HITZONES[e.variant || e.type]?.head;
     if (hz) {
       zoneWorld(e, hz, _sphere);
       if (_ray.intersectSphere(_sphere, _tmp)) {
@@ -1811,7 +1820,7 @@ function zoneWorld(e, z, out) {
 }
 /** Which zone a projectile segment hits first: 'head' | 'limb' | null. */
 function segZone(e, p0, p1, out) {
-  const hz = HITZONES[e.type];
+  const hz = HITZONES[e.variant || e.type];
   if (!hz) return null;
   if (hz.head && segSphere(p0, p1, zoneWorld(e, hz.head, _sphere).center, _sphere.radius, out)) return 'head';
   for (const l of hz.limbs) if (segSphere(p0, p1, zoneWorld(e, l, _sphere).center, _sphere.radius, out)) return 'limb';
@@ -1820,6 +1829,7 @@ function segZone(e, p0, p1, out) {
 
 function manualShot() {
   const t = G.active;
+  if (t.jamT > 0) return;
   const d = TURRETS[t.type];
   const st = t.stats;
   const ms = st.manual;
@@ -3643,7 +3653,7 @@ function aimFriction() {
   let best = 1;
   for (const e of G.enemies) {
     if (!e.alive || e.buried) continue;
-    const hz = HITZONES[e.type]?.head;
+    const hz = HITZONES[e.variant || e.type]?.head;
     if (!hz) continue;
     zoneWorld(e, hz, _ah);
     const to = _ah.center.clone().sub(camera.position);
@@ -3826,7 +3836,9 @@ function wardenCut(e) {
 }
 
 /* ================================================================ Boss fights (G3) */
-const BOSS_NAMES = { valley: 'The Warden of Green', dunes: 'Dune Tyrant', frost: 'Frost Colossus', canyon: 'Canyon Crusher', swamp: 'Bog Hydra', magma: 'Magmaw', neon: 'Neon Leviathan' };
+// map bosses with their own model and mechanic (see updateBoss)
+const MAP_BOSS = { harbor: 'battleship', neon: 'hackerdrone', dunes: 'sandworm' };
+const BOSS_NAMES = { harbor: 'Iron Leviathan', valley: 'The Warden of Green', dunes: 'Sand Worm Shai-Rakh', frost: 'Frost Colossus', canyon: 'Canyon Crusher', swamp: 'Bog Hydra', magma: 'Magmaw', neon: 'Hacker Drone X-0' };
 const CORE_CYCLE = 7.5, CORE_OPEN = 2.5;
 function initBoss(e) {
   e.bossName = (BOSS_NAMES[G.map.id] || 'The Serpent') + (G.enemies.filter((o) => o.type === 'boss').length > 1 ? ' II' : '');
@@ -3845,6 +3857,7 @@ function updateBoss(e, dt) {
   e.wpOpen = open;
   const target = open ? 1.35 + 0.1 * Math.sin(G.time * 12) : 0.55;
   e.wp.scale.setScalar(e.wp.scale.x + (target - e.wp.scale.x) * Math.min(1, dt * 10));
+  bossMechanic(e, dt);
   if (e.phase === 1 && e.hp < e.maxHp * 0.5) {
     e.phase = 2;
     e.speedMult *= 1.1;
@@ -3855,6 +3868,44 @@ function updateBoss(e, dt) {
     G.shake = Math.max(G.shake, 0.7);
     sparks.emit(e.center, '#ff3355', 60, 9, 0.8, 4, 0.6);
     sfx('boom');
+  }
+}
+/* Map boss mechanics: they knock turrets out for a few seconds (jammed turrets can't fire). */
+function jamTurret(t, secs, color, from) {
+  t.jamT = Math.max(t.jamT || 0, secs);
+  const top = t.root.getWorldPosition(new V3()).setY(2.4);
+  if (from) beams.line(from, top, color, 0.08, 0.35);
+  sparks.emit(top, color, 22, 5, 0.5, 5, 0.4);
+  floaty(top.clone().setY(3.4), 'JAMMED', 'miss');
+  if (G.active === t) { G.shake = Math.max(G.shake, 0.35); notify('TURRET JAMMED', `back online in ${Math.ceil(secs)} s`, 1800); }
+}
+function bossMechanic(e, dt) {
+  if (!e.variant) return;
+  const rage = e.phase === 2 ? 0.7 : 1;
+  e.mechT = (e.mechT ?? 4) - dt;
+  const near = (r) => G.turrets.filter((t) => Math.hypot(t.plot.pos.x - e.group.position.x, t.plot.pos.z - e.group.position.z) < r);
+  if (e.variant === 'battleship' && e.mechT <= 0) {
+    // broadside: up to 2 (phase 2: 3) turrets within 22 m
+    e.mechT = 6 * rage;
+    const hit = near(22).sort(() => Math.random() - 0.5).slice(0, e.phase === 2 ? 3 : 2);
+    for (const t of hit) jamTurret(t, 3, '#ff9a3a', e.center.clone().setY(e.center.y + 1));
+    if (hit.length) { sfx('boom'); floaty(e.center.clone().setY(e.center.y + 3), 'BROADSIDE!', 'miss'); }
+  } else if (e.variant === 'hackerdrone' && e.mechT <= 0) {
+    // hacks the nearest turret
+    e.mechT = 7 * rage;
+    const t = near(22).sort((a, b) => a.plot.pos.distanceTo(e.group.position) - b.plot.pos.distanceTo(e.group.position))[0];
+    if (t) { jamTurret(t, 4, '#b46bff', e.center.clone()); sfx('zap'); }
+  } else if (e.variant === 'sandworm') {
+    // bursting up out of the sand knocks nearby turrets out
+    if (e.wasBuried && !e.buried) {
+      const pos = e.group.position.clone();
+      sparks.emit(pos.clone().setY(0.5), '#d8b878', 60, 8, 0.8, 6, 0.6);
+      smoke.emit(pos, '#c8a878', 14, 3, 1.4, -1, 0.6, 3);
+      for (const t of near(7)) jamTurret(t, e.phase === 2 ? 3 : 2, '#e0c080', null);
+      G.shake = Math.max(G.shake, 0.4);
+      sfx('boom');
+    }
+    e.wasBuried = e.buried;
   }
 }
 function updateBossBar() {

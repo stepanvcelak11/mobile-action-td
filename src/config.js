@@ -212,6 +212,10 @@ export const ENEMIES = {
   // Naval (only on maps with a water lane): they sail the canal and shell the base from range.
   gunboat: { name: 'Gunboat', hp: 90, speed: 4.2, reward: 22, damage: 6, radius: 1.1, centerY: 0.6, barY: 2.0, barW: 1.4, wpR: 0.3, lateral: 0.8, cost: 1.8, naval: true, shootsBase: true, shootRange: 16, shot: 2, shotEvery: 2.5 },
   destroyer: { name: 'Destroyer', hp: 420, speed: 2.0, reward: 55, damage: 16, radius: 1.8, centerY: 0.9, barY: 3.2, barW: 2.4, wpR: 0.42, lateral: 0.3, armor: 0.3, cost: 5, naval: true, shootsBase: true, shootRange: 24, shot: 4, shotEvery: 3.2 },
+  // Map bosses: they replace the Behemoth on their map and keep all boss rules (core, phase 2, boss bar).
+  battleship: { name: 'Iron Leviathan', hp: 2600, speed: 1.3, reward: 320, damage: 60, radius: 3.0, centerY: 1.2, barY: 5.0, barW: 4.4, wpR: 0.9, lateral: 0, armor: 0.25, cost: 0, naval: true, shootsBase: true, shootRange: 26, shot: 6, shotEvery: 3, bossOnly: true },
+  hackerdrone: { name: 'Hacker Drone', hp: 1700, speed: 1.6, reward: 300, damage: 45, radius: 2.2, centerY: 4.2, barY: 6.4, barW: 4.0, wpR: 0.8, lateral: 0.5, air: true, armor: 0.1, cost: 0, bossOnly: true },
+  sandworm: { name: 'Sand Worm', hp: 2400, speed: 1.4, reward: 320, damage: 55, radius: 2.4, centerY: 0.9, barY: 4.2, barW: 4.2, wpR: 0.8, lateral: 0, armor: 0.2, burrow: true, cost: 0, bossOnly: true },
   // Season 2: shields itself and heals everything around it.
   aegis: { name: 'Aegis Priest', hp: 260, shield: 160, speed: 2.0, reward: 60, damage: 14, radius: 1.0, centerY: 1.1, barY: 2.9, barW: 1.8, wpR: 0.34, lateral: 0.4, heal: 14, cost: 5.5, minMap: 7 },
 };
@@ -229,6 +233,9 @@ export const ENEMY_TIPS = {
   bomber: 'BOMBERS are armored flyers. Ground-only weapons can\'t touch them.',
   gunboat: 'GUNBOATS sail the canal fast and shell your base once they are in range. Sink them early.',
   destroyer: 'DESTROYERS are armored warships with long-range guns. Hit the glowing engine at the stern.',
+  battleship: 'The IRON LEVIATHAN shells your base and knocks turrets out with broadsides. Its engine room at the stern is the weak spot.',
+  hackerdrone: 'The HACKER DRONE takes over your nearest turret for a few seconds. Shoot the EMP orb under it.',
+  sandworm: 'The SAND WORM dives under the sand and knocks nearby turrets out when it bursts up. Hit its tail.',
   aegis: 'AEGIS PRIESTS carry a shield and heal everyone nearby. Pop the shield on the back core, then go for the head.',
 };
 
@@ -250,6 +257,9 @@ export const HITZONES = {
   bomber: { head: [0, 4.2, 1.2, 0.45], limbs: [[-1.4, 4.3, 0, 0.45], [1.4, 4.3, 0, 0.45]] },
   gunboat: { head: [0, 1.25, -0.2, 0.34], limbs: [] },
   destroyer: { head: [0, 2.2, -0.4, 0.5], limbs: [] },
+  battleship: { head: [0, 1.2, -3.8, 0.9], limbs: [] },
+  hackerdrone: { head: [0, 3.25, 0, 0.7], limbs: [] },
+  sandworm: { head: [0, 0.8, -3.6, 0.8], limbs: [] },
   aegis: { head: [0, 2.05, 0.18, 0.34], limbs: [[-0.34, 0.42, 0, 0.3], [0.34, 0.42, 0, 0.3]] },
 };
 
