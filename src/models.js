@@ -754,7 +754,188 @@ export function buildAegis() {
   return { g, body, legs, wp, bubble, aura, gait: 'walk', parts: [body] };
 }
 
+/* ------------------------------------------------------ H1 boss: Battleship (naval) */
+// Long grey warship: two gun turrets (fore = `tur` swung by the tank gait, aft mirrors it),
+// bridge tower, twin funnels, spinning radar, glowing magazine hatch at the stern = weak point.
+export function buildBattleship() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const hull = mat('#4a5563', { metalness: 0.5, roughness: 0.42 });
+  const hullLow = mat('#7a2a2a', { metalness: 0.3, roughness: 0.6 });
+  const deck = mat('#a89a80', { metalness: 0.1, roughness: 0.8 });
+  const steel = mat('#8a949e', { metalness: 0.7, roughness: 0.35 });
+  const dark = mat('#1e242c', { metalness: 0.5 });
+  const L = 8.0, W = 2.2;
+  const k = kit();
+  k.add(box(W, 0.5, L), hullLow, [0, 0.1, 0]);
+  k.add(box(W, 0.7, L), hull, [0, 0.65, 0]);
+  k.add(cone(W * 0.55, 2.4, 4), hull, [0, 0.55, L / 2 + 1.0], [Math.PI / 2, Math.PI / 4, 0], [1, 1, 0.9]);
+  k.add(box(W * 0.94, 0.08, L + 0.6), deck, [0, 1.04, 0.2]);
+  for (const sx of [-1, 1]) k.add(box(0.06, 0.18, L * 0.9), steel, [sx * W * 0.47, 1.16, 0.2]);
+  // superstructure: stepped bridge tower, mast, yard arm
+  k.add(box(1.5, 0.8, 2.0), hull, [0, 1.45, -0.2]);
+  k.add(box(1.1, 0.7, 1.3), hull, [0, 2.2, -0.1]);
+  k.add(box(1.0, 0.18, 0.08), glow('#ffe8a0'), [0, 2.3, 0.56]);
+  k.add(box(0.7, 0.5, 0.8), dark, [0, 2.8, -0.2]);
+  k.add(cylY(0.06, 0.08, 2.2, 5), dark, [0, 4.0, -0.3]);
+  k.add(box(1.4, 0.06, 0.06), dark, [0, 4.4, -0.3]);
+  // funnels
+  for (const z of [-1.5, -2.3]) {
+    k.add(cylY(0.32, 0.38, 1.2, 8), steel, [0, 1.8, z]);
+    k.add(cylY(0.34, 0.34, 0.12, 8), dark, [0, 2.44, z]);
+  }
+  // secondary guns along the sides
+  for (const sx of [-1, 1]) for (const z of [1.0, -0.6, -1.9]) {
+    k.add(box(0.4, 0.25, 0.4), hull, [sx * 0.85, 1.2, z]);
+    k.add(cylZ(0.04, 0.05, 0.6, 5), dark, [sx * 1.0, 1.25, z + 0.35], [0, sx * 0.5, 0]);
+  }
+  k.add(box(W * 1.02, 0.06, L * 1.04), glow('#ffffff'), [0, 0.05, 0], [0, 0, 0], [1, 0.4, 1]);
+  k.bake(body);
+  eyes(body, '#ffd24a', [[-0.35, 2.3, 0.57], [0.35, 2.3, 0.57]], 0.07);
+  const turret = (z, flip) => {
+    const t = new THREE.Group();
+    t.position.set(0, 1.1, z);
+    if (flip) t.rotation.y = Math.PI;
+    const tk = kit();
+    tk.add(cylY(0.62, 0.7, 0.25, 10), steel, [0, 0.1, 0]);
+    tk.add(box(1.1, 0.5, 1.2), hull, [0, 0.4, -0.05]);
+    tk.add(box(1.14, 0.08, 1.24), dark, [0, 0.68, -0.05]);
+    for (const x of [-0.3, 0, 0.3]) tk.add(cylZ(0.08, 0.1, 1.9, 6), dark, [x, 0.45, 1.3]);
+    tk.bake(t);
+    body.add(t);
+    return t;
+  };
+  const tur = turret(2.2, false);
+  const aft = turret(-3.3, true);
+  const radar = new THREE.Group();
+  radar.position.set(0, 3.3, -0.2);
+  const rk = kit();
+  rk.add(box(1.0, 0.3, 0.06), steel, [0, 0.15, 0]);
+  rk.bake(radar, false);
+  body.add(radar);
+  radar.children[0].onBeforeRender = () => {
+    radar.rotation.y = performance.now() / 500;
+    aft.rotation.y = Math.PI - tur.rotation.y;
+  };
+  const wp = weakPoint(body, box(0.8, 0.3, 0.6), '#ff8a1a', 0, 1.2, -L / 2 + 0.2);
+  const foamM = new THREE.MeshBasicMaterial({ color: '#e8f8ff', transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false });
+  const foam = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.6, L * 0.8), foamM);
+  foam.rotation.x = -Math.PI / 2;
+  foam.position.set(0, 0.06, -L * 0.8);
+  g.add(foam);
+  foam.onBeforeRender = () => { foamM.opacity = 0.35 + 0.2 * Math.sin(performance.now() / 180); };
+  return { g, body, legs: [], wp, tur, gait: 'tank', parts: [body, tur, aft] };
+}
+
+/* ------------------------------------------------- H1 boss: Hacker Drone (air) */
+// Big quad-rotor with a dish antenna and a crackling EMP orb slung underneath (weak point).
+export function buildHackerDrone() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const shell = mat('#2a2f3a', { metalness: 0.6, roughness: 0.35 });
+  const plate = mat('#5a6272', { metalness: 0.65, roughness: 0.3 });
+  const neon = glow('#3af0ff');
+  const Y = 4.2;
+  const k = kit();
+  k.add(sph(0.9, 10, 7), shell, [0, Y, 0], [0, 0, 0], [1.2, 0.5, 1.5]);
+  k.add(box(1.2, 0.2, 1.8), plate, [0, Y + 0.35, 0]);
+  for (let i = 0; i < 6; i++) k.add(box(0.05, 0.05, 1.5), neon, [-0.5 + i * 0.2, Y + 0.47, 0]);
+  k.add(box(1.4, 0.08, 0.08), neon, [0, Y, 1.25]);
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    const cx = Math.cos(a) * 1.8, cz = Math.sin(a) * 1.8;
+    k.add(box(1.9, 0.14, 0.24), plate, [cx / 2, Y + 0.1, cz / 2], [0, -a, 0]);
+    k.add(cylY(0.2, 0.24, 0.3, 8), shell, [cx, Y + 0.15, cz]);
+    k.add(torus(0.8, 0.06, 4, 16), plate, [cx, Y + 0.3, cz], [Math.PI / 2, 0, 0]);
+    k.add(new THREE.CircleGeometry(0.76, 16).rotateX(-Math.PI / 2), blurM, [cx, Y + 0.36, cz]);
+  }
+  // dish antenna on a mast, struts holding the orb
+  k.add(cylY(0.05, 0.07, 1.2, 5), plate, [0, Y + 1.0, -0.4]);
+  k.add(new THREE.CylinderGeometry(0.6, 0.12, 0.3, 12), plate, [0, Y + 1.6, -0.4], [0.5, 0, 0]);
+  k.add(sph(0.08, 6, 4), neon, [0, Y + 1.7, -0.25]);
+  for (const sx of [-1, 1]) k.add(cylY(0.03, 0.03, 0.6, 4), plate, [sx * 0.3, Y - 0.5, 0], [0, 0, sx * 0.3]);
+  k.bake(body);
+  eyes(body, '#ff2a6a', [[-0.35, Y, 1.3], [0.35, Y, 1.3], [0, Y + 0.12, 1.33]], 0.09);
+  const legs = [];
+  const bladeM = mat('#c0c8d0', { metalness: 0.4 });
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    const rotor = new THREE.Group();
+    rotor.position.set(Math.cos(a) * 1.8, Y + 0.34, Math.sin(a) * 1.8);
+    body.add(rotor);
+    const rk = kit();
+    rk.add(box(1.5, 0.03, 0.14), bladeM, [0, 0, 0], [0.12, 0, 0]);
+    rk.bake(rotor, false);
+    legs.push({ pivot: rotor, phase: i });
+  }
+  // EMP orb below with two spinning rings
+  const wp = weakPoint(body, ico(0.45, 1), '#6af0ff', 0, Y - 0.95, 0);
+  const rings = new THREE.Group();
+  rings.position.set(0, Y - 0.95, 0);
+  const ringK = kit();
+  ringK.add(torus(0.7, 0.04, 4, 20), neon, [0, 0, 0], [Math.PI / 2, 0, 0]);
+  ringK.add(torus(0.62, 0.04, 4, 20), neon, [0, 0, 0], [0, 0, 0]);
+  ringK.bake(rings, false);
+  body.add(rings);
+  rings.children[0].onBeforeRender = () => { const t = performance.now() / 1000; rings.rotation.set(t * 2.1, t * 1.3, 0); };
+  return { g, body, legs, wp, gait: 'fly', parts: [body] };
+}
+
+/* ---------------------------------------------------- H1 boss: Sand Worm (burrower) */
+// Armoured segmented worm; the head is a round maw with rotating tooth rings (the `drill`).
+export function buildSandWorm() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const hide = smooth('#b08a5a', { metalness: 0.1, roughness: 0.75 });
+  const plate = mat('#6a4e30', { metalness: 0.3, roughness: 0.6 });
+  const bone = mat('#e8dcc0', { metalness: 0.05, roughness: 0.6 });
+  const legs = [];
+  const N = 7;
+  for (let i = 0; i < N; i++) {
+    const r = 1.0 - i * 0.09;
+    const seg = new THREE.Group();
+    seg.position.set(0, 0.45, 0.2 - i * 1.05);
+    const sk = kit();
+    sk.add(sph(r, 10, 7), hide, [0, 0, 0], [0, 0, 0], [1, 0.95, 0.75]);
+    sk.add(torus(r * 0.98, 0.08, 4, 14), plate, [0, 0, -r * 0.45]);
+    sk.add(box(r * 1.1, 0.14, r * 0.9), plate, [0, r * 0.88, 0], [0.1, 0, 0]);
+    for (const sx of [-1, 1]) sk.add(cone(0.1, 0.45, 4), bone, [sx * r * 0.95, r * 0.35, 0], [0, 0, -sx * 1.1]);
+    sk.add(cone(0.12, 0.5, 4), bone, [0, r * 1.05, 0], [-0.3, 0, 0]);
+    sk.bake(seg);
+    body.add(seg);
+    legs.push({ pivot: seg, phase: i * 0.8 });
+  }
+  // head: collar + dark maw; tooth rings spin (drill)
+  const head = new THREE.Group();
+  head.position.set(0, 0.6, 1.25);
+  const hk = kit();
+  hk.add(cylZ(1.05, 0.95, 0.6, 12), plate, [0, 0, -0.1]);
+  hk.add(torus(0.9, 0.12, 5, 16), hide, [0, 0, 0.22]);
+  hk.add(new THREE.CircleGeometry(0.78, 16), mat('#2a0a0a', { roughness: 1 }), [0, 0, 0.18]);
+  hk.bake(head);
+  body.add(head);
+  const d = new THREE.Group();
+  d.position.set(0, 0.6, 1.5);
+  const dk = kit();
+  for (let ring = 0; ring < 2; ring++) {
+    const rr = 0.72 - ring * 0.3, n = 10 - ring * 4;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      dk.add(cone(0.08, 0.35, 4), bone, [Math.cos(a) * rr, Math.sin(a) * rr, -0.05 - ring * 0.12], [0, 0, a - Math.PI / 2]);
+    }
+  }
+  dk.bake(d);
+  body.add(d);
+  eyes(body, '#ffb03a', [[-0.75, 1.25, 1.2], [0.75, 1.25, 1.2], [-0.55, 1.45, 1.15], [0.55, 1.45, 1.15]], 0.09);
+  const wp = weakPoint(body, sph(0.3, 8, 6), '#ffb03a', 0, 1.0, 0.2 - (N - 1) * 1.05);
+  return { g, body, legs, wp, gait: 'burrow', drill: d, parts: [body, ...legs.map((l) => l.pivot)] };
+}
+
 export const MODEL_BUILDERS = {
+  battleship: buildBattleship, hackerdrone: buildHackerDrone, sandworm: buildSandWorm,
   gunboat: buildGunboat, destroyer: buildDestroyer,
   aegis: buildAegis,
   scout: () => buildScout(), mini: () => buildScout('#e0e85a'), heavy: buildHeavy, drone: buildDrone,
