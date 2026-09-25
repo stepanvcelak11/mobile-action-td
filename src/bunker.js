@@ -558,15 +558,24 @@ export function buildBunker(world, map, target) {
   // the roof and earth are single-sided, so a camera above them still sees into the room)
   const tableCenter = new THREE.Vector3(TX, Y + TH, TZ + 0.1);
   const tDir = new THREE.Vector3(0, -Math.sin(1.12), Math.cos(1.12));
-  function tablePose(aspect) {
+  // zoom (1-3.5x, pinch on the table) moves the camera closer; pan (table-local x/z) slides the
+  // look-at point across the table, clamped so the view never leaves the table top
+  function tablePose(aspect, zoom = 1, pan = null) {
     const fov = aspect < 1 ? 64 : 48;
     const vf = THREE.MathUtils.degToRad(fov) / 2;
     const hf = Math.atan(Math.tan(vf) * aspect);
-    const d = Math.max((TW / 2 + 0.08) / Math.tan(hf), (TD / 2 + 0.12) / Math.tan(vf));
-    const lp = tableCenter.clone().addScaledVector(tDir, -d);
+    const d = Math.max((TW / 2 + 0.08) / Math.tan(hf), (TD / 2 + 0.12) / Math.tan(vf)) / zoom;
+    const c = tableCenter.clone();
+    if (pan) {
+      const mx = (TW / 2) * (1 - 1 / zoom), mz = (TD / 2) * (1 - 1 / zoom);
+      pan.x = THREE.MathUtils.clamp(pan.x, -mx, mx);
+      pan.z = THREE.MathUtils.clamp(pan.z, -mz, mz);
+      c.x += pan.x; c.z += pan.z;
+    }
+    const lp = c.clone().addScaledVector(tDir, -d);
     const o = new THREE.PerspectiveCamera();            // cameras look down -Z: lookAt points the lens
     o.position.copy(g.localToWorld(lp));
-    o.lookAt(g.localToWorld(tableCenter.clone()));
+    o.lookAt(g.localToWorld(c));
     return { pos: o.position.clone(), quat: o.quaternion.clone(), fov };
   }
   // looking through it the mast runs up high: over the base keep and the trees, to see the whole road
@@ -576,7 +585,7 @@ export function buildBunker(world, map, target) {
   return {
     group: g, stations, bounds, blocks, floorY: Y, yaw0: g.rotation.y, toWorld,
     start: new THREE.Vector3(0, Y + EYE, -2.3),
-    tableTop, tablePose, scopePos, scopeHead, mapSign, ceiling,
+    tableTop, tablePose, tableSize: [TW, TD], scopePos, scopeHead, mapSign, ceiling,
     uvToWorld: tmap.uvToWorld, worldToFrac: tmap.worldToFrac, mapRoads: tmap.roads, mapAspect: tmap.aspect,
     drawTable: (G) => tmap.draw(G),
     /** seen from high above (tactical view) the mound turns see-through so it never hides the map */

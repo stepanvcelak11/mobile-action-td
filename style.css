@@ -1225,6 +1225,11 @@ body .ach-toast { top: calc(var(--sat, 0px) + 64px); }
 #bk-tut { position: fixed; left: 50%; top: calc(56px + var(--sat)); transform: translateX(-50%); z-index: 14; display: none; flex-direction: column; align-items: center; gap: 2px; max-width: min(460px, calc(100vw - 32px)); padding: 8px 14px 8px; border-radius: 14px; background: rgba(10, 20, 30, 0.88); border: 2px solid #ffd24a; color: #fff; text-align: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
 body.bunker.ingame #bk-tut { display: flex; }
 body:has(#result.show) #bk-tut, body:has(#bk-picker) #bk-tut { display: none !important; }
+body.bk-table #bunker-ui { touch-action: none; }
+@media (orientation: portrait) {
+  /* on tall phones the tour card sits low on the left, clear of the HUD, the HQ tips and the USE button */
+  #bk-tut { top: auto; bottom: calc(40px + var(--sab)); left: 10px; transform: none; max-width: calc(100vw - 150px); align-items: flex-start; text-align: left; }
+}
 #bk-tut small { font: 900 10px system-ui, sans-serif; letter-spacing: 0.16em; color: #ffd24a; }
 #bk-tut b { font-size: 14px; line-height: 1.25; }
 #bk-tut button { margin-top: 4px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.4); background: transparent; color: rgba(255, 255, 255, 0.8); font: 800 10px system-ui, sans-serif; letter-spacing: 0.1em; cursor: pointer; }

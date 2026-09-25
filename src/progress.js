@@ -4,7 +4,13 @@ import { MAPS, PERKS, TURRETS } from './config.js';
 
 // Test mode keeps its own save with everything unlocked; the real progress stays untouched.
 let sandbox = false;
-try { sandbox = localStorage.getItem('serpentline.mode') === 'sandbox'; } catch { /* private mode */ }
+try {
+  // shortcut for testing on a phone: open the game with ?test=1 (everything unlocked) or ?test=0 (back)
+  const q = new URLSearchParams(location.search).get('test');
+  if (q === '1') localStorage.setItem('serpentline.mode', 'sandbox');
+  else if (q === '0') localStorage.removeItem('serpentline.mode');
+  sandbox = localStorage.getItem('serpentline.mode') === 'sandbox';
+} catch { /* private mode */ }
 export const SANDBOX = sandbox;
 const KEY = SANDBOX ? 'serpentline.sandbox.v1' : 'serpentline.save.v1';
 const COINS_PER_LEVEL = 120;

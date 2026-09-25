@@ -304,7 +304,7 @@ const UP = new V3(0, 1, 0);
 // pinch / wheel to zoom, drag to pan, double-tap to jump in, and an idle zoomed camera follows the fight.
 const CAM = { zoom: 1, pan: new V3(), fit: null, lastInput: -1e9 };
 // command bunker state (see the Command bunker section at the end)
-const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, table: false, blend: 0, near: null, tableT: 0, alarm: 0 };
+const BK = { b: null, pos: new V3(), yaw: 0, pitch: -0.1, jx: 0, jy: 0, scope: false, table: false, blend: 0, near: null, tableT: 0, alarm: 0, tz: 1, tp: { x: 0, z: 0 } };
 // bunker tour (O1) state, see the Command bunker section
 const BT = { step: -1, el: null, arrow: null, start: null };
 const CAM_MAX_ZOOM = 3;
@@ -4169,7 +4169,7 @@ function bunkerPose() {
   const wide = aspect < 1 ? Math.min(112, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(45)) / aspect))) : 78;
   const walk = { pos: BK.scope ? BK.b.scopePos.clone() : BK.pos.clone(), quat: _bkq.clone().setFromEuler(_be), fov: BK.scope ? 20 : wide };
   if (BK.blend <= 0.001) return walk;
-  const t = BK.b.tablePose(aspect), k = ease(Math.min(1, BK.blend));
+  const t = BK.b.tablePose(aspect, BK.tz, BK.tp), k = ease(Math.min(1, BK.blend));
   return { pos: walk.pos.lerp(t.pos, k), quat: walk.quat.slerp(t.quat, k), fov: THREE.MathUtils.lerp(walk.fov, t.fov, k) };
 }
 /** Lean over the map table (camera tilts down to it; taps on the table build/upgrade/aim) or step back. */
@@ -4177,6 +4177,7 @@ function setBunkerTable(on) {
   if (!BK.b || BK.table === on) return;
   BK.table = on;
   BK.scope = false;
+  BK.tz = 1; BK.tp.x = BK.tp.z = 0;
   BK.b.scopeHead.visible = true;
   document.body.classList.remove('bk-scope');
   document.body.classList.toggle('bk-table', on);
@@ -4265,7 +4266,7 @@ function bunkerCamera(dt) {
     use.classList.toggle('back', BK.table || BK.scope);
     $('bk-label').textContent = !best ? 'Walk to a station'
       : BK.scope ? 'PERISCOPE — drag to look around'
-      : BK.table ? 'Tap + on the map to build · tap a turret to upgrade · abilities aim here'
+      : BK.table ? 'Tap + to build · tap a turret to upgrade · pinch to zoom'
       : best.id === 'wave' && !startReady ? 'RADIO — wave in progress' : best.label;
   }
   BK.tableT -= dt;
@@ -4401,17 +4402,53 @@ function openBunkerPicker(kind) {
   $('bk-look').addEventListener('pointerup', endLook);
   $('bk-look').addEventListener('pointercancel', endLook);
   $('bk-use').addEventListener('click', (ev) => { ev.stopPropagation(); bunkerUse(); });
-  let tableTap = null;
+  // on the table: tap = build / upgrade / aim, two fingers = zoom, one finger drag (zoomed in) = pan
+  let tableTap = null, tablePinch = null;
+  const tablePtrs = new Map();
+  const tableUnitsPerPx = () => BK.b.tableSize[0] / BK.tz / viewW();
   ui.addEventListener('pointerdown', (ev) => {
     if (!BK.table || ev.target !== ui) return;
-    tableTap = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: performance.now() };
+    tablePtrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (tablePtrs.size === 2) {
+      tableTap = null;
+      const [a, b] = [...tablePtrs.values()];
+      tablePinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: BK.tz };
+      return;
+    }
+    tableTap = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: performance.now(), moved: false };
   });
-  ui.addEventListener('pointerup', (ev) => {
+  ui.addEventListener('pointermove', (ev) => {
+    if (!BK.table || !tablePtrs.has(ev.pointerId)) return;
+    const prev = tablePtrs.get(ev.pointerId);
+    const cur = { x: ev.clientX, y: ev.clientY };
+    tablePtrs.set(ev.pointerId, cur);
+    if (tablePinch && tablePtrs.size >= 2) {
+      const [a, b] = [...tablePtrs.values()];
+      BK.tz = THREE.MathUtils.clamp(tablePinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / tablePinch.d0, 1, 3.5);
+      return;
+    }
+    if (tableTap && tableTap.id === ev.pointerId && Math.hypot(cur.x - tableTap.x, cur.y - tableTap.y) > 12) tableTap.moved = true;
+    if (tableTap?.moved && BK.tz > 1.02) {
+      const k = tableUnitsPerPx();
+      BK.tp.x += (cur.x - prev.x) * k;          // camera looks along +z: screen right = table -x
+      BK.tp.z += (cur.y - prev.y) * k * 1.15;   // drag down = see further up the table
+    }
+  });
+  const tableEnd = (ev) => {
+    tablePtrs.delete(ev.pointerId);
+    if (tablePtrs.size < 2) tablePinch = null;
     if (!tableTap || tableTap.id !== ev.pointerId) return;
     const tp = tableTap;
     tableTap = null;
-    if (Math.hypot(ev.clientX - tp.x, ev.clientY - tp.y) < 16 && performance.now() - tp.t < 700) onTableTap(ev.clientX, ev.clientY);
-  });
+    if (ev.type === 'pointerup' && !tp.moved && performance.now() - tp.t < 700) onTableTap(ev.clientX, ev.clientY);
+  };
+  ui.addEventListener('pointerup', tableEnd);
+  ui.addEventListener('pointercancel', tableEnd);
+  ui.addEventListener('wheel', (ev) => {
+    if (!BK.table) return;
+    ev.preventDefault();
+    BK.tz = THREE.MathUtils.clamp(BK.tz * Math.exp(-ev.deltaY * 0.0015), 1, 3.5);
+  }, { passive: false });
   const keys = new Set();
   const syncKeys = () => {
     if (G.view !== 'BUNKER') return;
