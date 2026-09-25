@@ -1275,7 +1275,7 @@ export function createEnemy(type, hpMult = 1) {
   const shield = def.shield ? Math.round(def.shield * hpMult) : 0;
   return {
     type, def, group: parts.g, body: parts.body, parts: chunks, legs: parts.legs, wp: parts.wp, tur: parts.tur, gait: parts.gait,
-    bubble: parts.bubble || null, cloth: parts.cloth || null, ice, aura: parts.aura || null, drill: parts.drill || null,
+    bubble: parts.bubble || null, shell: parts.shell || null, cloth: parts.cloth || null, ice, aura: parts.aura || null, drill: parts.drill || null,
     cripple: 0, burrowT: 2 + Math.random() * 2, buried: false, healT: 1.5, markT: 0,
     bar, fill, fillM: fill.material, shieldFill, hp: maxHp, maxHp, shield, maxShield: shield, shieldIdle: 0,
     s: 0, lateral: (Math.random() * 2 - 1) * def.lateral,

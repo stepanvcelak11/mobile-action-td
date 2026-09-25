@@ -217,6 +217,9 @@ export const ENEMIES = {
   hackerdrone: { name: 'Hacker Drone', hp: 1700, speed: 1.6, reward: 300, damage: 45, radius: 2.2, centerY: 4.2, barY: 6.4, barW: 4.0, wpR: 0.8, lateral: 0.5, air: true, armor: 0.1, cost: 0, bossOnly: true },
   sandworm: { name: 'Sand Worm', hp: 2400, speed: 1.4, reward: 320, damage: 55, radius: 2.4, centerY: 0.9, barY: 4.2, barW: 4.2, wpR: 0.8, lateral: 0, armor: 0.2, burrow: true, cost: 0, bossOnly: true },
   // Season 2: shields itself and heals everything around it.
+  mirror: { name: 'Mirror', hp: 120, speed: 2.9, reward: 30, damage: 9, radius: 1.0, centerY: 1.2, barY: 2.6, barW: 1.4, wpR: 0.3, lateral: 0.6, mirror: true, cost: 3, minMap: 3 },
+  carrier: { name: 'Carrier Bug', hp: 170, speed: 2.2, reward: 30, damage: 10, radius: 1.2, centerY: 0.8, barY: 2.0, barW: 1.7, wpR: 0.34, lateral: 0.5, split: 4, splitType: 'microdrone', cost: 4, minMap: 4 },
+  microdrone: { name: 'Micro Drone', hp: 16, speed: 5.6, reward: 4, damage: 2, radius: 0.55, centerY: 2.1, barY: 2.8, barW: 0.8, wpR: 0.2, lateral: 1.4, air: true, cost: 0.5, scale: 0.6 },
   aegis: { name: 'Aegis Priest', hp: 260, shield: 160, speed: 2.0, reward: 60, damage: 14, radius: 1.0, centerY: 1.1, barY: 2.9, barW: 1.8, wpR: 0.34, lateral: 0.4, heal: 14, cost: 5.5, minMap: 7 },
 };
 
@@ -236,6 +239,9 @@ export const ENEMY_TIPS = {
   battleship: 'The IRON LEVIATHAN shells your base and knocks turrets out with broadsides. Its engine room at the stern is the weak spot.',
   hackerdrone: 'The HACKER DRONE takes over your nearest turret for a few seconds. Shoot the EMP orb under it.',
   sandworm: 'The SAND WORM dives under the sand and knocks nearby turrets out when it bursts up. Hit its tail.',
+  mirror: 'MIRRORS bounce the first turret shot straight back and jam that turret for a moment. Crack the mirror shell with a cheap turret first.',
+  carrier: 'CARRIER BUGS release four micro drones when they die. Keep anti-air near the spot where you kill them.',
+  microdrone: 'MICRO DRONES are tiny and fast flyers from a Carrier Bug. Gatling and Rockets clean them up.',
   aegis: 'AEGIS PRIESTS carry a shield and heal everyone nearby. Pop the shield on the back core, then go for the head.',
 };
 
@@ -260,6 +266,9 @@ export const HITZONES = {
   battleship: { head: [0, 1.2, -3.8, 0.9], limbs: [] },
   hackerdrone: { head: [0, 3.25, 0, 0.7], limbs: [] },
   sandworm: { head: [0, 0.8, -3.6, 0.8], limbs: [] },
+  mirror: { head: [0, 2.1, 0.05, 0.28], limbs: [[-0.22, 0.4, 0, 0.26], [0.22, 0.4, 0, 0.26]] },
+  carrier: { head: [0, 0.7, 0.95, 0.36], limbs: [[-0.9, 0.35, 0, 0.35], [0.9, 0.35, 0, 0.35]] },
+  microdrone: { head: [0, 3.4, 0.4, 0.3], limbs: [] },
   aegis: { head: [0, 2.05, 0.18, 0.34], limbs: [[-0.34, 0.42, 0, 0.3], [0.34, 0.42, 0, 0.3]] },
 };
 

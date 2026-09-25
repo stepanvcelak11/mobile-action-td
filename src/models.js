@@ -934,7 +934,103 @@ export function buildSandWorm() {
   return { g, body, legs, wp, gait: 'burrow', drill: d, parts: [body, ...legs.map((l) => l.pivot)] };
 }
 
+/* ------------------------------------------------------------- Mirror */
+// A glassy walker inside a shell of mirror plates. The shell (`shell`) bounces the first turret hit
+// back at the shooter and then shatters — main.js hides it.
+export function buildMirror() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const glass = mat('#d8f4ff', { metalness: 0.3, roughness: 0.15, emissive: '#3a8ac0', emissiveIntensity: 0.55 });
+  const dark = mat('#1c2632', { metalness: 0.6 });
+  const trim = mat('#e8f4ff', { metalness: 0.9, roughness: 0.2 });
+  const k = kit();
+  k.add(new THREE.OctahedronGeometry(0.55, 0), glass, [0, 1.25, 0], [0, 0, 0], [1, 1.35, 0.8]);
+  k.add(box(0.7, 0.18, 0.5), trim, [0, 0.78, 0]);
+  k.add(new THREE.OctahedronGeometry(0.26, 0), glass, [0, 2.1, 0.05]);
+  for (const sx of [-1, 1]) {
+    k.add(box(0.14, 0.6, 0.14), dark, [sx * 0.52, 1.25, 0], [0, 0, sx * 0.25]);
+    k.add(new THREE.OctahedronGeometry(0.12, 0), glass, [sx * 0.64, 0.9, 0.05]);
+  }
+  k.bake(body);
+  eyes(body, '#8fe3ff', [[-0.09, 2.12, 0.23], [0.09, 2.12, 0.23]], 0.05, 6, 4);
+  const legs = [];
+  for (const sx of [-0.22, 0.22]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx, 0.75, 0);
+    body.add(pivot);
+    const lk = kit();
+    lk.add(box(0.14, 0.55, 0.16), dark, [0, -0.28, 0]);
+    lk.add(box(0.2, 0.06, 0.3), trim, [0, -0.58, 0.05]);
+    lk.bake(pivot);
+    legs.push({ pivot, phase: sx > 0 ? Math.PI : 0 });
+  }
+  // mirror shell: six tilted plates orbiting slowly
+  const shell = new THREE.Group();
+  shell.position.y = 1.3;
+  const sk = kit();
+  const plateM = new THREE.MeshStandardMaterial({ color: '#f4fdff', metalness: 0.4, roughness: 0.05, emissive: '#8adcff', emissiveIntensity: 0.7, transparent: true, opacity: 0.8, flatShading: true });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    sk.add(box(0.55, 0.8, 0.04), plateM, [Math.cos(a) * 0.95, (i % 2) * 0.25 - 0.1, Math.sin(a) * 0.95], [0.15, -a + Math.PI / 2, 0]);
+  }
+  sk.bake(shell, false);
+  body.add(shell);
+  shell.children[0].onBeforeRender = () => { shell.rotation.y = performance.now() / 900; };
+  const wp = weakPoint(body, sph(0.16, 8, 6), '#8fe3ff', 0, 1.25, -0.45);
+  return { g, body, legs, wp, shell, gait: 'walk', parts: [body] };
+}
+
+/* -------------------------------------------------------- Carrier Bug */
+// A fat beetle with a hive on its back and four little drones docked on it; they swarm out when it dies.
+export function buildCarrierBug() {
+  const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
+  const shell = smooth('#6a4a8a', { metalness: 0.2, roughness: 0.45 });
+  const hive = mat('#d8a040', { metalness: 0.3, roughness: 0.5 });
+  const dark = mat('#2a2030', { metalness: 0.3 });
+  const k = kit();
+  k.add(sph(0.8, 10, 7), shell, [0, 0.75, -0.1], [0, 0, 0], [1, 0.62, 1.3]);
+  k.add(sph(0.36, 8, 6), dark, [0, 0.7, 0.95], [0, 0, 0], [1.1, 0.8, 1]);
+  for (const sx of [-1, 1]) k.add(cone(0.06, 0.4, 5), dark, [sx * 0.16, 0.62, 1.28], [Math.PI / 2 + 0.2, 0, sx * 0.5]);
+  // hive: hexagonal cells on the back
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const r = i === 6 ? 0 : 0.34;
+    k.add(cylY(0.17, 0.17, 0.22, 6), hive, [Math.cos(a) * r, 1.2, -0.15 + Math.sin(a) * r]);
+  }
+  // docked drones: tiny quads on the hive rim
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i / 4) * Math.PI * 2;
+    const x = Math.cos(a) * 0.62, z = -0.15 + Math.sin(a) * 0.72;
+    k.add(box(0.2, 0.08, 0.26), dark, [x, 1.28, z]);
+    k.add(box(0.36, 0.02, 0.04), mat('#c0c8d0'), [x, 1.36, z], [0, a, 0]);
+    k.add(sph(0.04, 5, 3), glow('#ffd24a'), [x, 1.3, z + 0.13]);
+  }
+  k.bake(body);
+  eyes(body, '#ffd24a', [[-0.14, 0.78, 1.25], [0.14, 0.78, 1.25]], 0.06, 6, 4);
+  const legs = [];
+  for (let i = 0; i < 6; i++) {
+    const side = i < 3 ? -1 : 1;
+    const row = i % 3;
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.6, 0.55, (row - 1) * 0.5);
+    pivot.rotation.y = side * (Math.PI / 2 + (row - 1) * 0.45);
+    pivot.rotation.x = 0.55;
+    body.add(pivot);
+    const lk = kit();
+    lk.add(box(0.1, 0.1, 0.55), dark, [0, 0, 0.27]);
+    lk.add(cone(0.06, 0.5, 4), dark, [0, -0.2, 0.66], [Math.PI / 2 + 0.9, 0, 0]);
+    lk.bake(pivot);
+    legs.push({ pivot, phase: i * 1.7 + (side > 0 ? Math.PI : 0) });
+  }
+  const wp = weakPoint(body, sph(0.2, 8, 6), '#ffd24a', 0, 1.4, -0.15);
+  return { g, body, legs, wp, gait: 'crawl', parts: [body] };
+}
+
 export const MODEL_BUILDERS = {
+  mirror: buildMirror, carrier: buildCarrierBug, microdrone: buildDrone,
   battleship: buildBattleship, hackerdrone: buildHackerDrone, sandworm: buildSandWorm,
   gunboat: buildGunboat, destroyer: buildDestroyer,
   aegis: buildAegis,
