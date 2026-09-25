@@ -691,8 +691,11 @@ function startWave() {
 
 function spawnEnemy(type, from) {
   const hpMult = G.rules.hp * (1 + (G.map.hpScale - 1) * Math.min(1, G.wave / 6)) * (1 + (G.wave - 1) * 0.12) * (G.mode === 'endless' && G.wave > 20 ? 1 + (G.wave - 20) * 0.06 : 1);
-  const variant = type === 'boss' && !from ? MAP_BOSS[G.map.id] : null;
-  const e = createEnemy(variant || type, from ? from.hpMult : hpMult);
+  // the map's own boss is the finale (last boss wave, or every 10th wave in endless); earlier boss waves bring the Behemoth
+  const finale = G.mode === 'endless' ? G.wave % 10 === 0 : G.wave >= Math.max(...(G.map.bosses || [0]), mapWaves());
+  const variant = type === 'boss' && !from && finale ? MAP_BOSS[G.map.id] : null;
+  // bosses grow with the wave only at 60 % of the normal rate, so the first boss of a long map is beatable
+  const e = createEnemy(variant || type, from ? from.hpMult : type === 'boss' ? 1 + (hpMult - 1) * 0.6 : hpMult);
   if (variant) { e.type = 'boss'; e.variant = variant; }
   e.hpMult = from ? from.hpMult : hpMult;
   e.speedMult = (1 + Math.min(G.wave - 1, 14) * 0.02) * G.rules.speed;
@@ -3335,6 +3338,8 @@ window.__game = {
     const v = BK.b.tableTop.localToWorld(new V3((0.5 - fx) * -BK.b.tableTop.geometry.parameters.width, (0.5 - fy) * BK.b.tableTop.geometry.parameters.height, 0)).project(camera);
     return { x: ((v.x + 1) / 2) * viewW(), y: ((1 - v.y) / 2) * viewH() };
   },
+  /** perfreport.js: draw calls and triangles of the last frame */
+  get renderInfo() { return renderer.info.render; },
   get plots() { return world.plots; },
   get world() { return world; },
   plotScreen(i) {
@@ -3991,9 +3996,9 @@ function bossMechanic(e, dt) {
     if (hit.length) { sfx('boom'); floaty(e.center.clone().setY(e.center.y + 3), 'BROADSIDE!', 'miss'); }
   } else if (e.variant === 'hackerdrone' && e.mechT <= 0) {
     // hacks the nearest turret
-    e.mechT = 7 * rage;
+    e.mechT = 8 * rage;
     const t = near(22).sort((a, b) => a.plot.pos.distanceTo(e.group.position) - b.plot.pos.distanceTo(e.group.position))[0];
-    if (t) { jamTurret(t, 4, '#b46bff', e.center.clone()); sfx('zap'); }
+    if (t) { jamTurret(t, 3, '#b46bff', e.center.clone()); sfx('zap'); }
   } else if (e.variant === 'sandworm') {
     // bursting up out of the sand knocks nearby turrets out
     if (e.wasBuried && !e.buried) {

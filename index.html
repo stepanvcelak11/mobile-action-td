@@ -18,6 +18,43 @@
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.min.js" } }
   </script>
+  <!-- fetch every module in parallel instead of one import at a time (faster start on phones) -->
+  <link rel="modulepreload" href="vendor/three.module.min.js">
+  <link rel="modulepreload" href="src/achievements.js">
+  <link rel="modulepreload" href="src/army.js">
+  <link rel="modulepreload" href="src/audio.js">
+  <link rel="modulepreload" href="src/battlemarks.js">
+  <link rel="modulepreload" href="src/bunker.js">
+  <link rel="modulepreload" href="src/campaign.js">
+  <link rel="modulepreload" href="src/clip.js">
+  <link rel="modulepreload" href="src/config.js">
+  <link rel="modulepreload" href="src/daily.js">
+  <link rel="modulepreload" href="src/effects.js">
+  <link rel="modulepreload" href="src/entities.js">
+  <link rel="modulepreload" href="src/icons.js">
+  <link rel="modulepreload" href="src/installhint.js">
+  <link rel="modulepreload" href="src/main.js">
+  <link rel="modulepreload" href="src/merge.js">
+  <link rel="modulepreload" href="src/meta.js">
+  <link rel="modulepreload" href="src/minimap.js">
+  <link rel="modulepreload" href="src/models.js">
+  <link rel="modulepreload" href="src/music.js">
+  <link rel="modulepreload" href="src/perf.js">
+  <link rel="modulepreload" href="src/portraits.js">
+  <link rel="modulepreload" href="src/post.js">
+  <link rel="modulepreload" href="src/powers.js">
+  <link rel="modulepreload" href="src/progress.js">
+  <link rel="modulepreload" href="src/roguelite.js">
+  <link rel="modulepreload" href="src/showcase.js">
+  <link rel="modulepreload" href="src/skill.js">
+  <link rel="modulepreload" href="src/skinfx.js">
+  <link rel="modulepreload" href="src/trees.js">
+  <link rel="modulepreload" href="src/treeview.js">
+  <link rel="modulepreload" href="src/ui.js">
+  <link rel="modulepreload" href="src/viewport.js">
+  <link rel="modulepreload" href="src/perfreport.js">
+  <link rel="modulepreload" href="src/voice.js">
+  <link rel="modulepreload" href="src/world.js">
 </head>
 <body data-theme="dark">
   <div id="loader">
@@ -240,6 +277,7 @@
   <script type="module" src="src/minimap.js"></script>
   <script type="module" src="src/battlemarks.js"></script>
   <script type="module" src="src/voice.js"></script>
+  <script type="module" src="src/perfreport.js"></script>
   <script type="module" src="src/clip.js"></script>
   <script type="module" src="src/skinfx.js"></script>
   <script type="module" src="src/main.js"></script>

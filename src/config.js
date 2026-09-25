@@ -221,8 +221,8 @@ export const ENEMIES = {
   destroyer: { name: 'Destroyer', hp: 420, speed: 2.0, reward: 55, damage: 16, radius: 1.8, centerY: 0.9, barY: 3.2, barW: 2.4, wpR: 0.42, lateral: 0.3, armor: 0.3, cost: 5, naval: true, shootsBase: true, shootRange: 24, shot: 4, shotEvery: 3.2 },
   // Map bosses: they replace the Behemoth on their map and keep all boss rules (core, phase 2, boss bar).
   battleship: { name: 'Iron Leviathan', hp: 2600, speed: 1.3, reward: 320, damage: 60, radius: 3.0, centerY: 1.2, barY: 5.0, barW: 4.4, wpR: 0.9, lateral: 0, armor: 0.25, cost: 0, naval: true, shootsBase: true, shootRange: 26, shot: 6, shotEvery: 3, bossOnly: true },
-  hackerdrone: { name: 'Hacker Drone', hp: 1700, speed: 1.6, reward: 300, damage: 45, radius: 2.2, centerY: 4.2, barY: 6.4, barW: 4.0, wpR: 0.8, lateral: 0.5, air: true, armor: 0.1, cost: 0, bossOnly: true },
-  sandworm: { name: 'Sand Worm', hp: 2400, speed: 1.4, reward: 320, damage: 55, radius: 2.4, centerY: 0.9, barY: 4.2, barW: 4.2, wpR: 0.8, lateral: 0, armor: 0.2, burrow: true, cost: 0, bossOnly: true },
+  hackerdrone: { name: 'Hacker Drone', hp: 1400, speed: 1.6, reward: 300, damage: 45, radius: 2.2, centerY: 4.2, barY: 6.4, barW: 4.0, wpR: 0.8, lateral: 0.5, air: true, armor: 0.1, cost: 0, bossOnly: true },
+  sandworm: { name: 'Sand Worm', hp: 2000, speed: 1.4, reward: 320, damage: 55, radius: 2.4, centerY: 0.9, barY: 4.2, barW: 4.2, wpR: 0.8, lateral: 0, armor: 0.2, burrow: true, cost: 0, bossOnly: true },
   // Season 2: shields itself and heals everything around it.
   mirror: { name: 'Mirror', hp: 120, speed: 2.9, reward: 30, damage: 9, radius: 1.0, centerY: 1.2, barY: 2.6, barW: 1.4, wpR: 0.3, lateral: 0.6, mirror: true, cost: 3, minMap: 3 },
   carrier: { name: 'Carrier Bug', hp: 170, speed: 2.2, reward: 30, damage: 10, radius: 1.2, centerY: 0.8, barY: 2.0, barW: 1.7, wpR: 0.34, lateral: 0.5, split: 4, splitType: 'microdrone', cost: 4, minMap: 4 },
@@ -434,7 +434,7 @@ export const MAPS = [
   },
   {
     id: 'canyon', name: 'Red Canyon', sub: 'Tight switchbacks between the mesas.', theme: 'canyon',
-    waves: 12, bosses: [6, 12], hpScale: 1.2, intro: 3,
+    waves: 12, bosses: [6, 12], hpScale: 1.35, intro: 3,
     roads: [[[-28, 0], [-20, -12], [-10, -4], [-14, 10], [-2, 15], [4, 2], [0, -12], [12, -16], [20, -6], [12, 6], [20, 14], [26, 8]]],
   },
   {
@@ -447,12 +447,12 @@ export const MAPS = [
   },
   {
     id: 'magma', name: 'Magma Core', sub: 'A spiral into the volcano. Bosses everywhere.', theme: 'magma',
-    waves: 15, bosses: [5, 10, 15], hpScale: 1.3, intro: 5,
+    waves: 15, bosses: [5, 10, 15], hpScale: 1.42, intro: 5,
     roads: [[[-28, -17], [-10, -17], [10, -17], [24, -13], [26, 0], [22, 13], [6, 17], [-12, 17], [-24, 10], [-24, -4], [-14, -8], [2, -8], [12, -2], [10, 7], [-2, 8], [-8, 2]]],
   },
   {
     id: 'neon', name: 'Neon Ruins', sub: 'Night assault on a ruined city. Three gates, one base.', theme: 'neon',
-    waves: 18, bosses: [8, 13, 18], hpScale: 1.2, intro: 6, budget: 0.75,
+    waves: 18, bosses: [8, 13, 18], hpScale: 1.0, intro: 6, budget: 0.56, startBonus: 80,
     roads: [
       [[-28, -17], [-16, -17], [-16, -10], [-25, -10], [-25, -3], [-12, -3], [-8, -10], [-2, -6], [2, 0]],
       [[-28, 17], [-16, 17], [-16, 10], [-25, 10], [-25, 3], [-12, 3], [-8, 10], [-2, 6], [2, 0]],
@@ -462,7 +462,7 @@ export const MAPS = [
   // Season 2 · Storm Front
   {
     id: 'jungle', name: 'Jungle Delta', sub: 'Two rivers of enemies braid through the jungle. Aegis Priests shield the swarm.', theme: 'jungle', season: 2,
-    waves: 16, bosses: [8, 16], hpScale: 1.25, intro: 7, budget: 0.8,
+    waves: 16, bosses: [8, 16], hpScale: 1.08, intro: 7, budget: 0.64, startBonus: 120,
     roads: [
       [[-28, -16], [-18, -12], [-20, -2], [-10, 2], [-4, -8], [6, -10], [10, -2], [4, 6], [12, 12], [22, 10]],
       [[-28, 16], [-16, 14], [-8, 10], [4, 6], [12, 12], [22, 10]],
