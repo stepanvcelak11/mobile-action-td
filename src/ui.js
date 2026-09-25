@@ -1101,6 +1101,7 @@ function openSettings() {
       <div class="set-row"><span>Aim assist</span>${seg('aimAssist', [[true, 'ON'], [false, 'OFF']])}<small>The crosshair slows down a little over an enemy's head</small></div>
       <div class="set-row"><span>Cockpit view</span>${seg('cockpit', [[true, 'ON'], [false, 'OFF']])}<small>Sit inside the turret with its frame and dashboard around you</small></div>
       <div class="set-row"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-range="volume"><b id="v-volume">${Math.round(s.volume * 100)}%</b></div>
+      <div class="set-row"><span>Language</span><div class="seg" data-key="lang" data-noi18n><button class="${s.lang === 'cs' ? 'on' : ''}" data-v="cs">ČEŠTINA</button><button class="${s.lang !== 'cs' ? 'on' : ''}" data-v="en">ENGLISH</button></div></div>
       <div class="set-row"><span>Voice lines</span>${seg('voice', [[true, 'ON'], [false, 'OFF']])}<small>Units and the radio call out reloads, grenades, bosses and a base under fire</small></div>
       <div class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.55}" data-range="music"><b id="v-music">${Math.round((s.music ?? 0.55) * 100)}%</b></div>
       <div class="set-row"><span>Graphics</span>${seg('quality', [['auto', 'AUTO'], ['low', 'LOW'], ['medium', 'MID'], ['high', 'HIGH']])}<small>Auto lowers the resolution when your phone struggles</small></div>
@@ -1117,6 +1118,7 @@ function openSettings() {
     let v = b.dataset.v;
     v = v === 'true' ? true : v === 'false' ? false : isNaN(+v) ? v : +v;
     P.settings[key] = v;
+    if (key === 'lang') { save(); setTimeout(() => location.reload(), 150); return; }
     if ((key === 'gyro' || key === 'backTap') && v) handlers.gyro?.();      // must run inside the tap (iPhone permission)
     save();
     applySettings();
