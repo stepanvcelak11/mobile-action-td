@@ -116,18 +116,39 @@ function buildHeli() {
   return { g, body, rotor, tail, legs: [], muzzle2: new THREE.Vector3(0.56, -0.12, 0.85), muzzle: new THREE.Vector3(0, -0.1, 0.9), eye: [0, 0.05, 0.95], camH: 2.2, camBack: 7.0, camSide: 0 };
 }
 function buildJet() {
+  // a proper little fighter: swept delta wings, twin canted tails, side intakes, wingtip missiles,
+  // afterburner flame (scaled by throttle) and nav lights
   const g = new THREE.Group();
   const body = new THREE.Group();
   g.add(body);
-  const blue = mat('#3a7bd5'), dark = mat('#1c2530'), glass = mat('#8fe3ff', { metalness: 0.2, roughness: 0.1, emissive: '#1a5a7a', emissiveIntensity: 0.6 });
-  add(body, new THREE.CylinderGeometry(0.28, 0.4, 3.2, 8).rotateX(Math.PI / 2), blue, 0, 0, 0);
-  add(body, new THREE.ConeGeometry(0.28, 0.9, 8).rotateX(Math.PI / 2), blue, 0, 0, 2.0);
-  add(body, new THREE.SphereGeometry(0.26, 10, 8), glass, 0, 0.24, 0.9).scale.set(1, 0.7, 1.6);
-  add(body, new THREE.BoxGeometry(3.4, 0.06, 1.1), blue, 0, 0, -0.2);
-  add(body, new THREE.BoxGeometry(1.4, 0.05, 0.5), dark, 0, 0.05, -1.4);
-  add(body, new THREE.BoxGeometry(0.06, 0.7, 0.6), dark, 0, 0.35, -1.4);
-  add(body, new THREE.CircleGeometry(0.3, 10), glowM('#ff9a3a'), 0, 0, -1.62, false).rotation.y = Math.PI;
-  return { g, body, legs: [], muzzle: new THREE.Vector3(0, -0.1, 2.3), eye: [0, 0.35, 0.8], camH: 2, camBack: 7, camSide: 0 };
+  const blue = mat('#3a7bd5'), grey = mat('#9aa6b2', { metalness: 0.5 }), dark = mat('#1c2530'), wingM = mat('#3a7bd5', { side: THREE.DoubleSide });
+  const glass = mat('#8fe3ff', { metalness: 0.2, roughness: 0.1, emissive: '#1a5a7a', emissiveIntensity: 0.6 });
+  add(body, new THREE.CylinderGeometry(0.3, 0.42, 3.4, 10).rotateX(Math.PI / 2), blue, 0, 0, -0.1);
+  add(body, new THREE.ConeGeometry(0.3, 1.2, 10).rotateX(Math.PI / 2), grey, 0, 0, 2.2);
+  add(body, new THREE.SphereGeometry(0.27, 12, 8), glass, 0, 0.26, 0.95).scale.set(1, 0.75, 2.0);
+  add(body, new THREE.BoxGeometry(0.5, 0.06, 1.2), dark, 0, -0.34, 0.2);                       // belly strake
+  const wing = new THREE.Shape();
+  wing.moveTo(0, 0.9); wing.lineTo(2.1, -0.9); wing.lineTo(2.1, -1.35); wing.lineTo(0, -1.2); wing.lineTo(0, 0.9);
+  const wg = new THREE.ExtrudeGeometry(wing, { depth: 0.07, bevelEnabled: false });
+  wg.rotateX(Math.PI / 2);
+  for (const sx of [-1, 1]) {
+    const w = add(body, wg, wingM, 0.25 * sx, 0.02, -0.1);
+    w.scale.x = sx;
+    add(body, new THREE.BoxGeometry(0.3, 0.3, 0.9), dark, sx * 0.42, -0.05, 0.5);                // intake
+    add(body, new THREE.CylinderGeometry(0.07, 0.07, 1.3, 6).rotateX(Math.PI / 2), grey, sx * 2.35, -0.02, -0.5); // wingtip missile
+    add(body, new THREE.ConeGeometry(0.07, 0.25, 6).rotateX(Math.PI / 2), mat('#e8e8e8'), sx * 2.35, -0.02, 0.27);
+    const tail = add(body, new THREE.BoxGeometry(0.05, 0.9, 0.75), blue, sx * 0.38, 0.45, -1.35);
+    tail.rotation.z = -sx * 0.3;
+    add(body, new THREE.BoxGeometry(0.9, 0.05, 0.5), blue, sx * 0.62, 0.02, -1.5);               // stabilator
+    add(body, new THREE.SphereGeometry(0.05, 6, 4), glowM(sx < 0 ? '#ff3b3b' : '#3bff6a'), sx * 2.12, 0.04, -1.1, false); // nav lights
+  }
+  add(body, new THREE.CylinderGeometry(0.34, 0.3, 0.3, 10).rotateX(Math.PI / 2), dark, 0, 0, -1.9);  // nozzle
+  const flame = new THREE.Group();
+  flame.position.set(0, 0, -2.05);
+  body.add(flame);
+  add(flame, new THREE.ConeGeometry(0.26, 1.2, 10).rotateX(-Math.PI / 2), glowM('#ff9a3a'), 0, 0, -0.55, false);
+  add(flame, new THREE.ConeGeometry(0.14, 0.8, 8).rotateX(-Math.PI / 2), glowM('#fff0c0'), 0, 0, -0.35, false);
+  return { g, body, flame, legs: [], muzzle: new THREE.Vector3(0, -0.1, 2.6), eye: [0, 0.4, 0.9], camH: 2, camBack: 7, camSide: 0 };
 }
 const BUILD = { soldier: buildSoldier, tank: buildTank, heli: buildHeli, jet: buildJet };
 
@@ -215,7 +236,8 @@ function deploySquad(t, point, dropped) {
   for (let i = 0; i < n; i++) {
     const at = dropped ? point.clone().add(_v2.set((Math.random() - 0.5) * 1.6, 0, (Math.random() - 0.5) * 1.6)) : t.plot.pos.clone().add(_v2.set((i - 1) * 0.8, 0, 1.2));
     const u = spawnUnit(t, kind, at, rally);
-    if (dropped && kind !== 'heli') { u.drop = 0; u.pos.y = 9; u.phase = 'hold'; }
+    if (dropped && !UNITS[kind].air) { u.drop = 0; u.pos.y = 9; u.phase = 'hold'; }
+    if (UNITS[kind].air) u.pos.y = UNITS[kind].alt;           // flyers take off straight to altitude
   }
   if (kind === 'heli') sfxAt('whoosh', 0, 10); else sfxAt('build', 0, 8);
   return n;
@@ -291,7 +313,13 @@ function updateUnit(u, dt, time) {
       const want = _v2.set(rp.x + Math.cos(u.anim) * r, def.alt + Math.sin(time * 1.3 + u.anim) * 0.4, rp.z + Math.sin(u.anim) * r);
       u.pos.lerp(want, Math.min(1, dt * 1.2));
       const face = target ? target.center : want;
+      const y0 = u.yaw;
       u.yaw = lerpAngle(u.yaw, Math.atan2(face.x - u.pos.x, face.z - u.pos.z), dt * 3);
+      if (u.kind === 'jet') {
+        const turn = THREE.MathUtils.clamp(((u.yaw - y0 + Math.PI * 3) % (Math.PI * 2) - Math.PI) / Math.max(dt, 1e-3), -1.4, 1.4);
+        u.roll = (u.roll || 0) + (-turn * 0.55 - (u.roll || 0)) * Math.min(1, dt * 3);
+        u.m.body.rotation.set(0, 0, -u.roll);
+      }
     } else {
       u.blocking = 0;
       if (u.phase === 'rally') {
@@ -574,21 +602,76 @@ function cockpitModel() {
 
 const voice = (line) => window.dispatchEvent(new CustomEvent('sl:voice', { detail: { line } }));
 
-const ctl = { jx: 0, jy: 0, fire: false, alt: false, vert: 0, el: null, stick: null };
+const ctl = { jx: 0, jy: 0, fire: false, alt: false, vert: 0, boost: false, brake: false, el: null, stick: null };
+
+/* ------------------------------------------------------------ jet flight */
+// Arcade flight model: the stick banks (left/right) and pitches (up = climb). Bank turns the jet,
+// throttle eases between brake 0.6x, cruise 1x and boost 1.7x. Below 3 m it pulls up on its own.
+function flyJet(u, dt) {
+  const def = u.def;
+  u.roll = u.roll || 0; u.pitchA = u.pitchA || 0; u.throttle = u.throttle ?? 1;
+  u.roll += (ctl.jx * 1.05 - u.roll) * Math.min(1, dt * 4);
+  let wantPitch = -ctl.jy * 0.55;
+  if (u.pos.y < 3.2) { wantPitch = Math.max(wantPitch, 0.35); u.pullUp = true; } else u.pullUp = false;
+  if (u.pos.y > 30) wantPitch = Math.min(wantPitch, 0);
+  u.pitchA += (wantPitch - u.pitchA) * Math.min(1, dt * 3);
+  const want = ctl.boost ? 1.7 : ctl.brake ? 0.6 : 1;
+  u.throttle += (want - u.throttle) * Math.min(1, dt * 2);
+  u.yaw -= Math.sin(u.roll) * dt * 2.1 * (1.15 - 0.25 * u.throttle);
+  const sp = def.speed * u.throttle * dt, cp = Math.cos(u.pitchA);
+  const nx = u.pos.x + Math.sin(u.yaw) * cp * sp, nz = u.pos.z + Math.cos(u.yaw) * cp * sp;
+  if (Math.abs(nx) < 75 && Math.abs(nz) < 65) { u.pos.x = nx; u.pos.z = nz; } else u.yaw += dt * 2.4; // turn back at the edge
+  u.pos.y = THREE.MathUtils.clamp(u.pos.y + Math.sin(u.pitchA) * sp, 2.5, 30);
+  u.aimYaw = u.yaw;
+  u.aimPitch = u.pitchA - 0.06;
+  u.m.body.rotation.set(-u.pitchA, 0, -u.roll);
+  if (u.m.flame) u.m.flame.scale.set(1, 1, 0.5 + u.throttle * 0.8 + Math.random() * 0.12);
+  // HUD: speed, altitude, artificial horizon, pull-up warning
+  const hud = ctl.el?.querySelector('#ac-hud');
+  if (hud) {
+    hud.hidden = false;
+    hud.querySelector('.hz').style.transform = `rotate(${(-u.roll * 0.75 * 57.3).toFixed(1)}deg) translateY(${(u.pitchA * 120).toFixed(0)}px)`;
+    hud.querySelector('.spd').textContent = `SPD ${Math.round(def.speed * u.throttle * 36)} km/h`;
+    hud.querySelector('.alt').textContent = `ALT ${Math.round(u.pos.y * 10)} m`;
+    hud.classList.toggle('warn', !!u.pullUp);
+  }
+}
+/** Two homing missiles at the enemies nearest the crosshair (flyers included). */
+const missiles = [];
+function fireMissiles(u, s) {
+  H.camera.getWorldDirection(_v);
+  const targets = H.enemies().filter((e) => e.alive && !e.buried && e.center.distanceTo(u.pos) < 55)
+    .map((e) => ({ e, a: _v2.subVectors(e.center, H.camera.position).normalize().angleTo(_v) }))
+    .filter((q) => q.a < 0.6).sort((a, b) => a.a - b.a).slice(0, 2);
+  if (!targets.length) { H.toast?.('No target ahead for the missiles'); return false; }
+  targets.forEach((q, i) => {
+    const from = u.pos.clone().add(_v2.set(i ? 1.2 : -1.2, -0.3, 0).applyAxisAngle(THREE.Object3D.DEFAULT_UP, u.yaw));
+    missiles.push({ pos: from, vel: _v.clone().multiplyScalar(22), target: q.e, t: 0, dmg: s.dmg * 5, st: u.owner.stats });
+  });
+  sfxAt('rocket', 0, 0, 0.1);
+  voice('missile');
+  return true;
+}
+function updateMissiles(dt) {
+  for (let i = missiles.length - 1; i >= 0; i--) {
+    const m = missiles[i];
+    m.t += dt;
+    const aim = m.target.alive ? m.target.center : null;
+    if (aim) m.vel.lerp(_v2.subVectors(aim, m.pos).normalize().multiplyScalar(38), Math.min(1, dt * 5));
+    const prev = m.pos.clone();
+    m.pos.addScaledVector(m.vel, dt);
+    H.beams.line(prev, m.pos, '#ffd0a0', 0.06, 0.25);
+    if ((aim && m.pos.distanceTo(aim) < 1.2) || m.t > 3 || m.pos.y < 0.2) {
+      H.explode(m.pos.clone(), 3, m.dmg, m.st, true, null, false, true);
+      H.spark(m.pos, '#ffb050', 30);
+      H.smoke(m.pos, 6);
+      missiles.splice(i, 1);
+    }
+  }
+}
 function driveControlled(u, dt, s) {
   const def = u.def;
-  if (u.kind === 'jet') {
-    // the jet always flies forward: the stick turns it and changes altitude
-    u.yaw -= ctl.jx * dt * 1.6;
-    u.aimYaw = u.yaw;
-    const sp = def.speed * dt;
-    const nx = u.pos.x + Math.sin(u.yaw) * sp, nz = u.pos.z + Math.cos(u.yaw) * sp;
-    if (Math.abs(nx) < 70 && Math.abs(nz) < 60) { u.pos.x = nx; u.pos.z = nz; } else u.yaw += dt * 2.2; // turn back at the edge
-    u.alt = THREE.MathUtils.clamp((u.alt ?? def.alt) - ctl.jy * dt * 5, 4, 16);
-    u.pos.y += (u.alt - u.pos.y) * Math.min(1, dt * 3);
-    u.m.body.rotation.z = -ctl.jx * 0.6;
-    u.m.body.rotation.x = ctl.jy * 0.25;
-  }
+  if (u.kind === 'jet') flyJet(u, dt);
   // joystick: up = forward in the aim direction
   const f = u.kind === 'jet' ? 0 : -ctl.jy, r = u.kind === 'jet' ? 0 : ctl.jx;
   const st = STANCE[u.stance || 'stand'];
@@ -610,7 +693,7 @@ function driveControlled(u, dt, s) {
     // vertical flight: hold ▲ / ▼ — low and close, never a long-range sniper
     u.alt = THREE.MathUtils.clamp((u.alt ?? def.alt) + ctl.vert * dt * 4.5, 1.6, 14);
     u.pos.y += (u.alt - u.pos.y) * Math.min(1, dt * 3);
-  } else if (def.air) u.pos.y += (def.alt - u.pos.y) * Math.min(1, dt * 2);
+  } else if (def.air && u.kind !== 'jet') u.pos.y += (def.alt - u.pos.y) * Math.min(1, dt * 2);
   const am = AMMO[u.kind];
   if (u.reloadT > 0) { u.reloadT -= dt; if (u.reloadT <= 0) { u.ammo = am.mag; sfx('build'); } }
   const firing2 = ctl.alt && u.m.muzzle2 && !u.hot;
@@ -686,7 +769,11 @@ const ACTS = {
     { id: 'gun', label: 'MINIGUN', key: 'q', hold: 'alt' },
     { id: 'para', label: 'PARA', key: 'g', cd: 14, tap: (u) => paradrop(u) },
   ],
-  jet: [],
+  jet: [
+    { id: 'boost', label: 'BOOST', key: 'q', hold: 'boost' },
+    { id: 'brake', label: 'BRAKE', key: 'e', hold: 'brake' },
+    { id: 'missile', label: 'MISSILES', key: 'g', cd: 6, tap: (u, s) => fireMissiles(u, s) },
+  ],
 };
 function updStance(u) {
   const b = ctl.el?.querySelector('[data-act="stance"] b');
@@ -754,7 +841,8 @@ function buildOverlay() {
     <div class="ac-acts" id="ac-acts"></div>
     <button class="ac-back" id="ac-back" type="button">◀ TOWER</button>
     <div class="ac-name" id="ac-name"></div><div class="ac-cross"></div>
-    <div class="ac-hp"><i id="ac-hp"></i></div>`;
+    <div class="ac-hp"><i id="ac-hp"></i></div>
+    <div class="ac-hud" id="ac-hud" hidden><div class="hz"></div><div class="pitch"></div><span class="spd"></span><span class="alt"></span><b class="pull">PULL UP</b></div>`;
   document.body.appendChild(el);
   ctl.el = el;
   const stick = el.querySelector('#ac-stick');
@@ -864,7 +952,10 @@ function control(u) {
   document.body.classList.toggle('army-ctl', !!u);
   ctl.jx = ctl.jy = 0;
   ctl.fire = false;
+  ctl.boost = ctl.brake = false;
   keys.clear();
+  const hud = ctl.el?.querySelector('#ac-hud');
+  if (hud) hud.hidden = true;
   renderActs(u);
   if (u) {
     const am = AMMO[u.kind];
@@ -905,7 +996,7 @@ export const army = {
     t.rally = nearestOnPaths(point.x, point.z);
     const kind = UNIT_OF[t.type];
     for (const u of units) if (u.owner === t && u !== controlled) { u.path = t.rally.path; u.s = t.rally.s; if (!u.def.air) u.phase = 'rally'; }
-    const n = deploySquad(t, point.clone().setY(0), kind !== 'heli');
+    const n = deploySquad(t, point.clone().setY(0), !UNITS[kind].air);
     if (!n) H.toast?.('Unit limit reached — upgrade the tower for bigger squads');
     H.spark(point.clone().setY(0.2), '#58b4ff', 20);
     return n > 0;
@@ -916,6 +1007,7 @@ export const army = {
     computeBlocks(dt);
     shipsFire(dt);
     updateGrenades(dt);
+    updateMissiles(dt);
     if (controlled?.acd) {
       for (const [id, v] of Object.entries(controlled.acd)) {
         const a = (ACTS[controlled.kind] || []).find((x) => x.id === id);
@@ -963,6 +1055,7 @@ export const army = {
     const bob = u.kind === 'soldier' && u.moving && u.pos.y < 0.01 ? Math.sin(performance.now() / ((u.stance || 'stand') === 'stand' ? 110 : 170)) * (u.stance === 'prone' ? 0.02 : 0.04) : 0;
     cam.position.set(u.pos.x + ex * cb + ez * sb, u.pos.y + ey + bob, u.pos.z - ex * sb + ez * cb);
     cam.lookAt(_v2.copy(cam.position).addScaledVector(dir, 10));
+    if (u.kind === 'jet') cam.rotateZ(-(u.roll || 0) * 0.75);
     const fov = u.kind === 'heli' ? 80 : 75;
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     if (u.kind === 'jet' || u.kind === 'heli') {
@@ -1016,3 +1109,6 @@ export const army = {
   6 updateEnemies: speed 0 when army.blocks(e)
   7 updateCamera, FPV branch first line: if (army.cameraPose(camera)) return;
 */
+
+/** Unit model builders (for previews and tests). */
+export const UNIT_BUILDERS = BUILD;

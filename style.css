@@ -1190,6 +1190,15 @@ body.bk-scope #bunker-ui::after { content: ""; position: fixed; inset: 0; pointe
 .bkp-t b { font-size: 11px; } .bkp-t small { font-size: 10px; color: var(--muted); }
 @media (orientation: portrait) { #bk-help { white-space: normal; width: calc(100vw - 40px); text-align: center; } }
 body.army-ctl #bunker-ui, body.fpv #bunker-ui { display: none !important; }
+/* jet cockpit HUD: artificial horizon, speed and altitude, pull-up warning */
+.ac-hud { position: absolute; left: 50%; top: 50%; width: min(46vw, 320px); height: min(40vh, 220px); transform: translate(-50%, -50%); pointer-events: none; overflow: hidden; border-radius: 12px; }
+.ac-hud .hz { position: absolute; left: -50%; right: -50%; top: 50%; height: 2px; background: rgba(120, 255, 170, 0.8); box-shadow: 0 0 6px rgba(120, 255, 170, 0.6); }
+.ac-hud .pitch { position: absolute; left: 50%; top: 50%; width: 60px; height: 2px; margin-left: -30px; background: none; border-left: 12px solid rgba(120, 255, 170, 0.9); border-right: 12px solid rgba(120, 255, 170, 0.9); }
+.ac-hud .spd, .ac-hud .alt { position: absolute; top: 50%; transform: translateY(-50%); font: 800 12px ui-monospace, monospace; color: #8affb0; text-shadow: 0 0 4px #000; }
+.ac-hud .spd { left: 4px; }
+.ac-hud .alt { right: 4px; }
+.ac-hud .pull { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font: 900 16px system-ui, sans-serif; color: #ff4a4a; letter-spacing: 0.12em; display: none; }
+.ac-hud.warn .pull { display: block; animation: bk-start 0.5s ease-in-out infinite; }
 /* bunker: leaning over the map table (taps go to the table), START button, terminal map */
 body.bk-table #bk-move, body.bk-table #bk-look, body.bk-table #bk-cross, body.bk-table #bk-knob, body.bk-table #bk-help { display: none !important; }
 body.bk-table #bk-label, body.bk-scope #bk-label { top: auto; bottom: calc(14px + var(--sab)); padding: 6px 12px; border-radius: 999px; background: rgba(8, 14, 20, 0.7); font-size: 13px; }
